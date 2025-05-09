@@ -88,7 +88,9 @@ export default function initSquarePlugin(core) {
   
   // Register render function
   hooks.addAction('render', 'square', (ctx, canvas, settings) => {
+    // Return true to indicate the plugin handled rendering
     renderSquare(ctx, canvas, settings);
+    return true;
   });
   
   // Register UI controls
@@ -149,6 +151,17 @@ export default function initSquarePlugin(core) {
     }
   });
   
+  // Handle animation - register with beforeRender hook
+  hooks.addAction('beforeRender', 'square', (ctx, canvas, settings) => {
+    // Let's add some simple animation for demonstration
+    if (settings.animation && state.getState().activePluginId === 'square') {
+      // Update rotation for animation
+      const currentRotation = settings.squareRotation || 0;
+      const newRotation = (currentRotation + 0.5) % 360;
+      window.changeState('settings.squareRotation', newRotation);
+    }
+  });
+  
   console.log("Square plugin initialized");
 }
 
@@ -168,19 +181,14 @@ function renderSquare(ctx, canvas, settings) {
   const borderColor = settings.borderColor || '#000000';
   const borderWidth = settings.borderWidth || 2;
   
-  //console.log("Rendering square with size:", size, "color:", color);
-  
-  // Position in center of canvas
-  const x = canvas.width / 2;
-  const y = canvas.height / 2;
+  // Position in center of canvas (already transformed by camera in 2d-camera environment)
+  const x = 0;
+  const y = 0;
   
   // Save the current context state
   ctx.save();
   
-  // Move to the center position
-  ctx.translate(x, y);
-  
-  // Rotate if needed (convert degrees to radians)
+  // Rotate the square if needed (convert degrees to radians)
   if (rotation) {
     ctx.rotate((rotation * Math.PI) / 180);
   }
@@ -188,7 +196,7 @@ function renderSquare(ctx, canvas, settings) {
   // Set transparency
   ctx.globalAlpha = opacity;
   
-  // Draw the square (centered on the translation point)
+  // Draw the square (centered at 0,0)
   ctx.fillStyle = color;
   ctx.fillRect(-size / 2, -size / 2, size, size);
   

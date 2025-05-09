@@ -5,6 +5,10 @@
   "description": "A simple square visualization plugin for the Math Visualization Framework",
   "author": "Your Name",
   "minFrameworkVersion": "1.0.0",
+  "environment": {
+    "type": "2d-camera",
+    "options": {}
+  },
   "defaultSettings": {
     "squareSize": 100,
     "squareColor": "#156289",

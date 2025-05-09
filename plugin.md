@@ -1,39 +1,45 @@
-# How to Create a Plugin for the Math Visualization Framework
+# How to Create a Plugin
 
-This guide walks you through the process of creating a new visualization plugin for the Math Visualization Framework.
+This guide walks you through creating a custom visualization plugin for the Math Visualization Framework.
 
+## Overview
 
-## Plugin Structure
+Each plugin in the framework consists of:
+1. A directory in `src/plugins/` with the plugin name
+2. An `index.js` file with the plugin implementation
+3. A `manifest.json` file with plugin metadata
 
-Each plugin consists of two main files:
+## Step-by-Step Guide
 
-1. **index.js** - The plugin implementation
-2. **manifest.json** - Plugin metadata and configuration
+### 1. Create Plugin Directory
 
-## Step 1: Create Plugin Directory
-
-Create a new directory for your plugin in the `src/plugins/` folder:
+Create a new directory in the `src/plugins/` folder with your plugin name:
 
 ```
-src/plugins/myVisualization/
+src/plugins/myPlugin/
 ```
 
-## Step 2: Create manifest.json
+### 2. Create manifest.json
 
-Create a `manifest.json` file with the following structure:
+Create a `manifest.json` file with metadata about your plugin:
 
 ```json
 {
-  "id": "myVisualization",
+  "id": "myPlugin",
   "name": "My Visualization",
   "version": "1.0.0",
-  "description": "A custom visualization for the Math Visualization Framework",
+  "description": "A custom visualization plugin",
   "author": "Your Name",
   "minFrameworkVersion": "1.0.0",
+  "environment": {
+    "type": "2d-camera",
+    "options": {}
+  },
   "defaultSettings": {
-    "parameterOne": 100,
-    "parameterTwo": "#ff0000",
-    "parameterThree": 1.0,
+    "size": 100,
+    "color": "#3498db",
+    "opacity": 1.0,
+    "rotation": 0,
     "backgroundColor": "#f5f5f5",
     "showBorder": true,
     "borderColor": "#000000",
@@ -43,12 +49,12 @@ Create a `manifest.json` file with the following structure:
     {
       "id": "structural",
       "label": "Structural Parameters",
-      "settings": ["parameterOne"]
+      "settings": ["size", "rotation"]
     },
     {
       "id": "visual",
       "label": "Visual Parameters",
-      "settings": ["parameterTwo", "parameterThree", "backgroundColor", "showBorder", "borderColor", "borderWidth"]
+      "settings": ["color", "opacity", "backgroundColor", "showBorder", "borderColor", "borderWidth"]
     }
   ],
   "exportOptions": [
@@ -66,21 +72,21 @@ Create a `manifest.json` file with the following structure:
 }
 ```
 
-## Step 3: Create index.js
+### 3. Create index.js
 
-Create an `index.js` file with this basic structure:
+Create an `index.js` file with your plugin implementation:
 
 ```javascript
 /**
  * Plugin entry point
  * @param {Object} core - Core APIs provided by the framework
  */
-export default function initMyVisualizationPlugin(core) {
+export default function initMyPlugin(core) {
   const { hooks, state } = core;
   
-  console.log("Initializing My Visualization plugin");
+  console.log("Initializing My Plugin");
   
-  // Define settings metadata
+  // Define settings metadata - these are YOUR plugin's settings only
   const mySettingsMetadata = {
     // Visual settings
     backgroundColor: { 
@@ -89,15 +95,15 @@ export default function initMyVisualizationPlugin(core) {
       control: 'color', 
       default: '#f5f5f5' 
     },
-    parameterTwo: { 
+    color: { 
       type: 'visual', 
-      label: 'Parameter Two', 
+      label: 'Color', 
       control: 'color', 
-      default: '#ff0000' 
+      default: '#3498db' 
     },
-    parameterThree: { 
+    opacity: { 
       type: 'visual', 
-      label: 'Parameter Three', 
+      label: 'Opacity', 
       control: 'slider', 
       min: 0, 
       max: 1, 
@@ -127,41 +133,53 @@ export default function initMyVisualizationPlugin(core) {
     },
     
     // Structural settings
-    parameterOne: { 
+    size: { 
       type: 'structural', 
-      label: 'Parameter One', 
+      label: 'Size', 
       control: 'slider', 
       min: 10, 
       max: 300, 
       step: 1, 
       default: 100 
+    },
+    rotation: { 
+      type: 'structural', 
+      label: 'Rotation', 
+      control: 'slider', 
+      min: 0, 
+      max: 360, 
+      step: 1, 
+      default: 0 
     }
   };
   
   // Register with visualization system
-  hooks.addFilter('availableVisualizations', 'myVisualization', (visualizations) => {
+  hooks.addFilter('availableVisualizations', 'myPlugin', (visualizations) => {
     return [...visualizations, {
-      id: 'myVisualization',
+      id: 'myPlugin',
       name: 'My Visualization',
       description: 'A custom visualization'
     }];
   });
   
-  // Register render function
-  hooks.addAction('render', 'myVisualization', (ctx, canvas, settings) => {
-    if (state.getState().activePluginId === 'myVisualization') {
+  // Register render function - will be called by the framework
+  hooks.addAction('render', 'myPlugin', (ctx, canvas, settings) => {
+    // Only render if this is the active plugin
+    if (state.getState().activePluginId === 'myPlugin') {
       renderMyVisualization(ctx, canvas, settings);
+      return true; // Indicate we handled the rendering
     }
+    return false; // Not the active plugin
   });
   
   // Register UI controls
-  hooks.addFilter('settingsMetadata', 'myVisualization', (metadata) => {
-    console.log("My Visualization plugin providing settings metadata");
+  hooks.addFilter('settingsMetadata', 'myPlugin', (metadata) => {
+    console.log("My Plugin providing settings metadata");
     return mySettingsMetadata;
   });
   
   // Register export options
-  hooks.addFilter('exportOptions', 'myVisualization', (options) => {
+  hooks.addFilter('exportOptions', 'myPlugin', (options) => {
     return [
       {
         id: 'export-png',
@@ -177,71 +195,97 @@ export default function initMyVisualizationPlugin(core) {
   });
   
   // Register default settings
-  hooks.addFilter('defaultSettings', 'myVisualization', (settings) => {
+  hooks.addFilter('defaultSettings', 'myPlugin', (settings) => {
     return {
-      parameterOne: 100,
-      parameterTwo: '#ff0000',
-      parameterThree: 1.0,
+      size: 100,
+      color: '#3498db',
+      opacity: 1.0,
+      rotation: 0,
       backgroundColor: '#f5f5f5',
       showBorder: true,
       borderColor: '#000000',
-      borderWidth: 2
+      borderWidth: 2,
     };
   });
   
   // Handle setting changes
-  hooks.addAction('onSettingChanged', 'myVisualization', ({ path, value }) => {
-    console.log(`My Visualization plugin: Setting changed ${path} = ${value}`);
+  hooks.addAction('onSettingChanged', 'myPlugin', ({ path, value }) => {
+    console.log(`My Plugin: Setting changed ${path} = ${value}`);
   });
   
   // Register activation handler
-  hooks.addAction('activatePlugin', 'myVisualization', ({ pluginId }) => {
-    if (pluginId === 'myVisualization') {
-      console.log("My Visualization plugin activated");
+  hooks.addAction('activatePlugin', 'myPlugin', ({ pluginId }) => {
+    if (pluginId === 'myPlugin') {
+      console.log("My Plugin activated");
     }
   });
   
-  console.log("My Visualization plugin initialized");
+  // Register deactivation handler
+  hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
+    if (pluginId === 'myPlugin') {
+      console.log("My Plugin deactivated");
+    }
+  });
+  
+  console.log("My Plugin initialized");
 }
 
 /**
- * Render the visualization
+ * Render your visualization
  * @param {CanvasRenderingContext2D} ctx - Canvas context
  * @param {HTMLCanvasElement} canvas - Canvas element
  * @param {Object} settings - Current settings
  */
 function renderMyVisualization(ctx, canvas, settings) {
   // Get properties from settings
-  const paramOne = settings.parameterOne || 100;
-  const paramTwo = settings.parameterTwo || '#ff0000';
-  const paramThree = settings.parameterThree || 1.0;
+  const size = settings.size || 100;
+  const color = settings.color || '#3498db';
+  const opacity = settings.opacity || 1.0;
+  const rotation = settings.rotation || 0;
   const showBorder = settings.showBorder !== undefined ? settings.showBorder : true;
   const borderColor = settings.borderColor || '#000000';
   const borderWidth = settings.borderWidth || 2;
   
-  // Position in center of canvas
-  const x = canvas.width / 2;
-  const y = canvas.height / 2;
+  // For 2d-camera environment, coordinates are relative to (0,0)
+  // as the camera handles the transformation to the center of the canvas
+  const x = 0;
+  const y = 0;
   
   // Save the current context state
   ctx.save();
   
-  // Move to the center position
-  ctx.translate(x, y);
+  // Apply rotation if needed (convert degrees to radians)
+  if (rotation) {
+    ctx.rotate((rotation * Math.PI) / 180);
+  }
   
   // Set transparency
-  ctx.globalAlpha = paramThree;
+  ctx.globalAlpha = opacity;
   
-  // Draw your visualization here
-  // This is just a placeholder - replace with your visualization code
+  // Draw your visualization
+  // Example: Draw a star shape
   ctx.beginPath();
-  ctx.moveTo(0, -paramOne);
-  ctx.lineTo(paramOne, 0);
-  ctx.lineTo(0, paramOne);
-  ctx.lineTo(-paramOne, 0);
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+    const outerX = Math.cos(angle) * size;
+    const outerY = Math.sin(angle) * size;
+    
+    if (i === 0) {
+      ctx.moveTo(outerX, outerY);
+    } else {
+      ctx.lineTo(outerX, outerY);
+    }
+    
+    const innerAngle = angle + Math.PI / 5;
+    const innerX = Math.cos(innerAngle) * (size * 0.4);
+    const innerY = Math.sin(innerAngle) * (size * 0.4);
+    
+    ctx.lineTo(innerX, innerY);
+  }
   ctx.closePath();
   
-  ctx.fillStyle = paramTwo;
+  // Fill with color
+  ctx.fillStyle = color;
   ctx.fill();
   
   // Draw border if enabled
@@ -256,184 +300,367 @@ function renderMyVisualization(ctx, canvas, settings) {
 }
 ```
 
-## Step 4: Register your Plugin
+### 4. Update Plugin Registry
 
-Update the `pluginManager.js` file to include your new plugin:
+You need to update the `pluginManager.js` file to include your new plugin:
 
 1. Import your plugin:
 ```javascript
-import initMyVisualizationPlugin from '../plugins/myVisualization/index.js';
+import initMyPlugin from '../plugins/myPlugin/index.js';
 ```
 
-2. Add your plugin to the PLUGINS array:
+2. Add your plugin to the `PLUGINS` array:
 ```javascript
 const PLUGINS = [
-  // Existing plugins...
+  // ... other plugins
   {
-    id: 'myVisualization',
+    id: 'myPlugin',
     name: 'My Visualization',
     description: 'A custom visualization',
-    init: initMyVisualizationPlugin,
+    init: initMyPlugin,
     manifest: {
       defaultSettings: {
-        parameterOne: 100,
-        parameterTwo: '#ff0000',
-        parameterThree: 1.0,
+        size: 100,
+        color: '#3498db',
+        opacity: 1.0,
+        rotation: 0,
         backgroundColor: '#f5f5f5',
         showBorder: true,
         borderColor: '#000000',
         borderWidth: 2,
+      },
+      environment: {
+        type: '2d-camera',
+        options: {}
       }
     }
   }
 ];
 ```
 
-## Step 5: Test Your Plugin
+## Rendering Environments
 
-1. Open the application in your browser
-2. Your plugin should appear in the visualization dropdown
-3. Select your plugin and check that all controls appear correctly
-4. Test that your visualization renders properly
-5. Verify that UI controls update your visualization
+The framework supports different rendering environments for different types of visualizations. You can specify which environment your plugin requires in its manifest.
+
+### Available Environments
+
+#### 2D Camera Environment (`2d-camera`)
+
+Best for visualizations that need camera navigation:
+
+```json
+"environment": {
+  "type": "2d-camera",
+  "options": {
+    "initialZoom": 1.0
+  }
+}
+```
+
+In this environment, your render function should draw relative to (0,0), as the camera handles positioning.
+
+#### 2D Event Environment (`2d-event`)
+
+Best for interactive visualizations that need to handle user input:
+
+```json
+"environment": {
+  "type": "2d-event",
+  "options": {}
+}
+```
+
+In this environment, you can register event handlers:
+
+```javascript
+// Handle mouse click events
+hooks.addAction('onClick', 'myPlugin', (event) => {
+  // Only handle events if this is the active plugin
+  if (state.getState().activePluginId !== 'myPlugin') return false;
+  
+  const { x, y } = event;
+  // Do something with the click coordinates
+  
+  return true; // Event was handled
+});
+```
+
+#### 3D Camera Environment (`3d-camera`)
+
+For 3D visualizations (currently a placeholder):
+
+```json
+"environment": {
+  "type": "3d-camera",
+  "options": {
+    "cameraPosition": [0, 0, 5],
+    "lookAt": [0, 0, 0]
+  }
+}
+```
+
+## Key Components Explained
+
+### Settings Metadata
+
+Settings metadata defines the UI controls for your plugin's settings. Each setting has:
+
+- **key**: The setting identifier
+- **type**: Category of the setting (visual, structural)
+- **label**: Display name in the UI
+- **control**: Type of control (slider, checkbox, color, etc.)
+- **default**: Default value
+- Additional properties based on the control type (min, max, step, options)
+
+### Hook Points
+
+Your plugin interacts with the framework through these hooks:
+
+#### Action Hooks
+
+- **render**: Draws your visualization
+  ```javascript
+  hooks.addAction('render', 'pluginId', (ctx, canvas, settings) => {
+    // Your rendering code
+    return true; // Return true to indicate rendering was handled
+  });
+  ```
+
+- **activatePlugin**: Called when your plugin is activated
+  ```javascript
+  hooks.addAction('activatePlugin', 'pluginId', ({ pluginId }) => {
+    if (pluginId === 'myPlugin') {
+      // Your activation code
+    }
+  });
+  ```
+
+- **deactivatePlugin**: Called when your plugin is deactivated
+  ```javascript
+  hooks.addAction('deactivatePlugin', 'pluginId', ({ pluginId }) => {
+    if (pluginId === 'myPlugin') {
+      // Your deactivation code
+    }
+  });
+  ```
+
+- **onSettingChanged**: Called when a setting changes
+  ```javascript
+  hooks.addAction('onSettingChanged', 'pluginId', ({ path, value }) => {
+    // React to setting changes
+  });
+  ```
+
+- **Event Hooks** (for 2d-event environment):
+  ```javascript
+  hooks.addAction('onMouseDown', 'pluginId', (event) => {
+    // Handle mouse down event
+    return true; // Return true to indicate the event was handled
+  });
+  ```
+
+#### Filter Hooks
+
+- **settingsMetadata**: Define UI controls for settings
+  ```javascript
+  hooks.addFilter('settingsMetadata', 'pluginId', (metadata) => {
+    return yourSettingsMetadata;
+  });
+  ```
+
+- **defaultSettings**: Set default values for settings
+  ```javascript
+  hooks.addFilter('defaultSettings', 'pluginId', (settings) => {
+    return yourDefaultSettings;
+  });
+  ```
+
+- **exportOptions**: Define export options
+  ```javascript
+  hooks.addFilter('exportOptions', 'pluginId', (options) => {
+    return yourExportOptions;
+  });
+  ```
 
 ## Available Control Types
 
-When defining settings metadata, you can use these control types:
+The framework supports these control types:
 
-- **slider**: Creates a range slider
-  ```javascript
-  {
-    type: 'visual',
-    label: 'Opacity',
-    control: 'slider',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    default: 1.0
-  }
-  ```
+### Slider
+```javascript
+{
+  type: 'visual',
+  label: 'Size',
+  control: 'slider',
+  min: 10,
+  max: 200,
+  step: 1,
+  default: 100
+}
+```
 
-- **checkbox**: Creates a toggle switch
-  ```javascript
-  {
-    type: 'visual',
-    label: 'Show Border',
-    control: 'checkbox',
-    default: true
-  }
-  ```
+### Checkbox
+```javascript
+{
+  type: 'visual',
+  label: 'Show Border',
+  control: 'checkbox',
+  default: true
+}
+```
 
-- **color**: Creates a color picker
-  ```javascript
-  {
-    type: 'visual',
-    label: 'Background Color',
-    control: 'color',
-    default: '#f5f5f5'
-  }
-  ```
+### Color Picker
+```javascript
+{
+  type: 'visual',
+  label: 'Fill Color',
+  control: 'color',
+  default: '#3498db'
+}
+```
 
-- **number**: Creates a number input
-  ```javascript
-  {
-    type: 'structural',
-    label: 'Width',
-    control: 'number',
-    min: 0,
-    max: 1000,
-    step: 1,
-    default: 100
-  }
-  ```
+### Number Input
+```javascript
+{
+  type: 'structural',
+  label: 'Border Width',
+  control: 'number',
+  min: 0,
+  max: 20,
+  step: 1,
+  default: 2
+}
+```
 
-- **dropdown**: Creates a dropdown selector
-  ```javascript
-  {
-    type: 'structural',
-    label: 'Shape Type',
-    control: 'dropdown',
-    options: ['circle', 'square', 'triangle'],
-    default: 'circle'
-  }
-  ```
-
-## Available Hook Points
-
-### Actions (void functions)
-
-- `render`: Called to render the visualization
-- `beforeRender`: Called before rendering starts
-- `afterRender`: Called after rendering completes
-- `onSettingChanged`: Called when a setting changes
-- `activatePlugin`: Called when a plugin is activated
-- `deactivatePlugin`: Called when a plugin is deactivated
-
-### Filters (modify and return data)
-
-- `availableVisualizations`: Add to the list of available visualizations
-- `settingsMetadata`: Define UI controls for settings
-- `defaultSettings`: Set default values for settings
-- `exportOptions`: Define export options
+### Dropdown
+```javascript
+{
+  type: 'structural',
+  label: 'Shape Type',
+  control: 'dropdown',
+  options: ['circle', 'square', 'triangle'],
+  default: 'circle'
+}
+```
 
 ## Best Practices
 
-1. **Unique IDs**: Ensure your plugin ID is unique across the framework
+1. **Unique Plugin ID**: Ensure your plugin ID is unique
 2. **Namespacing**: Use your plugin ID as the namespace for all hooks
-3. **Optimization**: Optimize your rendering code for performance
-4. **Error Handling**: Include error handling in your rendering logic
-5. **Documentation**: Include comments explaining your visualization
-6. **Defaults**: Provide sensible default values for all settings
-7. **Cleanup**: Handle plugin deactivation properly
+3. **Clean Activation/Deactivation**: Properly handle plugin lifecycle
+4. **Resource Cleanup**: Clean up resources on deactivation
+5. **Descriptive Settings**: Use clear labels and appropriate defaults
+6. **Optimized Rendering**: Keep your render function efficient
+7. **Error Handling**: Include error handling in your code
+8. **Active Plugin Check**: Always check if your plugin is active before rendering
+9. **Documentation**: Document your plugin functionality
 
-## Advanced Techniques
+## Troubleshooting
 
-### Animation
+- **Plugin not showing**: Check if it's registered in `pluginManager.js`
+- **Settings not displaying**: Verify your `settingsMetadata` filter
+- **Rendering issues**: Debug your render function with console logs
+- **Settings not applying**: Check your default settings and control types
+- **UI not updating**: Force a UI rebuild through the debug panel
+- **Plugins drawing over each other**: Make sure to check if your plugin is active before rendering
+
+## Example: Animation
 
 To add animation to your visualization:
 
 ```javascript
-hooks.addAction('beforeRender', 'myVisualization', (ctx, canvas, settings) => {
-  if (state.getState().activePluginId === 'myVisualization' && settings.animation) {
-    // Update animation state here
-    const newValue = (settings.animationParameter || 0) + 1;
-    changeState('settings.animationParameter', newValue % 360);
+// In your plugin's init function
+hooks.addAction('beforeRender', 'myPlugin', (ctx, canvas, settings) => {
+  // Only animate if this is the active plugin
+  if (settings.animation && state.getState().activePluginId === 'myPlugin') {
+    // Update animation state
+    const currentRotation = settings.rotation || 0;
+    const newRotation = (currentRotation + 1) % 360;
+    window.changeState('settings.rotation', newRotation);
   }
 });
 ```
 
-### Custom Export Options
+## Example: Custom Export
 
-Add custom export functionality:
+To add a custom export option:
 
 ```javascript
-hooks.addFilter('exportOptions', 'myVisualization', (options) => {
+hooks.addFilter('exportOptions', 'myPlugin', (options) => {
   return [
     ...options,
     {
-      id: 'my-custom-export',
-      label: 'Custom Export',
+      id: 'export-data',
+      label: 'Export Data',
       type: 'export'
     }
   ];
 });
 
-// Handle custom export
-hooks.addAction('exportAction', 'myVisualization', (actionId) => {
-  if (actionId === 'my-custom-export') {
-    // Custom export logic here
-    return true; // Return true to indicate the action was handled
+hooks.addAction('exportAction', 'myPlugin', (actionId) => {
+  if (actionId === 'export-data') {
+    // Handle custom export
+    const data = generateDataFromVisualization();
+    downloadData(data, 'visualization-data.json');
+    return true; // Action handled
   }
-  return false;
+  return false; // Not handled
 });
 ```
 
-## Troubleshooting
+## Example: Interactive Plugin (2D Event Environment)
 
-- **Controls Not Appearing**: Ensure `settingsMetadata` filter is properly implemented
-- **Visualization Not Rendering**: Check the `render` action and verify activation
-- **Settings Not Applied**: Verify `defaultSettings` filter is correct
-- **UI Issues**: Check browser console for errors
-- **Plugin Not Loading**: Verify imports in `pluginManager.js`
+For plugins that need to handle user interactions directly:
 
-For more help, enable the debug panel to inspect the application state and errors.
+```javascript
+// In your manifest.json:
+"environment": {
+  "type": "2d-event",
+  "options": {}
+}
+
+// In your index.js:
+hooks.addAction('onMouseDown', 'myPlugin', (event) => {
+  // Only handle events if this is the active plugin
+  if (state.getState().activePluginId !== 'myPlugin') return false;
+  
+  const { x, y } = event;
+  // Handle mouse down event
+  
+  return true; // Event was handled
+});
+
+hooks.addAction('onMouseMove', 'myPlugin', (event) => {
+  // Only handle events if this is the active plugin
+  if (state.getState().activePluginId !== 'myPlugin') return false;
+  
+  const { x, y } = event;
+  // Handle mouse move event
+  
+  return true; // Event was handled
+});
+```
+
+## Example: 3D Plugin (3D Camera Environment)
+
+For plugins that will use the 3D environment (when fully implemented):
+
+```javascript
+// In your manifest.json:
+"environment": {
+  "type": "3d-camera",
+  "options": {
+    "cameraPosition": [0, 0, 5],
+    "lookAt": [0, 0, 0]
+  }
+}
+
+// In your render function:
+function render3D(scene, camera, renderer, settings) {
+  // Create THREE.js objects
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshBasicMaterial({ color: settings.color });
+  const cube = new THREE.Mesh(geometry, material);
+  scene.add(cube);
+}
+```

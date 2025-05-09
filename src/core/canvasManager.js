@@ -1,10 +1,11 @@
 // src/core/canvasManager.js
-// Manages the canvas and rendering process
+// Updated to work with rendering environments
 
-import { getState, getStateValue } from './stateManager.js';
+import { getState, getStateValue, changeState } from './stateManager.js';
+import { createEnvironment, isEnvironmentTypeSupported } from './renderingEnvironments/environmentFactory.js';
 
 /**
- * Manages canvas creation, rendering, and animation
+ * Manages canvas creation, rendering, and animation with environment support
  */
 export class CanvasManager {
   /**
@@ -25,6 +26,10 @@ export class CanvasManager {
     this.animationId = null;
     this.lastFrameTime = 0;
     this.fps = 0;
+    
+    // Current rendering environment
+    this.currentEnvironment = null;
+    this.environmentType = null;
     
     console.log('Canvas manager initialized');
   }
@@ -65,6 +70,47 @@ export class CanvasManager {
   }
   
   /**
+   * Set up the appropriate rendering environment
+   * @param {string} type - Environment type
+   * @param {Object} options - Environment options
+   */
+  setupEnvironment(type, options = {}) {
+    // Don't change if already using this type
+    if (this.currentEnvironment && this.environmentType === type) {
+      console.log(`Already using environment type: ${type}`);
+      return;
+    }
+    
+    console.log(`Setting up environment type: ${type}`);
+    
+    // Clean up current environment if it exists
+    if (this.currentEnvironment) {
+      console.log(`Disposing current environment: ${this.environmentType}`);
+      this.currentEnvironment.dispose();
+      this.currentEnvironment = null;
+    }
+    
+    // Create new environment
+    if (isEnvironmentTypeSupported(type)) {
+      this.currentEnvironment = createEnvironment(type, this.canvas, options);
+      this.environmentType = type;
+      
+      // Activate the environment
+      this.currentEnvironment.activate();
+      
+      console.log(`Environment ${type} created and activated`);
+    } else {
+      console.error(`Unsupported environment type: ${type}`);
+      // Fall back to 2D camera environment
+      this.currentEnvironment = createEnvironment('2d-camera', this.canvas, options);
+      this.environmentType = '2d-camera';
+    }
+    
+    // Update state
+    changeState('currentEnvironment', this.environmentType);
+  }
+  
+  /**
    * Render the current visualization
    */
   render() {
@@ -83,10 +129,10 @@ export class CanvasManager {
       return;
     }
     
-    //console.log("Canvas render called with settings:", settings);
-    //console.log("Active plugin:", state.activePluginId);
+    // IMPORTANT: Always clear the entire canvas first
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
-    // Clear canvas with background color
+    // Fill with background color
     this.ctx.fillStyle = settings?.backgroundColor || '#f5f5f5';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
@@ -99,16 +145,33 @@ export class CanvasManager {
       return;
     }
     
+    // Prepare for rendering using environment if available
+    let ctx = this.ctx;
+    if (this.currentEnvironment) {
+      ctx = this.currentEnvironment.prepareRender(this.ctx);
+    }
+    
+    // Call before render hook
+    app.hooks.doAction('beforeRender', ctx, this.canvas, settings);
+    
     // Call the render action - this will call the active plugin's render function
-    const rendered = app.hooks.doAction('render', this.ctx, this.canvas, settings);
+    const rendered = app.hooks.doAction('render', ctx, this.canvas, settings);
     
     if (!rendered) {
       // If no plugin handled rendering, show a message
-      this.ctx.fillStyle = '#999';
-      this.ctx.font = '16px Arial';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(`No render handler for plugin: ${state.activePluginId}`, this.canvas.width / 2, this.canvas.height / 2);
+      ctx.fillStyle = '#999';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`No render handler for plugin: ${state.activePluginId}`, this.canvas.width / 2, this.canvas.height / 2);
     }
+    
+    // Complete rendering using environment if available
+    if (this.currentEnvironment) {
+      this.currentEnvironment.completeRender(this.ctx);
+    }
+    
+    // Call after render hook
+    app.hooks.doAction('afterRender', this.ctx, this.canvas, settings);
     
     // Show FPS if enabled
     if (settings?.showFPS) {
@@ -129,6 +192,9 @@ export class CanvasManager {
       this.ctx.font = '12px monospace';
       this.ctx.textAlign = 'left';
       this.ctx.fillText(`Active Plugin: ${state.activePluginId}`, 10, this.canvas.height - 10);
+      
+      // Show current environment
+      this.ctx.fillText(`Environment: ${this.environmentType || 'none'}`, 10, this.canvas.height - 30);
     }
   }
   
@@ -137,8 +203,6 @@ export class CanvasManager {
    */
   startRenderLoop() {
     if (this.animationId) return;
-    
-    //console.log('Starting render loop');
     
     const renderFrame = (timestamp) => {
       // Calculate FPS

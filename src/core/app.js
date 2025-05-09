@@ -1,5 +1,5 @@
 // src/core/app.js
-// Main application controller with UI rebuild fix
+// Updated to support rendering environments for plugins
 
 import { initState, getState, getStateValue, changeState, subscribe } from './stateManager.js';
 import { initializeHooks } from './hooks.js';
@@ -54,6 +54,9 @@ class App {
       availablePlugins: [],
       rebuildUI: false,
       
+      // Environment state
+      currentEnvironment: null,
+      
       // Settings and metadata - these will be plugin-specific
       settings: {},
       settingsMetadata: {},
@@ -83,6 +86,9 @@ class App {
     subscribe('pluginActivated', ({ pluginId }) => {
       this.activePlugin = getStateValue(`plugins.${pluginId}`);
       console.log(`Plugin activated: ${pluginId}`);
+      
+      // Set up environment based on plugin requirements
+      this.setupEnvironmentForPlugin(pluginId);
       
       // Trigger UI rebuild
       changeState('rebuildUI', true);
@@ -125,6 +131,30 @@ class App {
   }
   
   /**
+   * Set up environment based on plugin requirements
+   * @param {string} pluginId - ID of active plugin
+   */
+  setupEnvironmentForPlugin(pluginId) {
+    const plugin = getStateValue(`plugins.${pluginId}`);
+    
+    if (!plugin) {
+      console.error(`Cannot set up environment - plugin ${pluginId} not found`);
+      return;
+    }
+    
+    // Get environment requirements from plugin manifest
+    const environmentType = plugin.manifest?.environment?.type || '2d-camera';
+    const environmentOptions = plugin.manifest?.environment?.options || {};
+    
+    console.log(`Setting up environment for plugin ${pluginId}: ${environmentType}`);
+    
+    // Set up the environment in canvas manager
+    if (this.canvasManager) {
+      this.canvasManager.setupEnvironment(environmentType, environmentOptions);
+    }
+  }
+  
+  /**
    * Rebuild the UI based on current state
    */
   rebuildUI() {
@@ -150,15 +180,20 @@ class App {
     
     console.log(`Cleaning up state for plugin: ${pluginId}`);
     
-    // Reset settings and metadata completely to avoid any leftover settings
-    // IMPORTANT: We do this BEFORE triggering the deactivation hook
+    // Trigger plugin deactivated action BEFORE resetting settings
     // so the hook handler can still access state if needed
+    this.hooks.doAction('deactivatePlugin', { pluginId });
+    
+    // Reset settings and metadata completely to avoid any leftover settings
     changeState('settings', {});
     changeState('settingsMetadata', {});
     changeState('exportOptions', []);
     
-    // Trigger plugin deactivated action
-    this.hooks.doAction('deactivatePlugin', { pluginId });
+    // Ensure the canvas is fully cleared
+    if (this.canvasManager) {
+      const ctx = this.canvasManager.ctx;
+      ctx.clearRect(0, 0, this.canvasManager.canvas.width, this.canvasManager.canvas.height);
+    }
     
     // Store as previous plugin
     changeState('previousPluginId', pluginId);
@@ -229,6 +264,9 @@ class App {
       }
     }
     
+    // Set up environment based on plugin requirements
+    this.setupEnvironmentForPlugin(pluginId);
+    
     // Trigger plugin activated action
     this.hooks.doAction('activatePlugin', { pluginId });
     
@@ -257,6 +295,19 @@ class App {
     if (!plugin.id) {
       console.error('Cannot register plugin without an ID');
       return;
+    }
+    
+    // Ensure plugin has a manifest
+    if (!plugin.manifest) {
+      plugin.manifest = {};
+    }
+    
+    // Ensure manifest has environment field
+    if (!plugin.manifest.environment) {
+      plugin.manifest.environment = {
+        type: '2d-camera',
+        options: {}
+      };
     }
     
     // Store plugin in state

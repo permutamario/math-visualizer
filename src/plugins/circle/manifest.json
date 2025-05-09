@@ -5,6 +5,10 @@
   "description": "A sectioned circle visualization plugin for the Math Visualization Framework",
   "author": "Your Name",
   "minFrameworkVersion": "1.0.0",
+  "environment": {
+    "type": "2d-event",
+    "options": {}
+  },
   "defaultSettings": {
     "circleRadius": 100,
     "circleColor": "#4285f4",

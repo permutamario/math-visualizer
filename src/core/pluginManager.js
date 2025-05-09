@@ -1,5 +1,5 @@
 // src/core/pluginManager.js
-// Handles discovery, loading, and management of plugins with strict isolation
+// Updated to include environment settings in plugin manifests
 
 import { getState } from './stateManager.js';
 import { showNotification } from './utils.js';
@@ -11,8 +11,11 @@ const PLUGIN_DIRECTORIES = ['./src/plugins'];
 // In a more dynamic implementation, these would be loaded from filesystem
 import initSquarePlugin from '../plugins/square/index.js';
 import initCirclePlugin from '../plugins/circle/index.js';
+import initCubePlugin from '../plugins/cube/index.js';
+import initInteractivePlugin from '../plugins/interactive/index.js';
 
 // Plugin registry - in a real implementation, this would be populated dynamically
+// Now includes environment settings
 const PLUGINS = [
   {
     id: 'square',
@@ -29,24 +32,77 @@ const PLUGINS = [
         showBorder: true,
         borderColor: '#000000',
         borderWidth: 2,
+      },
+      environment: {
+        type: '2d-camera',
+        options: {}
       }
     }
   },
   {
     id: 'circle',
     name: 'Circle Visualization',
-    description: 'A sectioned circle visualization',
+    description: 'A sectioned circle visualization with interaction',
     init: initCirclePlugin,
     manifest: {
       defaultSettings: {
         circleRadius: 100,
         circleColor: '#4285f4',
         circleOpacity: 1.0,
-        circleSections: 1,
+        circleSections: 4,
         backgroundColor: '#f5f5f5',
         showBorder: true,
         borderColor: '#000000',
         borderWidth: 2,
+        highlightColor: '#ff5722',
+        animation: false
+      },
+      environment: {
+        type: '2d-event',
+        options: {}
+      }
+    }
+  },
+  {
+    id: 'cube',
+    name: '3D Cube Visualization',
+    description: 'A 3D cube visualization with camera controls',
+    init: initCubePlugin,
+    manifest: {
+      defaultSettings: {
+        cubeSize: 100,
+        cubeColor: '#3498db',
+        opacity: 1.0,
+        wireframe: true,
+        wireframeColor: '#000000',
+        rotation: true,
+        backgroundColor: '#f5f5f5'
+      },
+      environment: {
+        type: '3d-camera',
+        options: {
+          cameraPosition: [0, 0, 5],
+          lookAt: [0, 0, 0]
+        }
+      }
+    }
+  },
+  {
+    id: 'interactive',
+    name: 'Interactive Shapes',
+    description: 'Interactive shapes that can be clicked and dragged',
+    init: initInteractivePlugin,
+    manifest: {
+      defaultSettings: {
+        defaultColor: '#3498db',
+        selectedColor: '#e74c3c',
+        snapToGrid: false,
+        gridSize: 20,
+        backgroundColor: '#f5f5f5'
+      },
+      environment: {
+        type: '2d-event',
+        options: {}
       }
     }
   }
@@ -81,6 +137,15 @@ export async function loadPlugins() {
 
     for (const plugin of PLUGINS) {
       console.log(`Registering plugin: ${plugin.id}`);
+      
+      // Make sure the plugin has environment settings
+      if (!plugin.manifest.environment) {
+        console.log(`No environment specified for plugin ${plugin.id}, defaulting to 2d-camera`);
+        plugin.manifest.environment = {
+          type: '2d-camera',
+          options: {}
+        };
+      }
       
       // Register the plugin with the app (but don't activate it yet)
       app.registerPlugin(plugin);
@@ -138,7 +203,8 @@ async function discoverPlugins() {
     id: plugin.id,
     name: plugin.name,
     description: plugin.description,
-    path: `./src/plugins/${plugin.id}/`
+    path: `./src/plugins/${plugin.id}/`,
+    environment: plugin.manifest?.environment || { type: '2d-camera', options: {} }
   }));
 }
 
