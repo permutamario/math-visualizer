@@ -123,6 +123,6 @@ async function main() {
 
 // Start the application after page is loaded
 window.addEventListener('DOMContentLoaded', () => {
-  console.log("DOM content loaded, starting application");
   main();
 });
+
