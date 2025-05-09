@@ -1,12 +1,8 @@
 // src/core/renderingEnvironments/3dCameraEnvironment.js
 import { BaseEnvironment } from './baseEnvironment.js';
 
-// The correct way to import camera-controls
-import CameraControlsFactory from '../../../vendors/cameraControls3d/camera-controls.module.js';
-
 /**
  * 3D environment with THREE.js using CameraControls
- * Properly initializes CameraControls with THREE
  */
 export class Camera3DEnvironment extends BaseEnvironment {
     /**
@@ -33,6 +29,22 @@ export class Camera3DEnvironment extends BaseEnvironment {
     }
     
     /**
+     * Check if WebGL is available
+     * @returns {boolean} - True if WebGL is supported
+     */
+    isWebGLAvailable() {
+        try {
+            // Create a temporary canvas to test WebGL support
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || 
+                      canvas.getContext('experimental-webgl');
+            return gl instanceof WebGLRenderingContext;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    /**
      * Initialize the 3D environment
      * @returns {boolean} - Whether initialization was successful
      */
@@ -41,18 +53,25 @@ export class Camera3DEnvironment extends BaseEnvironment {
         
         console.log('Initializing 3D environment with CameraControls...');
         
+        // Check if WebGL is supported
+        if (!this.isWebGLAvailable()) {
+            console.error('WebGL is not supported in this browser');
+            return false;
+        }
+        
         // Verify THREE.js is available
         if (typeof THREE === 'undefined') {
             console.error('THREE is not defined. Make sure it is loaded before this code runs.');
             return false;
         }
         
+        // Verify CameraControls is available
+        if (typeof CameraControls === 'undefined') {
+            console.error('CameraControls is not defined. Make sure it is loaded before this code runs.');
+            return false;
+        }
+        
         try {
-            // CRITICAL STEP: Initialize CameraControls with THREE
-            // This must be done before creating any instances
-            CameraControlsFactory.install({ THREE: THREE });
-            console.log('CameraControls successfully installed with THREE');
-            
             // Create scene
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0xf0f0f0);
@@ -72,9 +91,27 @@ export class Camera3DEnvironment extends BaseEnvironment {
                 this.cameraPosition[2]
             );
             
-            // Create renderer - let THREE.js handle context creation
+            // CRITICAL FIX: Create a new canvas for WebGL rendering instead of reusing the existing one
+            // This ensures we don't try to create a WebGL context on a canvas that already has another context
+            const newCanvas = document.createElement('canvas');
+            newCanvas.width = this.canvas.width;
+            newCanvas.height = this.canvas.height;
+            newCanvas.style.position = 'absolute';
+            newCanvas.style.top = '0';
+            newCanvas.style.left = '0';
+            newCanvas.style.width = '100%';
+            newCanvas.style.height = '100%';
+            
+            // Add the new canvas to the container right after the original canvas
+            if (this.canvas.parentNode) {
+                this.canvas.parentNode.appendChild(newCanvas);
+            } else {
+                document.body.appendChild(newCanvas);
+            }
+            
+            // Create renderer using the new canvas
             this.renderer = new THREE.WebGLRenderer({
-                canvas: this.canvas,
+                canvas: newCanvas,
                 antialias: true,
                 alpha: true
             });
@@ -84,7 +121,7 @@ export class Camera3DEnvironment extends BaseEnvironment {
                 return false;
             }
             
-            this.renderer.setSize(this.canvas.width, this.canvas.height);
+            this.renderer.setSize(newCanvas.width, newCanvas.height);
             this.renderer.setPixelRatio(window.devicePixelRatio);
             
             // Create clock for animation timing
@@ -116,17 +153,21 @@ export class Camera3DEnvironment extends BaseEnvironment {
             try {
                 console.log('Creating CameraControls instance...');
                 // Create a CameraControls instance
-                this.controls = new CameraControlsFactory(this.camera, this.canvas);
+                this.controls = new CameraControls(this.camera, this.renderer.domElement);
                 
                 // Set control properties
                 this.controls.dampingFactor = 0.05;
                 this.controls.draggingDampingFactor = 0.25;
                 
                 // Set target
-                this.controls.setTarget(
+                this.controls.setLookAt(
+                    this.camera.position.x,
+                    this.camera.position.y,
+                    this.camera.position.z,
                     this.lookAt[0], 
                     this.lookAt[1], 
-                    this.lookAt[2]
+                    this.lookAt[2],
+                    true // Animate to position
                 );
                 
                 console.log('CameraControls instance created successfully');
@@ -167,6 +208,7 @@ export class Camera3DEnvironment extends BaseEnvironment {
                     this.camera.position.z = Math.cos(time * 0.25) * 5;
                     this.camera.lookAt(0, 0, 0);
                 }
+                return true; // Always request a render
             },
             dispose: () => {}
         };
@@ -217,12 +259,15 @@ export class Camera3DEnvironment extends BaseEnvironment {
         // Update controls
         if (this.controls && typeof this.controls.update === 'function') {
             // For camera-controls, we need to pass delta time
-            const delta = this.clock ? this.clock.getDelta() : 0;
-            this.controls.update(delta);
-        }
-        
-        // Render the scene
-        if (this.renderer && this.scene && this.camera) {
+            const delta = this.clock ? this.clock.getDelta() : 0.016;
+            const updated = this.controls.update(delta);
+            
+            // Only render if controls were updated or animation is happening
+            if (updated || this.cube) {
+                this.renderer.render(this.scene, this.camera);
+            }
+        } else {
+            // Render anyway if no controls
             this.renderer.render(this.scene, this.camera);
         }
         
@@ -242,6 +287,11 @@ export class Camera3DEnvironment extends BaseEnvironment {
             this.animationId = null;
         }
         
+        // Hide the renderer's canvas
+        if (this.renderer && this.renderer.domElement) {
+            this.renderer.domElement.style.display = 'none';
+        }
+        
         super.deactivate();
         console.log('3D environment deactivated');
     }
@@ -252,10 +302,19 @@ export class Camera3DEnvironment extends BaseEnvironment {
     handleResize() {
         if (!this.active || !this.camera || !this.renderer) return;
         
-        this.camera.aspect = this.canvas.width / this.canvas.height;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         
-        this.renderer.setSize(this.canvas.width, this.canvas.height);
+        this.renderer.setSize(width, height);
+        
+        // Update controls if needed
+        if (this.controls && typeof this.controls.updateCameraUp === 'function') {
+            this.controls.updateCameraUp();
+        }
+        
         console.log('3D environment resized');
     }
     
@@ -264,6 +323,11 @@ export class Camera3DEnvironment extends BaseEnvironment {
      */
     dispose() {
         this.deactivate();
+        
+        // Remove the renderer's canvas from the DOM
+        if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentNode) {
+            this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+        }
         
         // Clean up THREE.js resources
         if (this.renderer) {

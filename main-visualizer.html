@@ -52,16 +52,32 @@
     <p class="loading-text">Loading plugins...</p>
   </div>
   
-  <!-- Bootstrap dependency that's required for the 3D environment -->
+  <!-- Initialize THREE.js and CameraControls first -->
   <script type="module">
-    // Make THREE.js global for camera-controls to find it
+    // Import THREE.js and make it available globally
     import * as THREE from './vendors/three.module.js';
     window.THREE = THREE;
+    console.log('THREE.js loaded successfully');
     
-    // Add any other global setup needed before the application runs
+    // Import CameraControls and make it available globally
+    // Use the path that worked in the test
+    import CameraControls from './vendors/cameraControls3d/camera-controls.module.js';
+    window.CameraControls = CameraControls;
+    console.log('CameraControls loaded successfully');
+    
+    // Initialize CameraControls with THREE
+    try {
+      CameraControls.install({ THREE });
+      console.log('CameraControls initialized with THREE.js successfully');
+      
+      // Now that libraries are loaded and initialized, we can start the application
+      console.log('Starting application...');
+    } catch (error) {
+      console.error('Failed to initialize CameraControls:', error);
+    }
   </script>
   
-  <!-- Application entry point -->
+  <!-- Application entry point - load this AFTER the THREE initialization -->
   <script type="module" src="./src/index.js"></script>
 </body>
 </html>

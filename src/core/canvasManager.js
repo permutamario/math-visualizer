@@ -30,6 +30,7 @@ export class CanvasManager {
     // Current rendering environment
     this.currentEnvironment = null;
     this.environmentType = null;
+    this.ctx = null;
     
     console.log('Canvas manager initialized');
   }
@@ -51,9 +52,8 @@ export class CanvasManager {
     this.canvas.style.border = '1px solid rgba(0,0,0,0.1)';
     this.container.appendChild(this.canvas);
 
-    // We'll get the appropriate context later based on the environment type
-    // For now, use 2D as default
-    this.ctx = this.canvas.getContext('2d');
+    // Don't get a context here - let the environment handle it
+    // The context will be created by setupEnvironment based on environment type
     
     console.log('Canvas created with dimensions:', this.canvas.width, 'x', this.canvas.height);
   }
@@ -105,6 +105,15 @@ export class CanvasManager {
       type = '2d-camera';
     }
 
+    // Reset canvas context
+    this.ctx = null;
+
+    // For 2D environments, get a 2D context
+    if (type === '2d-camera' || type === '2d-event') {
+      this.ctx = this.canvas.getContext('2d');
+    }
+    // For 3D, don't get a context - let THREE.js handle it
+
     // Create new environment
     this.currentEnvironment = createEnvironment(type, this.canvas, options);
     
@@ -129,6 +138,8 @@ export class CanvasManager {
       // Fall back to 2D
       this.environmentType = '2d-camera';
       this.currentEnvironment = createEnvironment('2d-camera', this.canvas, options);
+      // Now get a 2D context
+      this.ctx = this.canvas.getContext('2d');
       this.currentEnvironment.activate();
       
       // Notify that we're using 2D instead
@@ -168,9 +179,15 @@ export class CanvasManager {
 
     // For 2D environments, handle rendering here
     if (!this.ctx) {
-      this.ctx = this.canvas.getContext('2d');
-      if (!this.ctx) {
-        console.error('Cannot get 2D context for rendering');
+      // Only try to get a 2D context for 2D environments
+      if (this.environmentType === '2d-camera' || this.environmentType === '2d-event') {
+        this.ctx = this.canvas.getContext('2d');
+        if (!this.ctx) {
+          console.error('Cannot get 2D context for rendering');
+          return;
+        }
+      } else {
+        // For 3D environments, just return as rendering is handled by the environment
         return;
       }
     }

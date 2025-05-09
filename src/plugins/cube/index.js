@@ -76,17 +76,6 @@ export default function initCubePlugin(core) {
     }];
   });
   
-  // Register environment requirements
-  hooks.addFilter('environmentRequirements', 'cube', () => {
-    return {
-      type: '3d-camera',
-      options: {
-        cameraPosition: [0, 0, 5],
-        lookAt: [0, 0, 0]
-      }
-    };
-  });
-  
   // Register settings metadata
   hooks.addFilter('settingsMetadata', 'cube', (metadata) => {
     // Only return metadata for the cube plugin
@@ -174,19 +163,18 @@ export default function initCubePlugin(core) {
           settings.backgroundColor || '#f5f5f5'
         );
       }
-      
-      // Add before render hook for animation
-      hooks.addAction('beforeRender', 'cubeAnimation', (ctx, canvas, settings) => {
-        if (state.getState().activePluginId !== 'cube') return;
-        
-        // Animate the cube if rotation is enabled
-        if (cube && settings.rotation) {
-          cube.rotation.x += 0.01;
-          cube.rotation.y += 0.01;
-        }
-      });
     } else {
       console.warn('THREE.js environment not available for cube plugin');
+    }
+  });
+  
+  // Register animation function - USING BEFORERENDER HOOK INSTEAD OF A CUSTOM ANIMATION HOOK
+  hooks.addAction('beforeRender', 'cube', (ctx, canvas, settings) => {
+    // Only run if cube plugin is active and rotation is enabled
+    if (state.getState().activePluginId === 'cube' && settings.rotation && cube) {
+      // Animate the cube
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
     }
   });
   
@@ -204,8 +192,7 @@ export default function initCubePlugin(core) {
       cube = null;
     }
     
-    // Remove animation hook
-    hooks.removeAction('beforeRender', 'cubeAnimation');
+    // No need to remove hooks - just let them stay registered but inactive
   });
   
   // Handle setting changes

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THREE.js and Camera Controls Test</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      font-family: monospace;
+      max-width: 400px;
+      z-index: 100;
+    }
+    #error {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,0,0,0.7);
+      color: white;
+      padding: 20px;
+      border-radius: 5px;
+      font-family: sans-serif;
+      text-align: center;
+      z-index: 100;
+    }
+    #importOptions {
+      margin-top: 20px;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 5px;
+    }
+    button {
+      margin: 5px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <h2>THREE.js and Camera Controls Test</h2>
+    <p>This page tests if THREE.js and camera controls are working properly.</p>
+    <p>Choose an import method to test:</p>
+    <div id="importOptions">
+      <button id="testOriginal">Test with Original Path</button>
+      <button id="testAlt1">Test with Alternative Path 1</button>
+      <button id="testAlt2">Test with Alternative Path 2</button>
+      <button id="testGlobal">Test with Global Script</button>
+    </div>
+    <div id="debug">Select a test method above...</div>
+  </div>
+
+  <!-- Global script loading option for testing -->
+  <script id="globalThree" src="./vendors/three.module.js" type="module"></script>
+  <!-- Will be dynamically added if selected -->
+  <script id="globalControls"></script>
+
+  <script type="module">
+    // Debug element for logging
+    const debugElement = document.getElementById('debug');
+    let errorElement = null;
+    let scene, camera, renderer, controls, cube;
+    let animationId = null;
+    
+    // Log information to the debug element
+    function log(message) {
+      debugElement.innerHTML += message + '<br>';
+      console.log(message);
+    }
+
+    // Show error message
+    function showError(message) {
+      if (!errorElement) {
+        errorElement = document.createElement('div');
+        errorElement.id = 'error';
+        document.body.appendChild(errorElement);
+      }
+      errorElement.innerHTML = '<h3>Error</h3><p>' + message + '</p>';
+      log('ERROR: ' + message);
+    }
+
+    // Clean up previous test
+    function cleanup() {
+      // Cancel animation frame
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      
+      // Remove canvas if it exists
+      if (renderer && renderer.domElement) {
+        document.body.removeChild(renderer.domElement);
+      }
+      
+      // Remove error message if it exists
+      if (errorElement && errorElement.parentNode) {
+        errorElement.parentNode.removeChild(errorElement);
+        errorElement = null;
+      }
+      
+      // Clear debug log
+      debugElement.innerHTML = '';
+      
+      // Reset variables
+      scene = camera = renderer = controls = cube = null;
+    }
+
+    // Test with original path
+    async function testOriginalPath() {
+      cleanup();
+      log('Testing with original path from your code...');
+      
+      try {
+        // Import THREE
+        const THREE = await import('./vendors/three.module.js');
+        log('✅ THREE.js loaded successfully');
+        
+        // Import CameraControls
+        const CameraControlsModule = await import('./vendors/cameraControls3d/camera-controls.module.js');
+        const CameraControls = CameraControlsModule.default || CameraControlsModule;
+        log('✅ CameraControls loaded successfully');
+        
+        // Run the test
+        runTest(THREE, CameraControls);
+      } catch (error) {
+        showError(`Failed to import libraries: ${error.message}`);
+        console.error(error);
+      }
+    }
+
+    // Test with alternative path 1
+    async function testAltPath1() {
+      cleanup();
+      log('Testing with alternative path 1...');
+      
+      try {
+        // Import THREE
+        const THREE = await import('./vendors/three.module.js');
+        log('✅ THREE.js loaded successfully');
+        
+        // Import CameraControls with alternative path
+        const CameraControlsModule = await import('./vendors/camera-controls.module.js');
+        const CameraControls = CameraControlsModule.default || CameraControlsModule;
+        log('✅ CameraControls loaded successfully');
+        
+        // Run the test
+        runTest(THREE, CameraControls);
+      } catch (error) {
+        showError(`Failed to import libraries: ${error.message}`);
+        console.error(error);
+      }
+    }
+
+    // Test with alternative path 2
+    async function testAltPath2() {
+      cleanup();
+      log('Testing with alternative path 2...');
+      
+      try {
+        // Import THREE
+        const THREE = await import('./vendors/three.module.js');
+        log('✅ THREE.js loaded successfully');
+        
+        // Import CameraControls with another alternative path
+        const CameraControlsModule = await import('./vendors/camera-controls/dist/camera-controls.module.js');
+        const CameraControls = CameraControlsModule.default || CameraControlsModule;
+        log('✅ CameraControls loaded successfully');
+        
+        // Run the test
+        runTest(THREE, CameraControls);
+      } catch (error) {
+        showError(`Failed to import libraries: ${error.message}`);
+        console.error(error);
+      }
+    }
+
+    // Test with global script
+    function testGlobalScript() {
+      cleanup();
+      log('Testing with global script tags...');
+      
+      // Add global camera controls script
+      const globalControlsScript = document.getElementById('globalControls');
+      globalControlsScript.src = './vendors/cameraControls3d/camera-controls.module.js';
+      globalControlsScript.type = 'module';
+      
+      // Wait a bit for scripts to load
+      setTimeout(() => {
+        if (window.THREE) {
+          log('✅ THREE.js loaded globally');
+          
+          if (window.CameraControls) {
+            log('✅ CameraControls loaded globally');
+            runTest(window.THREE, window.CameraControls);
+          } else {
+            showError('CameraControls not found in global scope!');
+          }
+        } else {
+          showError('THREE.js not found in global scope!');
+        }
+      }, 1000);
+    }
+
+    // Run the actual test with the provided libraries
+    function runTest(THREE, CameraControls) {
+      try {
+        log('Initializing CameraControls with THREE...');
+        // Initialize CameraControls with THREE
+        CameraControls.install({ THREE });
+        log('✅ CameraControls initialized with THREE');
+        
+        // Create scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x333333);
+        log('✅ Scene created');
+        
+        // Create camera
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+        log('✅ Camera created');
+        
+        // Create renderer
+        try {
+          log('Creating WebGL renderer...');
+          renderer = new THREE.WebGLRenderer({ antialias: true });
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          document.body.appendChild(renderer.domElement);
+          log('✅ WebGL renderer created');
+        } catch (e) {
+          throw new Error(`Failed to create WebGL renderer: ${e.message}`);
+        }
+        
+        // Create camera controls
+        try {
+          log('Creating camera controls...');
+          controls = new CameraControls(camera, renderer.domElement);
+          controls.dampingFactor = 0.05;
+          controls.draggingDampingFactor = 0.25;
+          log('✅ Camera controls created');
+        } catch (e) {
+          throw new Error(`Failed to create camera controls: ${e.message}`);
+        }
+        
+        // Add a cube
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshStandardMaterial({ 
+          color: 0x00ff00,
+          wireframe: true
+        });
+        cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+        log('✅ Cube added to scene');
+        
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 2, 3);
+        scene.add(directionalLight);
+        log('✅ Lighting added');
+        
+        // Add grid helper
+        const gridHelper = new THREE.GridHelper(10, 10);
+        scene.add(gridHelper);
+        log('✅ Grid helper added');
+        
+        // Set up resize handler
+        window.addEventListener('resize', () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        log('Starting animation loop...');
+        const clock = new THREE.Clock();
+        
+        function animate() {
+          animationId = requestAnimationFrame(animate);
+          
+          // Rotate cube
+          if (cube) {
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.01;
+          }
+          
+          // Update controls
+          if (controls) {
+            const delta = clock.getDelta();
+            controls.update(delta);
+          }
+          
+          // Render
+          if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+          }
+        }
+        
+        animate();
+        log('✅ Animation started. Test complete! You should see a rotating cube that can be controlled with the mouse.');
+        
+      } catch (error) {
+        showError(`Test failed: ${error.message}`);
+        console.error(error);
+      }
+    }
+
+    // Set up button event listeners
+    document.getElementById('testOriginal').addEventListener('click', testOriginalPath);
+    document.getElementById('testAlt1').addEventListener('click', testAltPath1);
+    document.getElementById('testAlt2').addEventListener('click', testAltPath2);
+    document.getElementById('testGlobal').addEventListener('click', testGlobalScript);
+  </script>
+</body>
+</html>
