@@ -198,39 +198,56 @@ export default function initPolytopeViewerPlugin(core) {
     }
   });
   
-  // Return a promise that resolves when initialization is complete
-  return new Promise((resolve) => {
+  // Create a promise that properly signals plugin state
+  const initPromise = new Promise((resolve, reject) => {
+    console.log("Starting polytope viewer async initialization...");
+    
+    // Verify that the lifecycle object is valid
+    if (!lifecycle || typeof lifecycle.setPluginState !== 'function') {
+      console.error("Plugin lifecycle object is invalid", lifecycle);
+    }
+    
     // Load polytope builders asynchronously
-    loadPolytopeBuilders().then(builders => {
-      polytopeBuilders = builders;
-      isInitialized = true;
-      console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
-      
-      // Signal that the plugin is now ready
-      lifecycle.setPluginState('ready');
-	console.log("I AM READY ----------------------");
-      
-      // Register new hook for plugin ready event
-      hooks.addAction('onPluginReady', 'polytopeViewer', ({ pluginId }) => {
-        if (pluginId === 'polytopeViewer') {
-          // Update settings metadata now that we're fully loaded
-          if (state.getState().activePluginId === 'polytopeViewer') {
-            // Use hooks to notify of metadata updates rather than directly changing state
-            hooks.doAction('pluginMetadataUpdated', {
-              pluginId: 'polytopeViewer',
-              metadata: buildCompleteMetadata()
-            });
-          }
+    loadPolytopeBuilders()
+      .then(builders => {
+        polytopeBuilders = builders;
+        isInitialized = true;
+        console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
+        
+        // Signal that the plugin is now ready - only if lifecycle is valid
+        if (lifecycle && typeof lifecycle.setPluginState === 'function') {
+          lifecycle.setPluginState('ready');
+          console.log("I AM READY ----------------------");
+        } else {
+          console.error("Cannot set plugin state - lifecycle object is invalid");
         }
+        
+        // Register new hook for plugin ready event
+        hooks.addAction('onPluginReady', 'polytopeViewer', ({ pluginId }) => {
+          if (pluginId === 'polytopeViewer') {
+            // Update settings metadata now that we're fully loaded
+            if (state.getState().activePluginId === 'polytopeViewer') {
+              // Use hooks to notify of metadata updates rather than directly changing state
+              hooks.doAction('pluginMetadataUpdated', {
+                pluginId: 'polytopeViewer',
+                metadata: buildCompleteMetadata()
+              });
+            }
+          }
+        });
+        
+        resolve(); // Successfully initialized
+      })
+      .catch(error => {
+        console.error("Failed to load polytope builders:", error);
+        isInitialized = true; // Mark as initialized even though it failed
+        
+        if (lifecycle && typeof lifecycle.setPluginState === 'function') {
+          lifecycle.setPluginState('error'); // Signal error state
+        }
+        
+        resolve(); // Resolve the promise to avoid blocking the framework
       });
-      
-      resolve();
-    }).catch(error => {
-      console.error("Failed to load polytope builders:", error);
-      isInitialized = true; // Mark as initialized even though it failed
-      lifecycle.setPluginState('error'); // Signal error state
-      resolve(); // Resolve the promise to continue framework initialization
-    });
   });
   
   /**
@@ -323,5 +340,8 @@ export default function initPolytopeViewerPlugin(core) {
     }
   }
   
-  console.log("Polytope Viewer plugin initialized");
+  console.log("Polytope Viewer plugin initialized - waiting for async loading to complete");
+  
+  // Return the initialization promise
+  return initPromise;
 }
