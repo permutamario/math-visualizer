@@ -199,35 +199,44 @@ export default function initPolytopeViewerPlugin(core) {
   });
   
   // Create a promise that properly signals plugin state
-  const initPromise = new Promise((resolve, reject) => {
-    console.log("Starting polytope viewer async initialization...");
-    
-    // Verify that the lifecycle object is valid
-    if (!lifecycle || typeof lifecycle.setPluginState !== 'function') {
-      console.error("Plugin lifecycle object is invalid", lifecycle);
-    }
-    
-    // Load polytope builders asynchronously
-    loadPolytopeBuilders()
-      .then(builders => {
-        polytopeBuilders = builders;
-        isInitialized = true;
-        console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
-        
+  // Create a promise that properly signals plugin state
+const initPromise = new Promise((resolve, reject) => {
+  console.log("Starting polytope viewer async initialization...");
+  
+  // Check lifecycle object more explicitly
+  console.log("Lifecycle object:", lifecycle);
+  console.log("Has setPluginState?", lifecycle && typeof lifecycle.setPluginState === 'function');
+  
+  // Load polytope builders asynchronously
+  console.log("About to call loadPolytopeBuilders()");
+  loadPolytopeBuilders()
+    .then(builders => {
+      console.log("loadPolytopeBuilders() resolved successfully");
+      polytopeBuilders = builders;
+      isInitialized = true;
+      console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
+      
+      try {
         // Signal that the plugin is now ready - only if lifecycle is valid
         if (lifecycle && typeof lifecycle.setPluginState === 'function') {
+          console.log("About to call setPluginState('ready')");
           lifecycle.setPluginState('ready');
           console.log("I AM READY ----------------------");
         } else {
           console.error("Cannot set plugin state - lifecycle object is invalid");
         }
-        
-        // Register new hook for plugin ready event
+      } catch (error) {
+        console.error("Error when setting plugin state:", error);
+      }
+      
+      // Register new hook for plugin ready event
+      try {
         hooks.addAction('onPluginReady', 'polytopeViewer', ({ pluginId }) => {
           if (pluginId === 'polytopeViewer') {
+            console.log("onPluginReady hook called for polytopeViewer");
             // Update settings metadata now that we're fully loaded
             if (state.getState().activePluginId === 'polytopeViewer') {
-              // Use hooks to notify of metadata updates rather than directly changing state
+              // Use hooks to notify of metadata updates
               hooks.doAction('pluginMetadataUpdated', {
                 pluginId: 'polytopeViewer',
                 metadata: buildCompleteMetadata()
@@ -235,21 +244,28 @@ export default function initPolytopeViewerPlugin(core) {
             }
           }
         });
-        
-        resolve(); // Successfully initialized
-      })
-      .catch(error => {
-        console.error("Failed to load polytope builders:", error);
-        isInitialized = true; // Mark as initialized even though it failed
-        
+      } catch (error) {
+        console.error("Error when adding onPluginReady hook:", error);
+      }
+      
+      console.log("About to resolve initPromise");
+      resolve(); // Successfully initialized
+    })
+    .catch(error => {
+      console.error("Failed to load polytope builders:", error);
+      isInitialized = true; // Mark as initialized even though it failed
+      
+      try {
         if (lifecycle && typeof lifecycle.setPluginState === 'function') {
           lifecycle.setPluginState('error'); // Signal error state
         }
-        
-        resolve(); // Resolve the promise to avoid blocking the framework
-      });
+      } catch (error) {
+        console.error("Error when setting plugin state to error:", error);
+      }
+      
+      resolve(); // Resolve the promise to avoid blocking the framework
+    });
   });
-  
   /**
    * Build complete metadata based on current state 
    * @returns {Object} Complete settings metadata

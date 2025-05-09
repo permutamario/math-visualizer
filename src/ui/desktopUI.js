@@ -49,7 +49,7 @@ export function setupDesktopUI(canvasManager) {
   
   // Listen for UI rebuild events
   subscribe('rebuildUI', () => {
-    console.log("Rebuilding Desktop UI due to rebuildUI event");
+    ////console.log("Rebuilding Desktop UI due to rebuildUI event");
     setupDesktopUI(canvasManager);
   });
 }
@@ -79,11 +79,11 @@ function createPluginSelector() {
   const state = getState();
   const plugins = state.availablePlugins || [];
   
-  console.log("Creating plugin selector with available plugins:", plugins);
+  ////console.log("Creating plugin selector with available plugins:", plugins);
   
   // Skip if no plugins available
   if (plugins.length <= 1) {
-    console.log("Not creating plugin selector - not enough plugins");
+    ////console.log("Not creating plugin selector - not enough plugins");
     return;
   }
   
@@ -115,7 +115,7 @@ function createPluginSelector() {
   const pluginOptions = plugins.map(plugin => plugin.id);
   const activePluginId = state.activePluginId || '';
   
-  console.log("Plugin options:", pluginOptions, "Active plugin:", activePluginId);
+  ////console.log("Plugin options:", pluginOptions, "Active plugin:", activePluginId);
   
   const pluginSelect = createDropdown({
     id: 'plugin-select',
@@ -125,7 +125,7 @@ function createPluginSelector() {
     onChange: (pluginId) => {
       // Get app instance and activate the plugin
       if (window.AppInstance) {
-        //console.log("Activating plugin from dropdown:", pluginId);
+        //////console.log("Activating plugin from dropdown:", pluginId);
         window.AppInstance.activatePlugin(pluginId);
       } else {
         console.error("AppInstance not found when trying to activate plugin");
@@ -172,7 +172,7 @@ function createVisualPanel() {
   const visualSettings = getSettingsByCategory('visual');
   const activePluginId = state.activePluginId;
   
-  console.log(`Getting visual settings for plugin ${activePluginId}:`, visualSettings);
+  ////console.log(`Getting visual settings for plugin ${activePluginId}:`, visualSettings);
     
   if (visualSettings.length === 0) {
     const message = document.createElement('p');
@@ -185,7 +185,7 @@ function createVisualPanel() {
   } else {
     // Create controls for each visual setting
     visualSettings.forEach(setting => {
-      //console.log(`Creating control for visual setting: ${setting.key}`);
+      //////console.log(`Creating control for visual setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -230,7 +230,7 @@ function createExportPanel(canvasManager) {
   const exportOptions = state.exportOptions || [];
   const activePluginId = state.activePluginId;
   
-  console.log(`Export options for plugin ${activePluginId}:`, exportOptions);
+  ////console.log(`Export options for plugin ${activePluginId}:`, exportOptions);
   
   if (exportOptions.length === 0) {
     const message = document.createElement('p');
@@ -326,7 +326,7 @@ function createStructuralPanel() {
   const structuralSettings = getSettingsByCategory('structural');
   const activePluginId = state.activePluginId;
   
-  console.log(`Getting structural settings for plugin ${activePluginId}:`, structuralSettings);
+  ////console.log(`Getting structural settings for plugin ${activePluginId}:`, structuralSettings);
   
   if (structuralSettings.length === 0) {
     const message = document.createElement('p');
@@ -339,7 +339,7 @@ function createStructuralPanel() {
   } else {
     // Create controls for each structural setting
     structuralSettings.forEach(setting => {
-      //console.log(`Creating control for structural setting: ${setting.key}`);
+      //////console.log(`Creating control for structural setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -404,7 +404,7 @@ function createDebugPanel() {
     id: 'log-state',
     label: 'Log State to Console',
     onClick: () => {
-      console.log("Current State:", state);
+      ////console.log("Current State:", state);
       showNotification('State logged to console');
     }
   });
@@ -510,7 +510,7 @@ function getSettingsByCategory(category) {
   const settings = state.settings || {};
   const result = [];
   
-  console.log(`Getting ${category} settings with metadata:`, metadata);
+  ////console.log(`Getting ${category} settings with metadata:`, metadata);
   
   Object.keys(metadata).forEach(key => {
     if (metadata[key].type === category) {
@@ -550,7 +550,7 @@ function resetAllSettings() {
 function createControlFromSetting(setting, onChange) {
   const { key, control, label, value } = setting;
   
-  //console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
+  //////console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
   
   switch (control) {
 
