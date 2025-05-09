@@ -1,11 +1,14 @@
 // src/index.js
-// Application entry point with improved UI sequencing
+// Application entry point with improved UI sequencing and THREE.js integration
 
 import { detectPlatform, showNotification } from './core/utils.js';
 import { setupDesktopUI } from './ui/desktopUI.js';
 import { setupMobileUI } from './ui/mobileUI.js';
 import { initializeApp } from './core/app.js';
 import { loadPlugins } from './core/pluginManager.js';
+
+// Import CameraControls for proper initialization
+import CameraControlsFactory from '../vendors/cameraControls3d/camera-controls.module.js';
 
 /**
  * Hide the loading screen with a fade-out animation
@@ -25,11 +28,34 @@ function hideLoadingScreen() {
 }
 
 /**
+ * Initialize 3D environment dependencies
+ */
+function initializeThreeDependencies() {
+  // Verify THREE.js is available
+  if (typeof THREE === 'undefined') {
+    console.error('THREE.js is not defined. Required for 3D visualizations.');
+    throw new Error('THREE.js is not available.');
+  }
+  
+  // Initialize CameraControls with THREE
+  try {
+    CameraControlsFactory.install({ THREE: THREE });
+    console.log('CameraControls initialized with THREE.js successfully');
+  } catch (error) {
+    console.error('Failed to initialize CameraControls:', error);
+    throw error;
+  }
+}
+
+/**
  * Application entry point: sets up core systems, loads plugins, and initializes UI
  */
 async function main() {
   try {
     console.log("Starting application...");
+    
+    // 0. Initialize 3D dependencies
+    initializeThreeDependencies();
     
     // 1. Detect platform (mobile or desktop)
     const isMobile = detectPlatform();
