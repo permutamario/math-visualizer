@@ -137,13 +137,13 @@ async function main() {
     hideLoadingScreen();
     
     // Activate the default plugin - UI will be rebuilt as part of activation
-    console.log('Activating default plugin:', defaultPluginId);
+    //console.log('Activating default plugin:', defaultPluginId);
     setTimeout(async () => {
       await app.activatePlugin(defaultPluginId);
       showNotification('Math Visualization Framework loaded successfully!', 2000);
     }, 100);
     
-    console.log('Application started successfully');
+    //console.log('Application started successfully');
     
   } catch (error) {
     console.error('Application failed to start:', error);

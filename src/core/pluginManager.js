@@ -32,7 +32,7 @@ export async function loadPlugins() {
 
     // 2. Use our predefined list of plugins
     const plugins = getPluginsList();
-    console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.id));
+    //console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.id));
 
     const registeredPlugins = [];
 
@@ -42,7 +42,7 @@ export async function loadPlugins() {
     }
 
     for (const plugin of plugins) {
-      console.log(`Registering plugin: ${plugin.id}`);
+      //console.log(`Registering plugin: ${plugin.id}`);
       
       // Set lifecycle state to 'registered' but not initialized
       plugin.lifecycleState = 'registered';

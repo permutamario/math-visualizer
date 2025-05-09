@@ -237,7 +237,7 @@ class App {
       return;
     }
     
-    console.log(`Changing plugin ${pluginId} lifecycle state: ${plugin.lifecycleState} -> ${state}`);
+    //console.log(`Changing plugin ${pluginId} lifecycle state: ${plugin.lifecycleState} -> ${state}`);
     
     // Update plugin object directly
     plugin.lifecycleState = state;
@@ -387,6 +387,8 @@ class App {
    * @returns {Promise<boolean>} Success status
    */
   async activatePlugin(pluginId) {
+console.log('------------------');
+console.log('------------------');
     console.log(`Activating plugin: ${pluginId}`);
     
     const plugins = getStateValue('plugins');
@@ -412,7 +414,7 @@ class App {
     
     // Initialize the plugin if not already initialized
     if (lifecycleState === 'registered') {
-      console.log(`Plugin ${pluginId} needs initialization first`);
+      //console.log(`Plugin ${pluginId} needs initialization first`);
       
       // Show loading screen
       this.showPluginLoading(pluginId);
@@ -485,7 +487,7 @@ class App {
     // IMPORTANT: First apply default settings from manifest directly
     if (plugin.manifest && plugin.manifest.defaultSettings) {
       const defaultSettings = plugin.manifest.defaultSettings;
-      console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
+      //console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
       
       // Use a fresh settings object - NOT merged with current settings
       changeState('settings', {...defaultSettings});
@@ -497,7 +499,7 @@ class App {
     // Then get settings metadata from hook - ONLY if plugin is ready
     if (this.hooks && (lifecycleState === 'ready' || lifecycleState === 'active')) {
       const metadata = this.hooks.applyFilters('settingsMetadata', {}, pluginId);
-      console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
+      //console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
       
       if (metadata && Object.keys(metadata).length > 0) {
         // This ensures metadata is available for UI
@@ -538,7 +540,7 @@ class App {
     
 	//Build UI After activiation
 	setTimeout(() => {
-	  console.log("Performing delayed UI rebuild to ensure all plugin state is captured");
+	  //console.log("Performing delayed UI rebuild to ensure all plugin state is captured");
 	  this.rebuildUI();
 	}, 200);
     
