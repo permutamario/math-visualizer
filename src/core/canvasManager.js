@@ -77,81 +77,84 @@ export class CanvasManager {
   }
   
   /**
-   * Set up the appropriate rendering environment
-   * @param {string} type - Environment type
-   * @param {Object} options - Environment options
-   * @returns {boolean} - Whether environment setup was successful
-   */
-  setupEnvironment(type, options = {}) {
-    // Don't change if already using this type
-    if (this.currentEnvironment && this.environmentType === type) {
-      console.log(`Already using environment type: ${type}`);
-      return true;
-    }
-
-    console.log(`Setting up environment type: ${type}`);
-
-    // Clean up current environment if it exists
-    if (this.currentEnvironment) {
-      console.log(`Disposing current environment: ${this.environmentType}`);
-      this.currentEnvironment.dispose();
-      this.currentEnvironment = null;
-    }
-
-    // Check if the requested environment type is supported
-    if (!isEnvironmentTypeSupported(type)) {
-      console.error(`Unsupported environment type: ${type}`);
-      console.log('Falling back to 2D camera environment');
-      type = '2d-camera';
-    }
-
-    // Reset canvas context
-    this.ctx = null;
-
-    // For 2D environments, get a 2D context
-    if (type === '2d-camera' || type === '2d-event') {
-      this.ctx = this.canvas.getContext('2d');
-    }
-    // For 3D, don't get a context - let THREE.js handle it
-
-    // Create new environment
-    this.currentEnvironment = createEnvironment(type, this.canvas, options);
-    
-    if (!this.currentEnvironment) {
-      console.error(`Failed to create environment of type: ${type}`);
-      return false;
-    }
-    
-    this.environmentType = type;
-
-    // Activate the environment
-    console.log(`Creating Environment ${type}`);
-    const activationSuccess = this.currentEnvironment.activate();
-    
-    if (!activationSuccess && type === '3d-camera') {
-      console.warn('3D environment activation failed - falling back to 2D environment');
-      
-      // Clean up failed environment
-      this.currentEnvironment.dispose();
-      this.currentEnvironment = null;
-      
-      // Fall back to 2D
-      this.environmentType = '2d-camera';
-      this.currentEnvironment = createEnvironment('2d-camera', this.canvas, options);
-      // Now get a 2D context
-      this.ctx = this.canvas.getContext('2d');
-      this.currentEnvironment.activate();
-      
-      // Notify that we're using 2D instead
-      changeState('currentEnvironment', '2d-camera');
-      return false;
-    }
-
-    // Update state
-    changeState('currentEnvironment', this.environmentType);
+ * Set up the appropriate rendering environment
+ * @param {string} type - Environment type
+ * @param {Object} options - Environment options
+ * @returns {boolean} - Whether environment setup was successful
+ */
+setupEnvironment(type, options = {}) {
+  // Don't change if already using this type
+  if (this.currentEnvironment && this.environmentType === type) {
+    console.log(`Already using environment type: ${type}`);
     return true;
   }
+
+  console.log(`Setting up environment type: ${type}`);
+
+  // Clean up current environment if it exists
+  if (this.currentEnvironment) {
+    console.log(`Disposing current environment: ${this.environmentType}`);
+    this.currentEnvironment.dispose();
+    this.currentEnvironment = null;
+  }
+
+  // Check if the requested environment type is supported
+  if (!isEnvironmentTypeSupported(type)) {
+    console.error(`Unsupported environment type: ${type}`);
+    console.log('Falling back to 2D camera environment');
+    type = '2d-camera';
+  }
+
+  // Reset canvas context
+  this.ctx = null;
+
+  // For 2D environments, get a 2D context
+  if (type === '2d-camera' || type === '2d-event') {
+    this.ctx = this.canvas.getContext('2d');
+    if (!this.ctx) {
+      console.error('Failed to get 2D context');
+      return false;
+    }
+  }
+  // For 3D, don't get a context - let THREE.js handle it
+
+  // Create new environment
+  this.currentEnvironment = createEnvironment(type, this.canvas, options);
   
+  if (!this.currentEnvironment) {
+    console.error(`Failed to create environment of type: ${type}`);
+    return false;
+  }
+  
+  this.environmentType = type;
+
+  // Activate the environment
+  console.log(`Creating Environment ${type}`);
+  const activationSuccess = this.currentEnvironment.activate();
+  
+  if (!activationSuccess && type === '3d-camera') {
+    console.warn('3D environment activation failed - falling back to 2D environment');
+    
+    // Clean up failed environment
+    this.currentEnvironment.dispose();
+    this.currentEnvironment = null;
+    
+    // Fall back to 2D
+    this.environmentType = '2d-camera';
+    this.currentEnvironment = createEnvironment('2d-camera', this.canvas, options);
+    // Now get a 2D context
+    this.ctx = this.canvas.getContext('2d');
+    this.currentEnvironment.activate();
+    
+    // Notify that we're using 2D instead
+    changeState('currentEnvironment', '2d-camera');
+    return false;
+  }
+
+  // Update state
+  changeState('currentEnvironment', this.environmentType);
+  return true;
+}
   /**
    * Render the current visualization
    */

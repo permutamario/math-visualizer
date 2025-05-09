@@ -171,33 +171,35 @@ class App {
     }
   }
   
-  /**
-   * Clean up state for plugin deactivation
-   * @param {string} pluginId - ID of plugin being deactivated
-   */
-  cleanupPluginState(pluginId) {
-    if (!pluginId) return;
-    
-    console.log(`Cleaning up state for plugin: ${pluginId}`);
-    
-    // Trigger plugin deactivated action BEFORE resetting settings
-    // so the hook handler can still access state if needed
-    this.hooks.doAction('deactivatePlugin', { pluginId });
-    
-    // Reset settings and metadata completely to avoid any leftover settings
-    changeState('settings', {});
-    changeState('settingsMetadata', {});
-    changeState('exportOptions', []);
-    
-    // Ensure the canvas is fully cleared
-    if (this.canvasManager) {
-      const ctx = this.canvasManager.ctx;
+  /* Clean up state for plugin deactivation
+ * @param {string} pluginId - ID of plugin being deactivated
+ */
+ cleanupPluginState(pluginId) {
+  if (!pluginId) return;
+  
+  console.log(`Cleaning up state for plugin: ${pluginId}`);
+  
+  // Trigger plugin deactivated action BEFORE resetting settings
+  // so the hook handler can still access state if needed
+  this.hooks.doAction('deactivatePlugin', { pluginId });
+  
+  // Reset settings and metadata completely to avoid any leftover settings
+  changeState('settings', {});
+  changeState('settingsMetadata', {});
+  changeState('exportOptions', []);
+  
+  // Ensure the canvas is fully cleared, but only if we have a valid context
+  if (this.canvasManager) {
+    const ctx = this.canvasManager.ctx;
+    // Add a null check before using the ctx object
+    if (ctx) {
       ctx.clearRect(0, 0, this.canvasManager.canvas.width, this.canvasManager.canvas.height);
     }
-    
-    // Store as previous plugin
-    changeState('previousPluginId', pluginId);
   }
+  
+  // Store as previous plugin
+  changeState('previousPluginId', pluginId);
+}
   
   /**
    * Activate a plugin by ID

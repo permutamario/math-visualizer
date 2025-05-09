@@ -279,22 +279,22 @@ export class Camera3DEnvironment extends BaseEnvironment {
      * Deactivate the environment
      */
     deactivate() {
-        if (!this.active) return;
-        
-        // Stop animation loop
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
-            this.animationId = null;
-        }
-        
-        // Hide the renderer's canvas
-        if (this.renderer && this.renderer.domElement) {
-            this.renderer.domElement.style.display = 'none';
-        }
-        
-        super.deactivate();
-        console.log('3D environment deactivated');
+    if (!this.active) return;
+    
+    // Stop animation loop
+    if (this.animationId) {
+        cancelAnimationFrame(this.animationId);
+        this.animationId = null;
     }
+    
+    // Hide the renderer's canvas
+    if (this.renderer && this.renderer.domElement) {
+        this.renderer.domElement.style.display = 'none';
+    }
+    
+    super.deactivate();
+    console.log('3D environment deactivated');
+}
     
     /**
      * Handle window resize
@@ -319,47 +319,88 @@ export class Camera3DEnvironment extends BaseEnvironment {
     }
     
     /**
-     * Clean up resources
-     */
-    dispose() {
-        this.deactivate();
-        
-        // Remove the renderer's canvas from the DOM
-        if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentNode) {
-            this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
-        }
-        
-        // Clean up THREE.js resources
-        if (this.renderer) {
-            this.renderer.dispose();
-            this.renderer = null;
-        }
-        
-        // Clean up geometries and materials
-        if (this.cube) {
-            this.cube.geometry.dispose();
-            this.cube.material.dispose();
-            this.cube = null;
-        }
-        
-        if (this.grid) {
-            this.scene.remove(this.grid);
-            this.grid = null;
-        }
-        
-        // Dispose of controls if possible
-        if (this.controls && typeof this.controls.dispose === 'function') {
-            this.controls.dispose();
-        }
-        
-        this.controls = null;
-        this.scene = null;
-        this.camera = null;
-        this.initialized = false;
-        
-        super.dispose();
-        console.log('3D environment resources disposed');
+ * Clean up resources
+ */
+dispose() {
+    this.deactivate();
+    
+    // Remove the renderer's canvas from the DOM
+    if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentNode) {
+        this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }
+    
+    // Clean up THREE.js resources
+    if (this.renderer) {
+        this.renderer.dispose();
+        this.renderer = null;
+    }
+    
+    // Clean up geometries and materials
+    if (this.cube) {
+        this.scene.remove(this.cube);
+        this.cube.geometry.dispose();
+        this.cube.material.dispose();
+        this.cube = null;
+    }
+    
+    if (this.grid) {
+        this.scene.remove(this.grid);
+        this.grid = null;
+    }
+    
+    // Dispose of any other resources in the scene
+    if (this.scene) {
+        // Recursively dispose all geometries and materials
+        this.scene.traverse((object) => {
+            if (object.geometry) {
+                object.geometry.dispose();
+            }
+            
+            if (object.material) {
+                if (Array.isArray(object.material)) {
+                    for (const material of object.material) {
+                        disposeMaterial(material);
+                    }
+                } else {
+                    disposeMaterial(object.material);
+                }
+            }
+        });
+    }
+    
+    // Dispose of controls if possible
+    if (this.controls && typeof this.controls.dispose === 'function') {
+        this.controls.dispose();
+    }
+    
+    this.controls = null;
+    this.scene = null;
+    this.camera = null;
+    this.initialized = false;
+    
+    super.dispose();
+    console.log('3D environment resources disposed');
+}
+
+/**
+ * Helper function to dispose of a material and its textures
+ * @param {THREE.Material} material - Material to dispose
+ */
+ disposeMaterial(material) {
+    if (!material) return;
+    
+    // Dispose textures
+    for (const key in material) {
+        const value = material[key];
+        if (value && typeof value === 'object' && typeof value.dispose === 'function') {
+            if (value.isTexture) {
+                value.dispose();
+            }
+        }
+    }
+    
+    material.dispose();
+}
     
     /**
      * Prepare for rendering (no-op for 3D)
