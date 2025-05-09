@@ -1,0 +1,291 @@
+/* styles/mobile.css */
+/* Mobile-specific styles (max-width: 599px) */
+
+body.mobile-device {
+  margin: 0;
+  overflow: hidden;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  background-color: #f8f9fa;
+}
+
+/* === FLOATING HEADER === */
+.mobile-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(26, 36, 51, 0.95);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  gap: 10px;
+  max-height: 100vh;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+/* === Shared styling for all control rows === */
+.mobile-header .control {
+  display: flex;
+  flex-direction: row;             /* side-by-side */
+  align-items: center;
+  justify-content: space-between; /* adds spacing between label and input */
+  gap: 10px;
+}
+
+/* === Label to the left === */
+.mobile-header label {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* === Input elements to the right === */
+.mobile-header select,
+.mobile-header input[type="text"],
+.mobile-header input[type="color"],
+.mobile-header input[type="number"],
+.mobile-header input[type="range"] {
+  flex: 1 1 auto;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #ffffff;
+  color: #1a2433;
+  height: 30px;
+}
+
+.mobile-header input[type="color"] {
+  padding: 2px;
+}
+
+/* === Checkbox styling === */
+.mobile-header .checkbox-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-header .checkbox-container input[type="checkbox"] {
+  transform: scale(1.2);
+}
+
+/* === Button (e.g., Compute) === */
+.mobile-header button {
+  font-size: 13px;
+  padding: 6px 10px;
+  height: 32px;
+  border-radius: 4px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.mobile-header button:active {
+  background-color: #3367d6;
+}
+
+/* === Vector input + compute button as vertical stack if needed === */
+.mobile-header .control.vector-input {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mobile-header .control.vector-input > div {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* Vector row: input and button inline */
+.mobile-header .control > div {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* === FULLSCREEN CANVAS BELOW HEADER === */
+body.mobile-device #viewer-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100vh;
+  touch-action: pan-y pinch-zoom;
+  z-index: 0;
+}
+
+/* === BUTTONS === */
+#mobile-options-button,
+#mobile-export-button {
+  position: fixed;
+  bottom: 20px;
+  padding: 12px 24px;
+  background-color: #1a2433;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+#mobile-options-button {
+  left: 20px;
+}
+
+#mobile-export-button {
+  right: 20px;
+}
+
+#mobile-options-button:active,
+#mobile-export-button:active {
+  background-color: #0d141d;
+  transform: scale(0.96);
+}
+
+/* === SLIDING OPTIONS MENUS === */
+.mobile-options-menu {
+  position: fixed;
+  bottom: 70px;
+  background: #e0e3e9;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  padding: 14px 16px;
+  z-index: 1000;
+  max-height: 60vh;
+  overflow-y: auto;
+  transform-origin: bottom center;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  font-size: 13px;
+}
+
+/* Position the visual menu */
+#mobile-visual-menu {
+  left: 12px;
+  right: auto;
+  width: 280px;
+}
+
+/* Position the export menu */
+#mobile-export-menu {
+  left: auto;
+  right: 12px;
+  width: 200px;
+}
+
+.mobile-options-menu.hidden {
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mobile-options-menu .control {
+  margin-bottom: 14px;
+}
+
+.mobile-options-menu .checkbox-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-options-menu label {
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #1a2433;
+}
+
+.mobile-options-menu input[type="range"] {
+  width: 100%;
+  height: 32px;
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Slider styling */
+.mobile-options-menu input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #bec4cf;
+  border-radius: 3px;
+}
+
+.mobile-options-menu input[type="range"]::-webkit-slider-thumb {
+  height: 18px;
+  width: 18px;
+  margin-top: -6px;
+  background: #4285f4;
+  border-radius: 50%;
+  border: none;
+}
+
+/* Compact select box */
+.mobile-options-menu select,
+.mobile-options-menu input[type="color"],
+.mobile-options-menu input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  color: #1a2433;
+}
+
+.mobile-options-menu input[type="color"] {
+  height: 40px;
+  padding: 2px;
+}
+
+/* Buttons */
+.mobile-options-menu button {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  background-color: #1a2433;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.mobile-options-menu button:active {
+  background-color: #0d141d;
+  transform: scale(0.98);
+}
+
+.export-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.export-buttons button {
+  width: 100%;
+  font-size: 13px;
+  padding: 10px;
+}
+
+/* Menu header */
+.mobile-options-menu h3 {
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  font-size: 16px;
+  color: #1a2433;
+}

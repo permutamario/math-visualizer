@@ -1,0 +1,42 @@
+{
+  "id": "square",
+  "name": "Square Visualization",
+  "version": "1.0.0",
+  "description": "A simple square visualization plugin for the Math Visualization Framework",
+  "author": "Your Name",
+  "minFrameworkVersion": "1.0.0",
+  "defaultSettings": {
+    "squareSize": 100,
+    "squareColor": "#156289",
+    "squareOpacity": 1.0,
+    "squareRotation": 0,
+    "backgroundColor": "#f5f5f5",
+    "showBorder": true,
+    "borderColor": "#000000",
+    "borderWidth": 2
+  },
+  "uiCategories": [
+    {
+      "id": "structural",
+      "label": "Structural Parameters",
+      "settings": ["squareSize", "squareRotation"]
+    },
+    {
+      "id": "visual",
+      "label": "Visual Parameters",
+      "settings": ["backgroundColor", "squareColor", "squareOpacity", "showBorder", "borderColor", "borderWidth"]
+    }
+  ],
+  "exportOptions": [
+    {
+      "id": "export-png",
+      "label": "Export PNG",
+      "type": "export"
+    },
+    {
+      "id": "reset-settings",
+      "label": "Reset Settings",
+      "type": "export"
+    }
+  ]
+}
