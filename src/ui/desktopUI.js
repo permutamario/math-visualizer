@@ -124,7 +124,7 @@ function createPluginSelector() {
     onChange: (pluginId) => {
       // Get app instance and activate the plugin
       if (window.AppInstance) {
-        console.log("Activating plugin from dropdown:", pluginId);
+        //console.log("Activating plugin from dropdown:", pluginId);
         window.AppInstance.activatePlugin(pluginId);
       } else {
         console.error("AppInstance not found when trying to activate plugin");
@@ -184,7 +184,7 @@ function createVisualPanel() {
   } else {
     // Create controls for each visual setting
     visualSettings.forEach(setting => {
-      console.log(`Creating control for visual setting: ${setting.key}`);
+      //console.log(`Creating control for visual setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -338,7 +338,7 @@ function createStructuralPanel() {
   } else {
     // Create controls for each structural setting
     structuralSettings.forEach(setting => {
-      console.log(`Creating control for structural setting: ${setting.key}`);
+      //console.log(`Creating control for structural setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -549,7 +549,7 @@ function resetAllSettings() {
 function createControlFromSetting(setting, onChange) {
   const { key, control, label, value } = setting;
   
-  console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
+  //console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
   
   switch (control) {
     case 'slider':

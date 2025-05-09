@@ -20,14 +20,17 @@ export class BaseEnvironment {
   /**
    * Initialize the environment
    * Must be implemented by subclasses
+   * @returns {boolean} - Whether initialization was successful
    */
   initialize() {
     this.initialized = true;
     console.log('Base environment initialized');
+    return true;
   }
   
   /**
    * Activate this environment
+   * @returns {boolean} - Whether activation was successful
    */
   activate() {
     if (!this.initialized) {
@@ -35,6 +38,7 @@ export class BaseEnvironment {
     }
     this.active = true;
     console.log('Environment activated');
+    return true;
   }
   
   /**
@@ -48,6 +52,7 @@ export class BaseEnvironment {
   /**
    * Prepare for rendering
    * @param {Object} ctx - Canvas context
+   * @returns {Object} - The context for rendering
    */
   prepareRender(ctx) {
     // Default implementation is a no-op
@@ -77,6 +82,15 @@ export class BaseEnvironment {
   handleEvent(event) {
     // Base implementation does nothing
     // Subclasses should override this
+  }
+  
+  /**
+   * Handle window resize
+   * Base implementation - subclasses should override as needed
+   */
+  handleResize() {
+    // Base implementation just logs that resize was handled
+    console.log('Window resize handled by base environment');
   }
   
   /**

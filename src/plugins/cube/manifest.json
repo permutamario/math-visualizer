@@ -1,8 +1,8 @@
 {
   "id": "cube",
-  "name": "3D Cube Visualization",
+  "name": "Cube (3D)",
   "version": "1.0.0",
-  "description": "A 3D cube visualization that demonstrates the 3D rendering environment",
+  "description": "A 3D cube visualization",
   "author": "Math Visualization Framework",
   "minFrameworkVersion": "1.0.0",
   "environment": {
@@ -25,12 +25,12 @@
     {
       "id": "structural",
       "label": "Structural Parameters",
-      "settings": ["cubeSize", "rotation"]
+      "settings": ["cubeSize", "wireframe", "rotation"]
     },
     {
       "id": "visual",
       "label": "Visual Parameters",
-      "settings": ["cubeColor", "opacity", "wireframe", "wireframeColor", "backgroundColor"]
+      "settings": ["cubeColor", "wireframeColor", "opacity", "backgroundColor"]
     }
   ],
   "exportOptions": [

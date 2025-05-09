@@ -60,6 +60,10 @@ This framework allows for creating and managing different mathematical visualiza
         └── interactive/      # Example interactive plugin (2D event)
             ├── index.js      # Plugin implementation
             └── manifest.json # Plugin metadata
+└── vendors/                  # Third-party libraries
+    ├── three.module.js       # THREE.js library
+    └── cameraControls3d/     # Camera controls for 3D environment
+        └── camera-controls.module.js  # Camera controls module
 ```
 
 ## Core Components
@@ -199,12 +203,13 @@ Plugins can use these hook points to extend functionality:
 - `settingsMetadata`: Define UI controls for settings
 - `defaultSettings`: Set default values for settings
 - `exportOptions`: Define export options
+- `environmentRequirements`: Specify environment requirements for the plugin
 
 ### Example Plugins
 
 - **Square**: A simple square visualization using 2D camera environment
 - **Circle**: A sectioned circle visualization using 2D event environment
-- **Cube**: A 3D cube visualization (placeholder) using 3D camera environment
+- **Cube**: A 3D cube visualization using 3D camera environment with THREE.js
 - **Interactive**: Draggable shapes using 2D event environment
 
 ## Rendering Environments
@@ -234,12 +239,14 @@ Use this environment for interactive visualizations that need to handle user inp
 
 #### 3D Camera Environment (`3d-camera`)
 
-This environment is currently a placeholder for THREE.js integration:
-- Will support 3D rendering with WebGL
-- Will use the cameraControls package for navigation
-- Will manage 3D scene, camera, and lighting
+This environment provides 3D rendering with THREE.js:
+- WebGL-based 3D rendering
+- Uses camera-controls package for camera navigation
+- Manages scene, camera, and lighting setup
+- Supports complex 3D visualizations
+- Requires THREE.js library
 
-Use this environment for 3D visualizations (when fully implemented).
+This environment supports advanced 3D visualization and must be properly initialized with THREE.js. It requires the camera-controls library to be properly installed and initialized with THREE.js.
 
 ### Specifying Environment in Plugin Manifest
 
@@ -251,6 +258,20 @@ Plugins specify their environment requirements in the manifest:
     "type": "2d-camera",
     "options": {
       "initialZoom": 1.0
+    }
+  }
+}
+```
+
+For 3D environments, additional camera options can be specified:
+
+```json
+{
+  "environment": {
+    "type": "3d-camera",
+    "options": {
+      "cameraPosition": [0, 1, 5],
+      "lookAt": [0, 0, 0]
     }
   }
 }
@@ -285,6 +306,7 @@ The framework uses a centralized state store with these key sections:
 
 - A modern web browser (Chrome, Firefox, Safari, Edge)
 - Basic knowledge of JavaScript (for plugin development)
+- For 3D visualizations: Understanding of THREE.js basics
 
 ### Installation
 
@@ -309,6 +331,23 @@ To create a new plugin:
 4. Register with necessary hooks
 
 See the [How to Create a Plugin.md](./How%20to%20Create%20a%20Plugin.md) guide for detailed instructions.
+
+## Dependencies for 3D Visualization
+
+The 3D environment has specific dependencies:
+
+1. **THREE.js**: The core 3D rendering library
+   - Required for all 3D visualizations
+   - Must be loaded before any 3D environment is initialized
+
+2. **camera-controls**: A camera control library for THREE.js
+   - Provides smooth camera navigation
+   - Must be initialized with THREE.js reference using:
+     ```javascript
+     CameraControls.install({ THREE: THREE });
+     ```
+
+The framework handles the initialization of these dependencies, but plugin developers should be aware of them when creating 3D visualizations.
 
 ## Debug Tools
 
@@ -341,6 +380,8 @@ The framework is designed to work on:
 - Firefox (latest)
 - Safari (latest)
 - Edge (latest)
+
+Note: 3D features require WebGL support in the browser.
 
 ## License
 

@@ -1,213 +1,359 @@
 // src/core/renderingEnvironments/3dCameraEnvironment.js
-// 3D environment with three.js and camera controls
-
 import { BaseEnvironment } from './baseEnvironment.js';
-import { getState, getStateValue, changeState } from '../stateManager.js';
+
+// The correct way to import camera-controls
+import CameraControlsFactory from '../../../vendors/cameraControls3d/camera-controls.module.js';
 
 /**
- * 3D environment with three.js
- * Note: This is a placeholder that will need to be properly implemented
- * with actual three.js integration and cameraControls package
+ * 3D environment with THREE.js using CameraControls
+ * Properly initializes CameraControls with THREE
  */
 export class Camera3DEnvironment extends BaseEnvironment {
-  /**
-   * Create a new Camera3D environment
-   * @param {HTMLCanvasElement} canvas - Canvas element
-   * @param {Object} options - Environment options
-   */
-  constructor(canvas, options = {}) {
-    super(canvas, options);
-    
-    // For now, we're just creating a placeholder
-    // In a real implementation, you would:
-    // 1. Create a THREE.WebGLRenderer
-    // 2. Create a THREE.Scene
-    // 3. Create a THREE.PerspectiveCamera
-    // 4. Set up cameraControls
-    
-    this.domElement = null;
-    this.renderer = null;
-    this.scene = null;
-    this.camera = null;
-    this.controls = null;
-  }
-  
-  /**
-   * Initialize the THREE.js environment
-   */
-  initialize() {
-    if (this.initialized) return;
-    
-    console.log('Camera3D environment initializing...');
-    
-    // This is where you would load THREE.js and cameraControls
-    // For now, we'll just log a message indicating what would happen
-    
-    /* 
-    Actual implementation would be something like:
-    
-    // Create renderer
-    this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-    this.renderer.setSize(this.canvas.width, this.canvas.height);
-    this.renderer.setClearColor(0xf5f5f5);
-    
-    // Create scene
-    this.scene = new THREE.Scene();
-    
-    // Create camera
-    this.camera = new THREE.PerspectiveCamera(
-      75, 
-      this.canvas.width / this.canvas.height,
-      0.1,
-      1000
-    );
-    this.camera.position.z = 5;
-    
-    // Create controls using cameraControls
-    this.controls = new CameraControls(this.camera, this.renderer.domElement);
-    this.controls.dampingFactor = 0.05;
-    this.controls.draggingDampingFactor = 0.25;
-    
-    // Add some basic lighting
-    const ambientLight = new THREE.AmbientLight(0x404040);
-    this.scene.add(ambientLight);
-    
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(1, 1, 1);
-    this.scene.add(directionalLight);
-    */
-    
-    this.initialized = true;
-    console.log('Camera3D environment initialized (placeholder)');
-  }
-  
-  /**
-   * Activate this environment
-   */
-  activate() {
-    if (this.active) return;
-    super.activate();
-    
-    console.log('Camera3D environment activated (placeholder)');
-    
-    // In a real implementation, you would:
-    // 1. Start the animation loop
-    // 2. Set up event listeners for the canvas
-    
-    /*
-    // Example of animation loop
-    this.animationId = requestAnimationFrame(this.animate.bind(this));
-    
-    // Example of event listeners
-    window.addEventListener('resize', this.handleResize.bind(this));
-    */
-  }
-  
-  /**
-   * Deactivate this environment
-   */
-  deactivate() {
-    if (!this.active) return;
-    
-    /* 
-    // Example of cleanup in a real implementation
-    
-    // Stop animation loop
-    if (this.animationId) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
+    /**
+     * Create a new Camera3D environment
+     * @param {HTMLCanvasElement} canvas - Canvas element
+     * @param {Object} options - Environment options
+     */
+    constructor(canvas, options = {}) {
+        super(canvas, options);
+        
+        // Initialize properties with null values
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.animationId = null;
+        this.cube = null;
+        this.grid = null;
+        this.clock = null;
+        
+        // Initial camera position
+        this.cameraPosition = options.cameraPosition || [0, 1, 5];
+        this.lookAt = options.lookAt || [0, 0, 0];
     }
     
-    // Remove event listeners
-    window.removeEventListener('resize', this.handleResize);
-    */
-    
-    super.deactivate();
-    console.log('Camera3D environment deactivated (placeholder)');
-  }
-  
-  /**
-   * In a real THREE.js implementation, this would be replaced with actual rendering
-   * @param {CanvasRenderingContext2D} ctx - Canvas 2D context (not used in THREE.js)
-   */
-  prepareRender(ctx) {
-    // In a THREE.js environment, we wouldn't use the 2D context
-    // Instead, the rendering would be handled by THREE.WebGLRenderer
-    
-    // For placeholder purposes, we'll draw a message on the 2D canvas
-    ctx.save();
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    ctx.fillStyle = '#333';
-    ctx.font = '18px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('3D Environment (Placeholder)', this.canvas.width / 2, this.canvas.height / 2);
-    ctx.fillText('THREE.js would be used here', this.canvas.width / 2, this.canvas.height / 2 + 30);
-    
-    return ctx;
-  }
-  
-  /**
-   * Complete rendering by restoring context
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   */
-  completeRender(ctx) {
-    ctx.restore();
-  }
-  
-  /**
-   * Animation loop for THREE.js (would be used in actual implementation)
-   */
-  /*
-  animate() {
-    if (!this.active) return;
-    
-    // Update controls
-    this.controls.update();
-    
-    // Render scene
-    this.renderer.render(this.scene, this.camera);
-    
-    // Request next frame
-    this.animationId = requestAnimationFrame(this.animate.bind(this));
-  }
-  */
-  
-  /**
-   * Handle window resize events (would be used in actual implementation)
-   */
-  /*
-  handleResize() {
-    if (!this.active) return;
-    
-    // Update camera aspect ratio
-    this.camera.aspect = this.canvas.width / this.canvas.height;
-    this.camera.updateProjectionMatrix();
-    
-    // Update renderer size
-    this.renderer.setSize(this.canvas.width, this.canvas.height);
-  }
-  */
-  
-  /**
-   * Clean up resources
-   */
-  dispose() {
-    this.deactivate();
-    
-    /*
-    // In a real implementation:
-    
-    // Dispose of THREE.js resources
-    if (this.renderer) {
-      this.renderer.dispose();
+    /**
+     * Initialize the 3D environment
+     * @returns {boolean} - Whether initialization was successful
+     */
+    initialize() {
+        if (this.initialized) return true;
+        
+        console.log('Initializing 3D environment with CameraControls...');
+        
+        // Verify THREE.js is available
+        if (typeof THREE === 'undefined') {
+            console.error('THREE is not defined. Make sure it is loaded before this code runs.');
+            return false;
+        }
+        
+        try {
+            // CRITICAL STEP: Initialize CameraControls with THREE
+            // This must be done before creating any instances
+            CameraControlsFactory.install({ THREE: THREE });
+            console.log('CameraControls successfully installed with THREE');
+            
+            // Create scene
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0xf0f0f0);
+            
+            // Create camera
+            this.camera = new THREE.PerspectiveCamera(
+                75, // field of view
+                this.canvas.width / this.canvas.height, // aspect ratio
+                0.1, // near clipping plane
+                1000 // far clipping plane
+            );
+            
+            // Set camera position from options or defaults
+            this.camera.position.set(
+                this.cameraPosition[0], 
+                this.cameraPosition[1], 
+                this.cameraPosition[2]
+            );
+            
+            // Create renderer - let THREE.js handle context creation
+            this.renderer = new THREE.WebGLRenderer({
+                canvas: this.canvas,
+                antialias: true,
+                alpha: true
+            });
+            
+            if (!this.renderer) {
+                console.error('Failed to create THREE.WebGLRenderer');
+                return false;
+            }
+            
+            this.renderer.setSize(this.canvas.width, this.canvas.height);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // Create clock for animation timing
+            this.clock = new THREE.Clock();
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            this.scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 2, 3);
+            this.scene.add(directionalLight);
+            
+            // Add a grid helper
+            this.grid = new THREE.GridHelper(10, 10);
+            this.scene.add(this.grid);
+            
+            // Create a simple cube as a default object
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x00ff00,
+                wireframe: false
+            });
+            
+            this.cube = new THREE.Mesh(geometry, material);
+            this.scene.add(this.cube);
+            
+            // Set up camera controls - now with proper initialization
+            try {
+                console.log('Creating CameraControls instance...');
+                // Create a CameraControls instance
+                this.controls = new CameraControlsFactory(this.camera, this.canvas);
+                
+                // Set control properties
+                this.controls.dampingFactor = 0.05;
+                this.controls.draggingDampingFactor = 0.25;
+                
+                // Set target
+                this.controls.setTarget(
+                    this.lookAt[0], 
+                    this.lookAt[1], 
+                    this.lookAt[2]
+                );
+                
+                console.log('CameraControls instance created successfully');
+            } catch (error) {
+                console.error('Error creating CameraControls:', error);
+                // Fallback to dummy controls
+                this.createFallbackControls();
+            }
+            
+            this.initialized = true;
+            console.log('3D environment initialized successfully');
+            return true;
+            
+        } catch (error) {
+            console.error('Error initializing 3D environment:', error);
+            // Clean up any created resources
+            if (this.renderer) this.renderer.dispose();
+            this.renderer = null;
+            this.scene = null;
+            this.camera = null;
+            this.controls = null;
+            return false;
+        }
     }
     
-    // Dispose of geometry, materials, textures, etc.
-    */
+    /**
+     * Create fallback controls when CameraControls can't be created
+     */
+    createFallbackControls() {
+        console.warn('Using fallback controls (orbit simulation)');
+        
+        this.controls = {
+            update: (delta) => {
+                // Simple orbital movement
+                if (this.camera) {
+                    const time = Date.now() * 0.001;
+                    this.camera.position.x = Math.sin(time * 0.25) * 5;
+                    this.camera.position.z = Math.cos(time * 0.25) * 5;
+                    this.camera.lookAt(0, 0, 0);
+                }
+            },
+            dispose: () => {}
+        };
+    }
     
-    super.dispose();
-  }
+    /**
+     * Activate the environment
+     * @returns {boolean} - Whether activation was successful
+     */
+    activate() {
+        if (this.active) return true;
+        
+        if (!this.initialized) {
+            const success = this.initialize();
+            if (!success) {
+                console.error('Failed to initialize 3D environment, cannot activate');
+                return false;
+            }
+        }
+        
+        // Call the base class activate method
+        super.activate();
+        
+        // Start the animation loop
+        if (this.renderer && this.scene && this.camera) {
+            this.animationId = requestAnimationFrame(this.animate.bind(this));
+            console.log('3D environment activated successfully');
+            return true;
+        } else {
+            console.error('Cannot activate 3D environment - components not initialized');
+            this.active = false;
+            return false;
+        }
+    }
+    
+    /**
+     * Animation loop for THREE.js rendering
+     */
+    animate() {
+        if (!this.active) return;
+        
+        // Rotate the cube if it exists (just for visual feedback)
+        if (this.cube) {
+            this.cube.rotation.x += 0.01;
+            this.cube.rotation.y += 0.01;
+        }
+        
+        // Update controls
+        if (this.controls && typeof this.controls.update === 'function') {
+            // For camera-controls, we need to pass delta time
+            const delta = this.clock ? this.clock.getDelta() : 0;
+            this.controls.update(delta);
+        }
+        
+        // Render the scene
+        if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
+        }
+        
+        // Continue animation loop
+        this.animationId = requestAnimationFrame(this.animate.bind(this));
+    }
+    
+    /**
+     * Deactivate the environment
+     */
+    deactivate() {
+        if (!this.active) return;
+        
+        // Stop animation loop
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+        
+        super.deactivate();
+        console.log('3D environment deactivated');
+    }
+    
+    /**
+     * Handle window resize
+     */
+    handleResize() {
+        if (!this.active || !this.camera || !this.renderer) return;
+        
+        this.camera.aspect = this.canvas.width / this.canvas.height;
+        this.camera.updateProjectionMatrix();
+        
+        this.renderer.setSize(this.canvas.width, this.canvas.height);
+        console.log('3D environment resized');
+    }
+    
+    /**
+     * Clean up resources
+     */
+    dispose() {
+        this.deactivate();
+        
+        // Clean up THREE.js resources
+        if (this.renderer) {
+            this.renderer.dispose();
+            this.renderer = null;
+        }
+        
+        // Clean up geometries and materials
+        if (this.cube) {
+            this.cube.geometry.dispose();
+            this.cube.material.dispose();
+            this.cube = null;
+        }
+        
+        if (this.grid) {
+            this.scene.remove(this.grid);
+            this.grid = null;
+        }
+        
+        // Dispose of controls if possible
+        if (this.controls && typeof this.controls.dispose === 'function') {
+            this.controls.dispose();
+        }
+        
+        this.controls = null;
+        this.scene = null;
+        this.camera = null;
+        this.initialized = false;
+        
+        super.dispose();
+        console.log('3D environment resources disposed');
+    }
+    
+    /**
+     * Prepare for rendering (no-op for 3D)
+     */
+    prepareRender(ctx) {
+        // 3D rendering happens in animate()
+        return ctx;
+    }
+    
+    /**
+     * Complete rendering (no-op for 3D)
+     */
+    completeRender(ctx) {
+        // 3D rendering happens in animate()
+        return ctx;
+    }
+    
+    /**
+     * Get the scene
+     * @returns {Object} THREE.Scene
+     */
+    getScene() {
+        return this.scene;
+    }
+    
+    /**
+     * Get the camera
+     * @returns {Object} THREE.Camera
+     */
+    getCamera() {
+        return this.camera;
+    }
+    
+    /**
+     * Get the renderer
+     * @returns {Object} THREE.WebGLRenderer
+     */
+    getRenderer() {
+        return this.renderer;
+    }
+    
+    /**
+     * Add an object to the scene
+     * @param {Object} object - THREE.js object
+     */
+    addToScene(object) {
+        if (this.scene && object) {
+            this.scene.add(object);
+        }
+    }
+    
+    /**
+     * Remove an object from the scene
+     * @param {Object} object - THREE.js object
+     */
+    removeFromScene(object) {
+        if (this.scene && object) {
+            this.scene.remove(object);
+        }
+    }
 }

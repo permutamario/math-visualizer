@@ -357,7 +357,16 @@ Best for visualizations that need camera navigation:
 }
 ```
 
-In this environment, your render function should draw relative to (0,0), as the camera handles positioning.
+**Details:**
+- Uses a 2D canvas rendering context
+- Provides panning and zooming capabilities
+- Automatically transforms coordinates so you can draw relative to (0,0)
+- Good for mathematical plots and diagrams
+- No special dependencies required
+
+**Implementation Requirements:**
+- Draw relative to (0,0) in your render function
+- The environment will handle translating and scaling
 
 #### 2D Event Environment (`2d-event`)
 
@@ -370,7 +379,14 @@ Best for interactive visualizations that need to handle user input:
 }
 ```
 
-In this environment, you can register event handlers:
+**Details:**
+- Uses a 2D canvas rendering context
+- Passes mouse and keyboard events directly to your plugin
+- Good for interactive elements and custom interactions
+- No special dependencies required
+
+**Implementation Requirements:**
+- Register event handlers for the interactions you want to handle:
 
 ```javascript
 // Handle mouse click events
@@ -387,7 +403,7 @@ hooks.addAction('onClick', 'myPlugin', (event) => {
 
 #### 3D Camera Environment (`3d-camera`)
 
-For 3D visualizations (currently a placeholder):
+For 3D visualizations using THREE.js:
 
 ```json
 "environment": {
@@ -396,6 +412,342 @@ For 3D visualizations (currently a placeholder):
     "cameraPosition": [0, 0, 5],
     "lookAt": [0, 0, 0]
   }
+}
+```
+
+**Details:**
+- Uses WebGL for 3D rendering via THREE.js
+- Provides orbit camera controls for navigation
+- Handles scene, camera, and lighting setup
+- Requires THREE.js and camera-controls libraries
+
+**Dependencies:**
+- THREE.js: Must be loaded and globally available
+- camera-controls: Must be properly initialized with THREE.js
+
+**Implementation Requirements:**
+- Register environment requirements:
+
+```javascript
+hooks.addFilter('environmentRequirements', 'myPlugin', () => {
+  return {
+    type: '3d-camera',
+    options: {
+      cameraPosition: [0, 0, 5],
+      lookAt: [0, 0, 0]
+    }
+  };
+});
+```
+
+- Use THREE.js objects for rendering:
+
+```javascript
+// In your plugin's activate handler
+hooks.addAction('activatePlugin', 'myPlugin', ({ pluginId }) => {
+  if (pluginId !== 'myPlugin') return;
+  
+  // Get the 3D environment
+  const canvasManager = window.AppInstance.canvasManager;
+  const environment = canvasManager.currentEnvironment;
+  
+  // Access THREE.js scene, camera, and renderer
+  const scene = environment.getScene();
+  
+  // Create THREE.js objects
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshStandardMaterial({
+    color: settings.color,
+    wireframe: settings.wireframe
+  });
+  
+  // Create and add mesh to scene
+  this.mesh = new THREE.Mesh(geometry, material);
+  scene.add(this.mesh);
+});
+```
+
+- Clean up resources when deactivated:
+
+```javascript
+hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
+  if (pluginId !== 'myPlugin') return;
+  
+  // Clean up THREE.js objects
+  if (this.mesh) {
+    const scene = window.AppInstance.canvasManager.currentEnvironment.getScene();
+    scene.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.mesh.material.dispose();
+    this.mesh = null;
+  }
+});
+```
+
+## Full 3D Visualization Example
+
+Here's a complete example of a simple cube plugin using the 3D camera environment:
+
+```javascript
+/**
+ * Cube Plugin - 3D Visualization Example
+ * @param {Object} core - Core APIs provided by the framework
+ */
+export default function initCubePlugin(core) {
+  const { hooks, state } = core;
+  
+  console.log("Initializing Cube Plugin");
+  
+  // Mesh reference for cleanup
+  let cubeMesh = null;
+  
+  // Define settings metadata
+  const cubeSettingsMetadata = {
+    // Structural settings
+    cubeSize: { 
+      type: 'structural', 
+      label: 'Cube Size', 
+      control: 'slider', 
+      min: 0.1, 
+      max: 3, 
+      step: 0.1, 
+      default: 1 
+    },
+    wireframe: { 
+      type: 'structural', 
+      label: 'Wireframe', 
+      control: 'checkbox', 
+      default: true 
+    },
+    rotation: { 
+      type: 'structural', 
+      label: 'Auto-rotate', 
+      control: 'checkbox', 
+      default: true 
+    },
+    
+    // Visual settings
+    cubeColor: { 
+      type: 'visual', 
+      label: 'Cube Color', 
+      control: 'color', 
+      default: '#3498db' 
+    },
+    opacity: { 
+      type: 'visual', 
+      label: 'Opacity', 
+      control: 'slider', 
+      min: 0, 
+      max: 1, 
+      step: 0.01, 
+      default: 1.0 
+    },
+    backgroundColor: { 
+      type: 'visual', 
+      label: 'Background Color', 
+      control: 'color', 
+      default: '#f5f5f5' 
+    }
+  };
+  
+  // Register with visualization system
+  hooks.addFilter('availableVisualizations', 'cube', (visualizations) => {
+    return [...visualizations, {
+      id: 'cube',
+      name: 'Cube (3D)',
+      description: 'A 3D cube visualization'
+    }];
+  });
+  
+  // Register environment requirements
+  hooks.addFilter('environmentRequirements', 'cube', () => {
+    return {
+      type: '3d-camera',
+      options: {
+        cameraPosition: [0, 0, 5],
+        lookAt: [0, 0, 0]
+      }
+    };
+  });
+  
+  // Register settings metadata
+  hooks.addFilter('settingsMetadata', 'cube', (metadata) => {
+    // Only return metadata for the cube plugin
+    if (state.getState().activePluginId === 'cube') {
+      return cubeSettingsMetadata;
+    }
+    return metadata;
+  });
+  
+  // Register default settings
+  hooks.addFilter('defaultSettings', 'cube', (settings) => {
+    // Only return defaults for the cube plugin
+    if (state.getState().activePluginId === 'cube') {
+      return {
+        cubeSize: 1,
+        cubeColor: '#3498db',
+        opacity: 1.0,
+        wireframe: true,
+        rotation: true,
+        backgroundColor: '#f5f5f5'
+      };
+    }
+    return settings;
+  });
+  
+  // Register render function for 3D
+  hooks.addAction('render', 'cube', (ctx, canvas, settings) => {
+    // Only render if this is the active plugin
+    if (state.getState().activePluginId !== 'cube') {
+      return false;
+    }
+    
+    // For 3D, we set up the scene when the plugin is activated
+    // The actual rendering happens in the environment's animation loop
+    
+    return true; // We handled the rendering setup
+  });
+  
+  // Register activation handler - create the 3D scene
+  hooks.addAction('activatePlugin', 'cube', ({ pluginId }) => {
+    if (pluginId !== 'cube') return;
+    
+    console.log("Cube Plugin activated");
+    
+    // Get the current environment
+    const canvasManager = window.AppInstance.canvasManager;
+    
+    // If not using 3D environment, request it
+    if (canvasManager.environmentType !== '3d-camera') {
+      canvasManager.setupEnvironment('3d-camera');
+    }
+    
+    // Get current settings
+    const settings = state.getState().settings;
+    
+    // Access the THREE.js scene
+    if (canvasManager.currentEnvironment && 
+        canvasManager.currentEnvironment.getScene && 
+        window.THREE) {
+      
+      const scene = canvasManager.currentEnvironment.getScene();
+      
+      // Create a cube mesh
+      const size = settings.cubeSize;
+      const geometry = new THREE.BoxGeometry(size, size, size);
+      
+      // Create material based on settings
+      const material = new THREE.MeshStandardMaterial({
+        color: settings.cubeColor,
+        opacity: settings.opacity,
+        transparent: settings.opacity < 1,
+        wireframe: settings.wireframe
+      });
+      
+      // Create the cube and add to scene
+      cubeMesh = new THREE.Mesh(geometry, material);
+      scene.add(cubeMesh);
+      
+      // Set background color if available
+      if (canvasManager.currentEnvironment.getRenderer) {
+        const renderer = canvasManager.currentEnvironment.getRenderer();
+        if (renderer) {
+          renderer.setClearColor(settings.backgroundColor || '#f5f5f5');
+        }
+      }
+      
+      // Add before render hook for animation
+      hooks.addAction('beforeRender', 'cubeAnimation', (ctx, canvas, settings) => {
+        if (state.getState().activePluginId !== 'cube') return;
+        
+        // Animate the cube if rotation is enabled
+        if (cubeMesh && settings.rotation) {
+          cubeMesh.rotation.x += 0.01;
+          cubeMesh.rotation.y += 0.01;
+        }
+      });
+    } else {
+      console.warn('THREE.js environment not available for cube plugin');
+    }
+  });
+  
+  // Register deactivation handler - clean up the 3D scene
+  hooks.addAction('deactivatePlugin', 'cube', ({ pluginId }) => {
+    if (pluginId !== 'cube') return;
+    
+    console.log("Cube Plugin deactivated");
+    
+    // Clean up the cube from the scene
+    if (cubeMesh) {
+      const canvasManager = window.AppInstance.canvasManager;
+      if (canvasManager.currentEnvironment && canvasManager.currentEnvironment.getScene) {
+        const scene = canvasManager.currentEnvironment.getScene();
+        scene.remove(cubeMesh);
+      }
+      
+      // Dispose of geometry and material
+      cubeMesh.geometry.dispose();
+      cubeMesh.material.dispose();
+      cubeMesh = null;
+    }
+    
+    // Remove animation hook
+    hooks.removeAction('beforeRender', 'cubeAnimation');
+  });
+  
+  // Handle setting changes
+  hooks.addAction('onSettingChanged', 'cube', ({ path, value }) => {
+    if (state.getState().activePluginId !== 'cube' || !cubeMesh) return;
+    
+    // Update the cube based on setting changes
+    if (path === 'cubeSize') {
+      // Replace geometry with new size
+      const oldGeometry = cubeMesh.geometry;
+      cubeMesh.geometry = new THREE.BoxGeometry(value, value, value);
+      oldGeometry.dispose(); // Clean up old geometry
+    } 
+    else if (path === 'cubeColor' && cubeMesh.material) {
+      cubeMesh.material.color.set(value);
+    }
+    else if (path === 'opacity' && cubeMesh.material) {
+      cubeMesh.material.opacity = value;
+      cubeMesh.material.transparent = value < 1;
+    }
+    else if (path === 'wireframe' && cubeMesh.material) {
+      cubeMesh.material.wireframe = value;
+    }
+    else if (path === 'backgroundColor') {
+      // Get environment and update background
+      const canvasManager = window.AppInstance.canvasManager;
+      if (canvasManager.currentEnvironment && 
+          canvasManager.currentEnvironment.getRenderer) {
+        const renderer = canvasManager.currentEnvironment.getRenderer();
+        if (renderer) {
+          renderer.setClearColor(value);
+        }
+      }
+    }
+  });
+  
+  // Register export options
+  hooks.addFilter('exportOptions', 'cube', (options) => {
+    if (state.getState().activePluginId !== 'cube') return options;
+    
+    return [
+      {
+        id: 'export-png',
+        label: 'Export PNG',
+        type: 'export'
+      },
+      {
+        id: 'reset-settings',
+        label: 'Reset Settings',
+        type: 'export'
+      }
+    ];
+  });
+  
+  console.log("Cube Plugin initialized");
 }
 ```
 
@@ -482,6 +834,19 @@ Your plugin interacts with the framework through these hooks:
   });
   ```
 
+- **environmentRequirements**: Specify environment requirements 
+  ```javascript
+  hooks.addFilter('environmentRequirements', 'pluginId', () => {
+    return {
+      type: '3d-camera',
+      options: {
+        cameraPosition: [0, 0, 5],
+        lookAt: [0, 0, 0]
+      }
+    };
+  });
+  ```
+
 ## Available Control Types
 
 The framework supports these control types:
@@ -543,6 +908,24 @@ The framework supports these control types:
 }
 ```
 
+## Environment-Specific Best Practices
+
+### For 2D Camera Environment
+- Draw relative to the origin (0, 0)
+- Use the provided canvas context for drawing
+- Use settings to control the appearance of your visualization
+
+### For 2D Event Environment
+- Register handlers for the events you need (click, mousemove, etc.)
+- Only handle events when your plugin is active
+- Return true from event handlers to indicate the event was handled
+
+### For 3D Camera Environment
+- Ensure THREE.js is properly loaded
+- Create and manage THREE.js objects in activation/deactivation handlers
+- Dispose of resources (geometries, materials) when your plugin is deactivated
+- Use the scene, camera, and renderer provided by the environment
+
 ## Best Practices
 
 1. **Unique Plugin ID**: Ensure your plugin ID is unique
@@ -563,6 +946,8 @@ The framework supports these control types:
 - **Settings not applying**: Check your default settings and control types
 - **UI not updating**: Force a UI rebuild through the debug panel
 - **Plugins drawing over each other**: Make sure to check if your plugin is active before rendering
+- **THREE.js not available**: Ensure THREE.js is properly loaded before your plugin tries to use it
+- **3D rendering not working**: Check for WebGL support in the browser
 
 ## Example: Animation
 
@@ -606,61 +991,4 @@ hooks.addAction('exportAction', 'myPlugin', (actionId) => {
   }
   return false; // Not handled
 });
-```
-
-## Example: Interactive Plugin (2D Event Environment)
-
-For plugins that need to handle user interactions directly:
-
-```javascript
-// In your manifest.json:
-"environment": {
-  "type": "2d-event",
-  "options": {}
-}
-
-// In your index.js:
-hooks.addAction('onMouseDown', 'myPlugin', (event) => {
-  // Only handle events if this is the active plugin
-  if (state.getState().activePluginId !== 'myPlugin') return false;
-  
-  const { x, y } = event;
-  // Handle mouse down event
-  
-  return true; // Event was handled
-});
-
-hooks.addAction('onMouseMove', 'myPlugin', (event) => {
-  // Only handle events if this is the active plugin
-  if (state.getState().activePluginId !== 'myPlugin') return false;
-  
-  const { x, y } = event;
-  // Handle mouse move event
-  
-  return true; // Event was handled
-});
-```
-
-## Example: 3D Plugin (3D Camera Environment)
-
-For plugins that will use the 3D environment (when fully implemented):
-
-```javascript
-// In your manifest.json:
-"environment": {
-  "type": "3d-camera",
-  "options": {
-    "cameraPosition": [0, 0, 5],
-    "lookAt": [0, 0, 0]
-  }
-}
-
-// In your render function:
-function render3D(scene, camera, renderer, settings) {
-  // Create THREE.js objects
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshBasicMaterial({ color: settings.color });
-  const cube = new THREE.Mesh(geometry, material);
-  scene.add(cube);
-}
 ```
