@@ -89,11 +89,11 @@ setupEnvironment(type, options = {}) {
     return true;
   }
 
-  console.log(`Setting up environment type: ${type}`);
+  //console.log(`Setting up environment type: ${type}`);
 
   // Clean up current environment if it exists
   if (this.currentEnvironment) {
-    console.log(`Disposing current environment: ${this.environmentType}`);
+    //console.log(`Disposing current environment: ${this.environmentType}`);
     this.currentEnvironment.dispose();
     this.currentEnvironment = null;
   }
@@ -101,7 +101,7 @@ setupEnvironment(type, options = {}) {
   // Check if the requested environment type is supported
   if (!isEnvironmentTypeSupported(type)) {
     console.error(`Unsupported environment type: ${type}`);
-    console.log('Falling back to 2D camera environment');
+    //console.log('Falling back to 2D camera environment');
     type = '2d-camera';
   }
 
@@ -129,7 +129,7 @@ setupEnvironment(type, options = {}) {
   this.environmentType = type;
 
   // Activate the environment
-  console.log(`Creating Environment ${type}`);
+  //console.log(`Creating Environment ${type}`);
   const activationSuccess = this.currentEnvironment.activate();
   
   if (!activationSuccess && type === '3d-camera') {

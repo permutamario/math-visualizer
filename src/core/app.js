@@ -1,5 +1,5 @@
 // src/core/app.js
-// Updated to support rendering environments for plugins
+// Updated to support rendering environments for plugins and fix debug mode issues
 
 import { initState, getState, getStateValue, changeState, subscribe } from './stateManager.js';
 import { initializeHooks } from './hooks.js';
@@ -43,7 +43,7 @@ class App {
     // 1. Initialize the hook system
     this.hooks = initializeHooks();
     
-    // 2. Initialize state with defaults
+    // 2. Initialize state with defaults - explicitly setting debug mode to false
     initState({
       // Core state
       plugins: {},
@@ -62,7 +62,7 @@ class App {
       settingsMetadata: {},
       exportOptions: [],
       
-      // Debug options
+      // Debug options - explicitly setting debug mode to false by default
       debugMode: false,
       debugOptions: this.getDefaultDebugOptions()
     });
@@ -85,7 +85,7 @@ class App {
     // Listen for plugin activation events
     subscribe('pluginActivated', ({ pluginId }) => {
       this.activePlugin = getStateValue(`plugins.${pluginId}`);
-      console.log(`Plugin activated: ${pluginId}`);
+      //console.log(`Plugin activated: ${pluginId}`);
       
       // Set up environment based on plugin requirements
       this.setupEnvironmentForPlugin(pluginId);
@@ -98,7 +98,7 @@ class App {
       
       // Trigger render
       if (this.canvasManager) {
-        console.log("Triggering render after plugin activation");
+        //console.log("Triggering render after plugin activation");
         setTimeout(() => {
           this.canvasManager.render();
         }, 50); // Small delay to allow UI updates to complete
@@ -120,9 +120,16 @@ class App {
         }
       }
       
+      // Log debug mode changes to trace where they happen
+      if (path === 'debugMode') {
+        //console.log(`DEBUG MODE changed to: ${value}`);
+        // Uncomment next line to get stack trace of where debug mode is changed
+        // console.trace('Debug mode change stack trace:');
+      }
+      
       // Handle rebuildUI state changes
       if (path === 'rebuildUI' && value === true) {
-        console.log("rebuildUI state changed, rebuilding UI");
+        //console.log("rebuildUI state changed, rebuilding UI");
         this.rebuildUI();
         // Reset the flag
         changeState('rebuildUI', false);
@@ -146,7 +153,7 @@ class App {
     const environmentType = plugin.manifest?.environment?.type || '2d-camera';
     const environmentOptions = plugin.manifest?.environment?.options || {};
     
-    console.log(`Setting up environment for plugin ${pluginId}: ${environmentType}`);
+    //console.log(`Setting up environment for plugin ${pluginId}: ${environmentType}`);
     
     // Set up the environment in canvas manager
     if (this.canvasManager) {
@@ -158,48 +165,49 @@ class App {
    * Rebuild the UI based on current state
    */
   rebuildUI() {
-    console.log("Rebuilding UI with current state");
+    //console.log("Rebuilding UI with current state");
     const isMobile = detectPlatform();
     
     // Rebuild UI based on platform
     if (isMobile) {
       setupMobileUI(this.canvasManager);
-      console.log('Mobile UI rebuilt');
+      //console.log('Mobile UI rebuilt');
     } else {
       setupDesktopUI(this.canvasManager);
-      console.log('Desktop UI rebuilt');
+      //console.log('Desktop UI rebuilt');
     }
   }
   
-  /* Clean up state for plugin deactivation
- * @param {string} pluginId - ID of plugin being deactivated
- */
- cleanupPluginState(pluginId) {
-  if (!pluginId) return;
-  
-  console.log(`Cleaning up state for plugin: ${pluginId}`);
-  
-  // Trigger plugin deactivated action BEFORE resetting settings
-  // so the hook handler can still access state if needed
-  this.hooks.doAction('deactivatePlugin', { pluginId });
-  
-  // Reset settings and metadata completely to avoid any leftover settings
-  changeState('settings', {});
-  changeState('settingsMetadata', {});
-  changeState('exportOptions', []);
-  
-  // Ensure the canvas is fully cleared, but only if we have a valid context
-  if (this.canvasManager) {
-    const ctx = this.canvasManager.ctx;
-    // Add a null check before using the ctx object
-    if (ctx) {
-      ctx.clearRect(0, 0, this.canvasManager.canvas.width, this.canvasManager.canvas.height);
+  /**
+   * Clean up state for plugin deactivation
+   * @param {string} pluginId - ID of plugin being deactivated
+   */
+  cleanupPluginState(pluginId) {
+    if (!pluginId) return;
+    
+    //console.log(`Cleaning up state for plugin: ${pluginId}`);
+    
+    // Trigger plugin deactivated action BEFORE resetting settings
+    // so the hook handler can still access state if needed
+    this.hooks.doAction('deactivatePlugin', { pluginId });
+    
+    // Reset settings and metadata completely to avoid any leftover settings
+    changeState('settings', {});
+    changeState('settingsMetadata', {});
+    changeState('exportOptions', []);
+    
+    // Ensure the canvas is fully cleared, but only if we have a valid context
+    if (this.canvasManager) {
+      const ctx = this.canvasManager.ctx;
+      // Add a null check before using the ctx object
+      if (ctx) {
+        ctx.clearRect(0, 0, this.canvasManager.canvas.width, this.canvasManager.canvas.height);
+      }
     }
+    
+    // Store as previous plugin
+    changeState('previousPluginId', pluginId);
   }
-  
-  // Store as previous plugin
-  changeState('previousPluginId', pluginId);
-}
   
   /**
    * Activate a plugin by ID
@@ -234,7 +242,7 @@ class App {
     // IMPORTANT: First apply default settings from manifest directly
     if (plugin.manifest && plugin.manifest.defaultSettings) {
       const defaultSettings = plugin.manifest.defaultSettings;
-      console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
+      //console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
       
       // Use a fresh settings object - NOT merged with current settings
       changeState('settings', {...defaultSettings});
@@ -246,7 +254,7 @@ class App {
     // Then get settings metadata from hook - ONLY for this plugin
     if (this.hooks) {
       const metadata = this.hooks.applyFilters('settingsMetadata', {}, pluginId);
-      console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
+      //console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
       
       if (metadata && Object.keys(metadata).length > 0) {
         // This ensures metadata is available for UI
@@ -324,7 +332,7 @@ class App {
     });
     changeState('availablePlugins', availablePlugins);
     
-    console.log(`Plugin registered: ${plugin.id}`);
+    //console.log(`Plugin registered: ${plugin.id}`);
   }
   
   /**
@@ -332,7 +340,27 @@ class App {
    * @param {boolean} enabled - Whether debug mode should be enabled
    */
   setDebugMode(enabled) {
-    changeState('debugMode', enabled);
+    // Cast to boolean and log the change
+    const enableDebug = !!enabled;
+    console.log(`Setting debug mode to: ${enableDebug}`);
+    
+    // If turning off debug mode, also disable debug-related settings
+    if (!enableDebug) {
+      const debugOptions = this.getDefaultDebugOptions();
+      const settings = getState().settings || {};
+      
+      debugOptions.forEach(option => {
+        if (settings[option.setting]) {
+          console.log(`Disabling debug setting: ${option.setting}`);
+          changeState(`settings.${option.setting}`, false);
+        }
+      });
+    }
+    
+    // Update the debug mode state
+    changeState('debugMode', enableDebug);
+    
+    // Trigger UI rebuild to show/hide debug panel
     changeState('rebuildUI', true);
   }
   

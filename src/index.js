@@ -84,8 +84,10 @@ async function main() {
     // 5. Start the render loop
     app.canvasManager.startRenderLoop();
     
-    // 6. Enable debug mode if needed (optional)
-    app.setDebugMode(true);
+    // 6. Enable or disable debug mode - MODIFIED: set to false to disable debug
+    const enableDebugMode = false; // Set this to true to enable debug mode, false to disable it
+    app.setDebugMode(enableDebugMode);
+    console.log(`Debug mode is ${enableDebugMode ? 'enabled' : 'disabled'}`);
     
     // 7. Now activate the default plugin - UI will be rebuilt as part of activation
     if (plugins.length > 0) {

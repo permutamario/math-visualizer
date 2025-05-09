@@ -12,7 +12,7 @@ const HOOKS = {
  * @returns {Object} Hook system object
  */
 export function initializeHooks() {
-  console.log('Initializing hooks system');
+  //console.log('Initializing hooks system');
   
   return {
     addFilter,
@@ -145,23 +145,23 @@ function doAction(hookName, ...args) {
  * Debug function to list all registered hooks
  */
 function listRegisteredHooks() {
-  console.log("--- Registered Hooks ---");
+  //console.log("--- Registered Hooks ---");
   
-  console.log("Filters:");
+  //console.log("Filters:");
   Object.keys(HOOKS.filters).forEach(hookName => {
-    console.log(`  ${hookName}: ${HOOKS.filters[hookName].length} callbacks`);
+    //console.log(`  ${hookName}: ${HOOKS.filters[hookName].length} callbacks`);
     HOOKS.filters[hookName].forEach(({ pluginId, priority }) => {
-      console.log(`    - ${pluginId} (priority: ${priority})`);
+      //console.log(`    - ${pluginId} (priority: ${priority})`);
     });
   });
   
-  console.log("Actions:");
+  //console.log("Actions:");
   Object.keys(HOOKS.actions).forEach(hookName => {
-    console.log(`  ${hookName}: ${HOOKS.actions[hookName].length} callbacks`);
+    //console.log(`  ${hookName}: ${HOOKS.actions[hookName].length} callbacks`);
     HOOKS.actions[hookName].forEach(({ pluginId, priority }) => {
-      console.log(`    - ${pluginId} (priority: ${priority})`);
+      //console.log(`    - ${pluginId} (priority: ${priority})`);
     });
   });
   
-  console.log("----------------------");
+  //console.log("----------------------");
 }

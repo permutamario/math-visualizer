@@ -19,13 +19,13 @@ export default function initPolytopeViewerPlugin(core) {
   let polytopeBuilders = {};
   let isInitialized = false;
   
-  console.log("Initializing Polytope Viewer plugin");
+  ////console.log("Initializing Polytope Viewer plugin");
   
   // Load polytope builders asynchronously
   loadPolytopeBuilders().then(builders => {
     polytopeBuilders = builders;
     isInitialized = true;
-    console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
+    ////console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
     
     // Update state with available polytopes - important for UI dropdown
     if (state.getState().activePluginId === 'polytopeViewer') {
@@ -135,7 +135,7 @@ export default function initPolytopeViewerPlugin(core) {
   hooks.addAction('activatePlugin', 'polytopeViewer', ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    console.log("Polytope Viewer plugin activated");
+    //console.log("Polytope Viewer plugin activated");
     
     // Switch to 3D environment
     if (window.AppInstance && window.AppInstance.canvasManager) {
@@ -150,7 +150,7 @@ export default function initPolytopeViewerPlugin(core) {
   hooks.addAction('deactivatePlugin', 'polytopeViewer', ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    console.log("Polytope Viewer plugin deactivated");
+    //console.log("Polytope Viewer plugin deactivated");
     
     // Clean up resources
     if (currentMesh) {
@@ -168,7 +168,7 @@ export default function initPolytopeViewerPlugin(core) {
     // Handle polytope type changes
     if (path === 'settings.polytopeType') {
       // This will trigger rebuilding all UI controls for the new polytope type
-      console.log(`Polytope type changed to ${value}`);
+      //console.log(`Polytope type changed to ${value}`);
       updateSettingsMetadata();
       
       // Force regenerating the polytope
@@ -219,7 +219,7 @@ export default function initPolytopeViewerPlugin(core) {
       return;
     }
     
-    console.log(`Building polytope: ${polytopeType}`);
+    //console.log(`Building polytope: ${polytopeType}`);
     
     // Get the builder
     const builder = polytopeBuilders[polytopeType];
@@ -275,5 +275,5 @@ export default function initPolytopeViewerPlugin(core) {
     }
   }
   
-  console.log("Polytope Viewer plugin initialized");
+  //console.log("Polytope Viewer plugin initialized");
 }

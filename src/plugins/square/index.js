@@ -8,7 +8,7 @@
 export default function initSquarePlugin(core) {
   const { hooks, state } = core;
   
-  console.log("Initializing Square plugin");
+  //console.log("Initializing Square plugin");
   
   // Define settings metadata - ONLY for this plugin
   const squareSettingsMetadata = {
@@ -95,7 +95,7 @@ export default function initSquarePlugin(core) {
   
   // Register UI controls
   hooks.addFilter('settingsMetadata', 'square', (metadata) => {
-    console.log("Square plugin providing settings metadata");
+    //console.log("Square plugin providing settings metadata");
     // Return ONLY this plugin's metadata
     return squareSettingsMetadata;
   });
@@ -134,20 +134,20 @@ export default function initSquarePlugin(core) {
   
   // Handle setting changes
   hooks.addAction('onSettingChanged', 'square', ({ path, value }) => {
-    console.log(`Square plugin: Setting changed ${path} = ${value}`);
+    //console.log(`Square plugin: Setting changed ${path} = ${value}`);
   });
   
   // Register activation handler
   hooks.addAction('activatePlugin', 'square', ({ pluginId }) => {
     if (pluginId === 'square') {
-      console.log("Square plugin activated");
+      //console.log("Square plugin activated");
     }
   });
   
   // Register deactivation handler
   hooks.addAction('deactivatePlugin', 'square', ({ pluginId }) => {
     if (pluginId === 'square') {
-      console.log("Square plugin deactivated");
+      //console.log("Square plugin deactivated");
     }
   });
   
@@ -162,7 +162,7 @@ export default function initSquarePlugin(core) {
     }
   });
   
-  console.log("Square plugin initialized");
+  //console.log("Square plugin initialized");
 }
 
 /**
