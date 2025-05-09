@@ -1,5 +1,5 @@
 // src/core/app.js
-// Updated to support rendering environments for plugins and fix debug mode issues
+// Updated to support plugin lifecycle with proper async loading support
 
 import { initState, getState, getStateValue, changeState, subscribe } from './stateManager.js';
 import { initializeHooks } from './hooks.js';
@@ -85,7 +85,7 @@ class App {
     // Listen for plugin activation events
     subscribe('pluginActivated', ({ pluginId }) => {
       this.activePlugin = getStateValue(`plugins.${pluginId}`);
-      //console.log(`Plugin activated: ${pluginId}`);
+      console.log(`Plugin activated: ${pluginId}`);
       
       // Set up environment based on plugin requirements
       this.setupEnvironmentForPlugin(pluginId);
@@ -98,7 +98,7 @@ class App {
       
       // Trigger render
       if (this.canvasManager) {
-        //console.log("Triggering render after plugin activation");
+        console.log("Triggering render after plugin activation");
         setTimeout(() => {
           this.canvasManager.render();
         }, 50); // Small delay to allow UI updates to complete
@@ -122,19 +122,30 @@ class App {
       
       // Log debug mode changes to trace where they happen
       if (path === 'debugMode') {
-        //console.log(`DEBUG MODE changed to: ${value}`);
-        // Uncomment next line to get stack trace of where debug mode is changed
-        // console.trace('Debug mode change stack trace:');
+        console.log(`DEBUG MODE changed to: ${value}`);
       }
       
       // Handle rebuildUI state changes
       if (path === 'rebuildUI' && value === true) {
-        //console.log("rebuildUI state changed, rebuilding UI");
+        console.log("rebuildUI state changed, rebuilding UI");
         this.rebuildUI();
         // Reset the flag
         changeState('rebuildUI', false);
       }
     });
+    
+    // Add hook for plugin metadata updates
+    if (this.hooks) {
+      this.hooks.addAction('pluginMetadataUpdated', 'app', ({ pluginId, metadata }) => {
+        console.log(`Updating metadata for plugin ${pluginId} via hook`);
+        
+        // Only update if this is the active plugin
+        if (getStateValue('activePluginId') === pluginId) {
+          changeState('settingsMetadata', metadata);
+          this.rebuildUI();
+        }
+      });
+    }
   }
   
   /**
@@ -153,7 +164,7 @@ class App {
     const environmentType = plugin.manifest?.environment?.type || '2d-camera';
     const environmentOptions = plugin.manifest?.environment?.options || {};
     
-    //console.log(`Setting up environment for plugin ${pluginId}: ${environmentType}`);
+    console.log(`Setting up environment for plugin ${pluginId}: ${environmentType}`);
     
     // Set up the environment in canvas manager
     if (this.canvasManager) {
@@ -165,16 +176,16 @@ class App {
    * Rebuild the UI based on current state
    */
   rebuildUI() {
-    //console.log("Rebuilding UI with current state");
+    console.log("Rebuilding UI with current state");
     const isMobile = detectPlatform();
     
     // Rebuild UI based on platform
     if (isMobile) {
       setupMobileUI(this.canvasManager);
-      //console.log('Mobile UI rebuilt');
+      console.log('Mobile UI rebuilt');
     } else {
       setupDesktopUI(this.canvasManager);
-      //console.log('Desktop UI rebuilt');
+      console.log('Desktop UI rebuilt');
     }
   }
   
@@ -185,7 +196,7 @@ class App {
   cleanupPluginState(pluginId) {
     if (!pluginId) return;
     
-    //console.log(`Cleaning up state for plugin: ${pluginId}`);
+    console.log(`Cleaning up state for plugin: ${pluginId}`);
     
     // Trigger plugin deactivated action BEFORE resetting settings
     // so the hook handler can still access state if needed
@@ -210,6 +221,45 @@ class App {
   }
   
   /**
+   * Set plugin lifecycle state
+   * @param {string} pluginId - Plugin ID
+   * @param {string} state - New lifecycle state ('initializing', 'ready', 'error')
+   */
+  setPluginLifecycleState(pluginId, state) {
+    const plugin = getStateValue(`plugins.${pluginId}`);
+    
+    if (!plugin) {
+      console.error(`Cannot set lifecycle state - plugin ${pluginId} not found`);
+      return;
+    }
+    
+    console.log(`Changing plugin ${pluginId} lifecycle state: ${plugin.lifecycleState} -> ${state}`);
+    
+    // Update plugin object directly
+    plugin.lifecycleState = state;
+    
+    // Store in state as well for reactive updates
+    changeState(`plugins.${pluginId}.lifecycleState`, state);
+    
+    // If changing to ready state, update UI if this is the active plugin
+    if (state === 'ready' && getStateValue('activePluginId') === pluginId) {
+      console.log(`Plugin ${pluginId} is now ready, updating settings and UI`);
+      
+      // Trigger settings update from plugin
+      this.hooks.doAction('onPluginReady', { pluginId });
+      
+      // Request metadata again now that plugin is ready
+      const metadata = this.hooks.applyFilters('settingsMetadata', {}, pluginId);
+      if (metadata && Object.keys(metadata).length > 0) {
+        changeState('settingsMetadata', metadata);
+      }
+      
+      // Rebuild UI with complete plugin data
+      this.rebuildUI();
+    }
+  }
+  
+  /**
    * Activate a plugin by ID
    * @param {string} pluginId - ID of the plugin to activate
    */
@@ -224,6 +274,10 @@ class App {
       return;
     }
     
+    // Get plugin lifecycle state
+    const plugin = plugins[pluginId];
+    const lifecycleState = plugin.lifecycleState || 'registered';
+    
     // Get current plugin ID before changing it
     const currentPluginId = getStateValue('activePluginId');
     
@@ -236,13 +290,10 @@ class App {
     // Set the new active plugin ID
     changeState('activePluginId', pluginId);
     
-    // Get plugin metadata from state
-    const plugin = plugins[pluginId];
-    
     // IMPORTANT: First apply default settings from manifest directly
     if (plugin.manifest && plugin.manifest.defaultSettings) {
       const defaultSettings = plugin.manifest.defaultSettings;
-      //console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
+      console.log(`Applying default settings for plugin ${pluginId}:`, defaultSettings);
       
       // Use a fresh settings object - NOT merged with current settings
       changeState('settings', {...defaultSettings});
@@ -251,10 +302,10 @@ class App {
       changeState('settings', {});
     }
     
-    // Then get settings metadata from hook - ONLY for this plugin
-    if (this.hooks) {
+    // Then get settings metadata from hook - ONLY if plugin is ready
+    if (this.hooks && (lifecycleState === 'ready' || lifecycleState === 'active')) {
       const metadata = this.hooks.applyFilters('settingsMetadata', {}, pluginId);
-      //console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
+      console.log(`Settings metadata from plugin ${pluginId}:`, metadata);
       
       if (metadata && Object.keys(metadata).length > 0) {
         // This ensures metadata is available for UI
@@ -272,6 +323,17 @@ class App {
         console.warn(`No export options found for plugin ${pluginId}`);
         changeState('exportOptions', []);
       }
+    } else if (lifecycleState === 'initializing') {
+      // If plugin is still initializing, show placeholder UI with loading indicator
+      console.log(`Plugin ${pluginId} is still initializing, showing placeholder UI`);
+      changeState('settingsMetadata', {
+        _loading: {
+          type: 'structural',
+          label: 'Loading Plugin...',
+          control: 'message'
+        }
+      });
+      changeState('exportOptions', []);
     }
     
     // Set up environment based on plugin requirements
@@ -279,6 +341,10 @@ class App {
     
     // Trigger plugin activated action
     this.hooks.doAction('activatePlugin', { pluginId });
+    
+    // Update plugin lifecycle state to active
+    plugin.lifecycleState = 'active';
+    changeState(`plugins.${pluginId}.lifecycleState`, 'active');
     
     // Notify about plugin activation
     changeState('pluginActivated', { pluginId });
@@ -320,6 +386,11 @@ class App {
       };
     }
     
+    // Add lifecycle state if not already present
+    if (!plugin.lifecycleState) {
+      plugin.lifecycleState = 'registered';
+    }
+    
     // Store plugin in state
     changeState(`plugins.${plugin.id}`, plugin);
     
@@ -332,7 +403,7 @@ class App {
     });
     changeState('availablePlugins', availablePlugins);
     
-    //console.log(`Plugin registered: ${plugin.id}`);
+    console.log(`Plugin registered: ${plugin.id}`);
   }
   
   /**

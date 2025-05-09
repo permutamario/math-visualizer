@@ -1,5 +1,5 @@
 // src/plugins/polytope-viewer/index.js
-// Main entry point for the Polytope Viewer plugin
+// Main entry point for the Polytope Viewer plugin with async initialization support
 
 import { loadPolytopeBuilders } from './polytope/polytopeLoader.js';
 import { createPolytopeMesh, disposePolytopeMesh } from './polytope/meshBuilder.js';
@@ -8,9 +8,10 @@ import { getBaseSettingsMetadata, getPolytopeSpecificMetadata } from './settings
 /**
  * Initialize the Polytope Viewer plugin
  * @param {Object} core - Core APIs provided by the framework
+ * @returns {Promise} A promise that resolves when initialization is complete
  */
 export default function initPolytopeViewerPlugin(core) {
-  const { hooks, state } = core;
+  const { hooks, state, lifecycle } = core;
   
   // Track state within the plugin
   let currentPolytope = null;
@@ -19,21 +20,9 @@ export default function initPolytopeViewerPlugin(core) {
   let polytopeBuilders = {};
   let isInitialized = false;
   
-  ////console.log("Initializing Polytope Viewer plugin");
+  console.log("Initializing Polytope Viewer plugin");
   
-  // Load polytope builders asynchronously
-  loadPolytopeBuilders().then(builders => {
-    polytopeBuilders = builders;
-    isInitialized = true;
-    ////console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
-    
-    // Update state with available polytopes - important for UI dropdown
-    if (state.getState().activePluginId === 'polytopeViewer') {
-      updateSettingsMetadata();
-    }
-  });
-  
-  // Register with visualization system
+  // Register with visualization system immediately
   hooks.addFilter('availableVisualizations', 'polytopeViewer', (visualizations) => {
     return [...visualizations, {
       id: 'polytopeViewer',
@@ -42,11 +31,23 @@ export default function initPolytopeViewerPlugin(core) {
     }];
   });
   
-  // Register UI controls - these will be dynamically updated based on the selected polytope
+  // Register initial bare minimum UI controls - these will be replaced when fully loaded
   hooks.addFilter('settingsMetadata', 'polytopeViewer', (metadata) => {
     // Only return metadata for the polytope viewer when it's active
     if (state.getState().activePluginId !== 'polytopeViewer') {
       return metadata;
+    }
+    
+    if (!isInitialized) {
+      // Return loading indicator if not fully initialized
+      return {
+        _loading: {
+          type: 'structural',
+          label: 'Loading Polytope Data...',
+          control: 'message',
+          text: 'Please wait while polytope builders are loaded...'
+        }
+      };
     }
     
     // Start with base settings
@@ -66,7 +67,7 @@ export default function initPolytopeViewerPlugin(core) {
     return baseMetadata;
   });
   
-  // Register default settings
+  // Register default settings - simple defaults until fully loaded
   hooks.addFilter('defaultSettings', 'polytopeViewer', (defaultSettings) => {
     if (state.getState().activePluginId !== 'polytopeViewer') {
       return defaultSettings;
@@ -74,7 +75,7 @@ export default function initPolytopeViewerPlugin(core) {
     
     // Start with base default settings
     const baseDefaults = {
-      polytopeType: Object.keys(polytopeBuilders)[0] || 'cube', // Fallback to cube if none loaded yet
+      polytopeType: isInitialized ? Object.keys(polytopeBuilders)[0] || 'cube' : 'cube',
       wireframe: false,
       showVertices: true,
       vertexSize: 0.1,
@@ -82,8 +83,14 @@ export default function initPolytopeViewerPlugin(core) {
       edgeColor: '#000000',
       faceColor: '#3498db',
       faceOpacity: 0.85,
-      showFaces: true
+      showFaces: true,
+      animation: false
     };
+    
+    // If not initialized yet, return just the base defaults
+    if (!isInitialized) {
+      return baseDefaults;
+    }
     
     // Get defaults for the current polytope type
     const currentType = baseDefaults.polytopeType;
@@ -135,22 +142,27 @@ export default function initPolytopeViewerPlugin(core) {
   hooks.addAction('activatePlugin', 'polytopeViewer', ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    //console.log("Polytope Viewer plugin activated");
+    console.log("Polytope Viewer plugin activated");
     
     // Switch to 3D environment
     if (window.AppInstance && window.AppInstance.canvasManager) {
       window.AppInstance.canvasManager.setupEnvironment('3d-camera');
     }
     
-    // Update metadata for UI controls
-    updateSettingsMetadata();
+    // If already initialized, update metadata for UI controls
+    if (isInitialized) {
+      hooks.doAction('pluginMetadataUpdated', {
+        pluginId: 'polytopeViewer',
+        metadata: buildCompleteMetadata()
+      });
+    }
   });
   
   // Register deactivation handler
   hooks.addAction('deactivatePlugin', 'polytopeViewer', ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    //console.log("Polytope Viewer plugin deactivated");
+    console.log("Polytope Viewer plugin deactivated");
     
     // Clean up resources
     if (currentMesh) {
@@ -168,8 +180,13 @@ export default function initPolytopeViewerPlugin(core) {
     // Handle polytope type changes
     if (path === 'settings.polytopeType') {
       // This will trigger rebuilding all UI controls for the new polytope type
-      //console.log(`Polytope type changed to ${value}`);
-      updateSettingsMetadata();
+      console.log(`Polytope type changed to ${value}`);
+      
+      // Use pluginMetadataUpdated hook instead of direct state manipulation
+      hooks.doAction('pluginMetadataUpdated', {
+        pluginId: 'polytopeViewer',
+        metadata: buildCompleteMetadata()
+      });
       
       // Force regenerating the polytope
       lastPolytopeType = null;
@@ -181,30 +198,61 @@ export default function initPolytopeViewerPlugin(core) {
     }
   });
   
+  // Return a promise that resolves when initialization is complete
+  return new Promise((resolve) => {
+    // Load polytope builders asynchronously
+    loadPolytopeBuilders().then(builders => {
+      polytopeBuilders = builders;
+      isInitialized = true;
+      console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
+      
+      // Signal that the plugin is now ready
+      lifecycle.setPluginState('ready');
+	console.log("I AM READY ----------------------");
+      
+      // Register new hook for plugin ready event
+      hooks.addAction('onPluginReady', 'polytopeViewer', ({ pluginId }) => {
+        if (pluginId === 'polytopeViewer') {
+          // Update settings metadata now that we're fully loaded
+          if (state.getState().activePluginId === 'polytopeViewer') {
+            // Use hooks to notify of metadata updates rather than directly changing state
+            hooks.doAction('pluginMetadataUpdated', {
+              pluginId: 'polytopeViewer',
+              metadata: buildCompleteMetadata()
+            });
+          }
+        }
+      });
+      
+      resolve();
+    }).catch(error => {
+      console.error("Failed to load polytope builders:", error);
+      isInitialized = true; // Mark as initialized even though it failed
+      lifecycle.setPluginState('error'); // Signal error state
+      resolve(); // Resolve the promise to continue framework initialization
+    });
+  });
+  
   /**
-   * Update settings metadata to trigger UI rebuild
+   * Build complete metadata based on current state 
+   * @returns {Object} Complete settings metadata
    */
-  function updateSettingsMetadata() {
-    // Get current settings
-    const settings = state.getState().settings || {};
-    
-    // Start with base metadata
+  function buildCompleteMetadata() {
+    // Start with base settings
     const baseMetadata = getBaseSettingsMetadata(Object.keys(polytopeBuilders));
     
-    // Get current polytope type
-    const currentType = settings.polytopeType || Object.keys(polytopeBuilders)[0];
+    // Get current settings to determine selected polytope type
+    const settings = state.getState().settings || {};
+    const currentPolytopeType = settings.polytopeType || Object.keys(polytopeBuilders)[0];
     
-    // Add polytope-specific metadata
-    if (polytopeBuilders[currentType]) {
-      const builder = polytopeBuilders[currentType];
-      const specificMetadata = getPolytopeSpecificMetadata(currentType, builder);
-      window.changeState('settingsMetadata', { ...baseMetadata, ...specificMetadata });
-    } else {
-      window.changeState('settingsMetadata', baseMetadata);
+    // Add polytope-specific settings if a builder is available
+    if (polytopeBuilders[currentPolytopeType]) {
+      const builder = polytopeBuilders[currentPolytopeType];
+      const specificMetadata = getPolytopeSpecificMetadata(currentPolytopeType, builder);
+      return { ...baseMetadata, ...specificMetadata };
     }
     
-    // Trigger UI rebuild
-    window.changeState('rebuildUI', true);
+    return baseMetadata;
   }
   
   /**
@@ -219,7 +267,7 @@ export default function initPolytopeViewerPlugin(core) {
       return;
     }
     
-    //console.log(`Building polytope: ${polytopeType}`);
+    console.log(`Building polytope: ${polytopeType}`);
     
     // Get the builder
     const builder = polytopeBuilders[polytopeType];
@@ -275,5 +323,5 @@ export default function initPolytopeViewerPlugin(core) {
     }
   }
   
-  //console.log("Polytope Viewer plugin initialized");
+  console.log("Polytope Viewer plugin initialized");
 }

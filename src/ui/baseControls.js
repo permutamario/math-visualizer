@@ -230,3 +230,39 @@ export function createVectorInput({ id, label, value, onChange }) {
   container.appendChild(row);
   return container;
 }
+
+/**
+ * Create a message display (non-interactive control)
+ * @param {Object} options - Message options
+ * @returns {HTMLElement} Message element
+ */
+export function createMessage({ id, label, text = '' }) {
+  const container = createControlContainer();
+  const messageEl = document.createElement('div');
+  messageEl.id = id;
+  messageEl.className = 'message-control';
+  
+  if (label) {
+    const labelEl = document.createElement('strong');
+    labelEl.textContent = label;
+    messageEl.appendChild(labelEl);
+  }
+  
+  if (text) {
+    const textEl = document.createElement('p');
+    textEl.textContent = text;
+    messageEl.appendChild(textEl);
+  } else {
+    // If no text, add a loading spinner
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    spinner.style.width = '20px';
+    spinner.style.height = '20px';
+    spinner.style.margin = '10px auto';
+    messageEl.appendChild(spinner);
+  }
+  
+  container.appendChild(messageEl);
+  return container;
+}
+

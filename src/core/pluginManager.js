@@ -1,5 +1,5 @@
 // src/core/pluginManager.js
-// Updated to automatically discover and load plugins
+// Updated to support asynchronous plugin initialization
 
 import { getState } from './stateManager.js';
 import { showNotification } from './utils.js';
@@ -10,9 +10,6 @@ import initCirclePlugin from '../plugins/circle/index.js';
 import initCubePlugin from '../plugins/cube/index.js';
 import initInteractivePlugin from '../plugins/interactive/index.js';
 import initPolytopeViewerPlugin from '../plugins/polytope-viewer/index.js';
-
-// List of plugin directories to scan
-const PLUGINS_PATH = './src/plugins/';
 
 /**
  * Load and initialize all available plugins
@@ -33,7 +30,7 @@ export async function loadPlugins() {
       await app.initialize();
     }
 
-    // 2. Use our predefined list of plugins - simplest and most reliable approach
+    // 2. Use our predefined list of plugins
     const plugins = getPluginsList();
     console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.id));
 
@@ -47,6 +44,9 @@ export async function loadPlugins() {
     for (const plugin of plugins) {
       console.log(`Registering plugin: ${plugin.id}`);
       
+      // Add lifecycle state to plugin
+      plugin.lifecycleState = 'registered';
+      
       // Register the plugin with the app
       app.registerPlugin(plugin);
       
@@ -56,29 +56,45 @@ export async function loadPlugins() {
         state: {
           getState,
         },
-        canvas: app.canvasManager
+        canvas: app.canvasManager,
+        // Add new lifecycle methods
+        lifecycle: {
+          setPluginState: (state) => app.setPluginLifecycleState(plugin.id, state)
+        }
       };
       
       if (typeof plugin.init === 'function') {
         try {
-          await plugin.init(core);
-          console.log(`Initialized plugin: ${plugin.id}`);
+          // Set to initializing state
+          plugin.lifecycleState = 'initializing';
+          
+          // Initialize can now return a promise
+          const initResult = plugin.init(core);
+          
+          // If init returns a promise, wait for it
+          if (initResult instanceof Promise) {
+            await initResult;
+          }
+          
+          // If plugin didn't explicitly set state to ready, do it now
+          if (plugin.lifecycleState === 'initializing') {
+            plugin.lifecycleState = 'ready';
+          }
+          
+          console.log(`Initialized plugin: ${plugin.id}, lifecycle state: ${plugin.lifecycleState}`);
         } catch (error) {
           console.error(`Error initializing plugin ${plugin.id}:`, error);
+          plugin.lifecycleState = 'error';
+          plugin.error = error.message;
         }
+      } else {
+        // If no init function, assume plugin is ready
+        plugin.lifecycleState = 'ready';
       }
       
       loadedPlugins.push(plugin);
     }
 
-    // After loading, log the registered hooks
-    if (app.hooks) {
-      console.log("Registered hooks after plugin initialization:");
-      app.hooks.listRegisteredHooks();
-    }
-
-    console.log(`Loaded ${loadedPlugins.length} plugins`);
-    
     return loadedPlugins;
     
   } catch (error) {

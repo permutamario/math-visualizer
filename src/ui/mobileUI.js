@@ -7,7 +7,8 @@ import {
   createColorPicker,
   createDropdown,
   createButton,
-  createNumberInput
+  createNumberInput,
+  createMessage // Add this import
 } from './baseControls.js';
 import { showNotification } from '../core/utils.js';
 import { getState, getStateValue, changeState, subscribe } from '../core/stateManager.js';
@@ -389,6 +390,13 @@ function createControlFromSetting(setting, onChange) {
   const { key, control, label, value } = setting;
   
   switch (control) {
+
+	case 'message':
+	  return createMessage({
+	    id: key,
+	    label,
+	    text: setting.text || ''
+	  });
     case 'slider':
       return createSlider({
         id: `${key}-mobile`,
