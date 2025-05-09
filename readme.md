@@ -73,9 +73,9 @@ This framework allows for creating and managing different mathematical visualiza
 The application entry point that bootstraps the framework:
 - Detects the platform (mobile/desktop)
 - Initializes the app core
-- Loads available plugins
+- Loads available plugins (registration only)
 - Sets up the appropriate UI
-- Activates the default plugin
+- Initializes and activates the default plugin only
 - Handles the loading screen
 - Manages the initialization sequence
 
@@ -83,19 +83,20 @@ The application entry point that bootstraps the framework:
 
 The central controller for the application:
 - Initializes the framework components
-- Manages the plugin lifecycle (activation/deactivation)
+- Manages the plugin lifecycle (registration → initialization → activation → deactivation)
 - Coordinates between plugins and the UI
 - Handles the rebuilding of UI components
 - Manages settings and metadata for active plugins
 - Sets up appropriate rendering environments
 - Provides global access to core functionality
+- Handles plugin loading screens and transitions
 
 ### src/core/pluginManager.js
 
-Responsible for discovering and loading plugins:
+Responsible for discovering and managing plugins:
 - Scans for available plugins
-- Loads plugin code and metadata
-- Registers plugins with the app core
+- Registers plugins with minimal overhead (without initialization)
+- Only initializes plugins when actually needed
 - Manages plugin initialization
 - Provides information about available plugins
 
@@ -180,11 +181,18 @@ The framework uses a plugin architecture that allows for easy extension. Each pl
 
 ### Plugin Lifecycle
 
-1. **Discovery**: Plugins are discovered by the pluginManager
-2. **Loading**: Plugin code and metadata are loaded
-3. **Registration**: Plugin registers with the hooks system
-4. **Activation**: A plugin becomes active when selected
-5. **Deactivation**: Plugin is deactivated when another is selected
+1. **Registration**: Plugin metadata is registered with the system (minimal overhead)
+2. **Initialization**: Plugin code is initialized when selected for the first time
+3. **Activation**: Plugin becomes active when selected
+4. **Deactivation**: Plugin is deactivated when another is selected
+
+### Enhanced Lazy Loading
+
+The framework now implements lazy-loading for plugins:
+- Only the default plugin is initialized at startup
+- Other plugins are only initialized when first selected
+- A loading screen appears during initialization for complex plugins
+- Resources are only loaded when needed
 
 ### Hook Points
 
@@ -286,6 +294,8 @@ The framework uses a centralized state store with these key sections:
 - `activePluginId`: Currently active plugin
 - `previousPluginId`: Previously active plugin
 - `currentEnvironment`: Currently active environment type
+- `pluginLoading`: Whether a plugin is loading
+- `loadingPluginId`: ID of the plugin currently loading
 
 ### UI State
 - `availablePlugins`: List of available plugins
@@ -331,6 +341,16 @@ To create a new plugin:
 4. Register with necessary hooks
 
 See the [How to Create a Plugin.md](./How%20to%20Create%20a%20Plugin.md) guide for detailed instructions.
+
+### Optimizing Plugin Loading
+
+To create plugins that work well with the lazy-loading system:
+
+1. Keep registration light - avoid heavy computation in plugin definition
+2. Use asynchronous initialization for plugins that need to load resources
+3. Register hook handlers immediately, even if the actual resources are loaded later
+4. Use lifecycle.setPluginState to signal plugin readiness
+5. Consider showing load progress when initializing large resources
 
 ## Dependencies for 3D Visualization
 

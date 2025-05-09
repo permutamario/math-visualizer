@@ -1,12 +1,11 @@
 // src/index.js
-// Application entry point with improved UI sequencing, THREE.js integration,
-// and enhanced plugin lifecycle support
+// Updated to implement lazy loading plugin strategy
 
 import { detectPlatform, showNotification } from './core/utils.js';
 import { setupDesktopUI } from './ui/desktopUI.js';
 import { setupMobileUI } from './ui/mobileUI.js';
 import { initializeApp } from './core/app.js';
-import { loadPlugins } from './core/pluginManager.js';
+import { loadPlugins, initializePlugin } from './core/pluginManager.js';
 
 // Import CameraControls for proper initialization
 import CameraControlsFactory from '../vendors/cameraControls3d/camera-controls.module.js';
@@ -105,10 +104,10 @@ async function main() {
     const app = await initializeApp();
     console.log('App core initialized successfully');
     
-    // 3. Discover and load plugins
-    updateLoadingMessage("Loading plugins...");
+    // 3. Discover and register all available plugins (but don't initialize them)
+    updateLoadingMessage("Registering plugins...");
     const plugins = await loadPlugins();
-    console.log('Loaded plugins:', plugins.map(p => p.name));
+    console.log('Registered plugins:', plugins.map(p => p.name));
     
     // 4. Set up empty placeholder UI - this will be rebuilt when a plugin activates
     updateLoadingMessage("Setting up user interface...");
@@ -120,9 +119,6 @@ async function main() {
       console.log('Initial desktop UI placeholder set up');
     }
     
-    // Hide loading screen now that initial UI is set up
-    hideLoadingScreen();
-    
     // 5. Start the render loop
     app.canvasManager.startRenderLoop();
     
@@ -131,39 +127,24 @@ async function main() {
     app.setDebugMode(enableDebugMode);
     console.log(`Debug mode is ${enableDebugMode ? 'enabled' : 'disabled'}`);
     
-    // 7. Check if we have any plugins that are ready to use
-    const readyPlugins = plugins.filter(p => p.lifecycleState === 'ready');
-    console.log(`${readyPlugins.length} plugins are ready for activation`);
+    // 7. Initialize and activate the default plugin
+    const defaultPluginId = 'square'; // Use square as the default plugin
     
-    // 8. Activate the default plugin - UI will be rebuilt as part of activation
-    if (readyPlugins.length > 0) {
-      // Prefer square plugin if available, otherwise use first ready plugin
-      const squarePlugin = readyPlugins.find(p => p.id === 'square');
-      const defaultPluginId = squarePlugin ? 'square' : readyPlugins[0].id;
-      
-      console.log('Activating default plugin:', defaultPluginId);
-      
-      // Allow a small delay for everything to settle
-      setTimeout(() => {
-        app.activatePlugin(defaultPluginId);
-      }, 300);
-    } else if (plugins.length > 0) {
-      // If no plugins are ready but some are initializing, show message
-      const initializingPlugins = plugins.filter(p => p.lifecycleState === 'initializing');
-      if (initializingPlugins.length > 0) {
-        console.log(`Waiting for ${initializingPlugins.length} plugins to complete initialization`);
-        showNotification('Some plugins are still initializing. They will become available shortly.', 3000);
-      } else {
-        console.warn('No ready plugins found');
-        showNotification('No plugins are ready for use.', 3000);
-      }
-    } else {
-      console.error('No plugins found');
-      showErrorMessage('No plugins could be loaded. Check the console for details.');
-    }
+    updateLoadingMessage(`Initializing default plugin: ${defaultPluginId}...`);
+    await initializePlugin(defaultPluginId);
+    
+    // Hide loading screen now that plugin is initialized
+    hideLoadingScreen();
+    
+    // Activate the default plugin - UI will be rebuilt as part of activation
+    console.log('Activating default plugin:', defaultPluginId);
+    setTimeout(async () => {
+      await app.activatePlugin(defaultPluginId);
+      showNotification('Math Visualization Framework loaded successfully!', 2000);
+    }, 100);
     
     console.log('Application started successfully');
-    showNotification('Math Visualization Framework loaded successfully!', 2000);
+    
   } catch (error) {
     console.error('Application failed to start:', error);
     

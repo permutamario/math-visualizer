@@ -1,5 +1,5 @@
 // src/core/app.js
-// Updated to support plugin lifecycle with proper async loading support
+// Updated to support lazy plugin initialization
 
 import { initState, getState, getStateValue, changeState, subscribe } from './stateManager.js';
 import { initializeHooks } from './hooks.js';
@@ -8,6 +8,7 @@ import { showNotification } from './utils.js';
 import { setupDesktopUI } from '../ui/desktopUI.js';
 import { setupMobileUI } from '../ui/mobileUI.js';
 import { detectPlatform } from './utils.js';
+import { initializePlugin } from './pluginManager.js'; // Import the initialization function
 
 // App instance for singleton access
 let appInstance = null;
@@ -28,6 +29,7 @@ class App {
     this.activePlugin = null;
     this.hooks = null;
     this.canvasManager = null;
+    this.isLoadingPlugin = false;
     appInstance = this;
   }
   
@@ -53,6 +55,8 @@ class App {
       // UI state
       availablePlugins: [],
       rebuildUI: false,
+      pluginLoading: false,
+      loadingPluginId: null,
       
       // Environment state
       currentEnvironment: null,
@@ -223,7 +227,7 @@ class App {
   /**
    * Set plugin lifecycle state
    * @param {string} pluginId - Plugin ID
-   * @param {string} state - New lifecycle state ('initializing', 'ready', 'error')
+   * @param {string} state - New lifecycle state ('registered', 'initializing', 'ready', 'error')
    */
   setPluginLifecycleState(pluginId, state) {
     const plugin = getStateValue(`plugins.${pluginId}`);
@@ -260,10 +264,129 @@ class App {
   }
   
   /**
-   * Activate a plugin by ID
-   * @param {string} pluginId - ID of the plugin to activate
+   * Show loading screen for a plugin
+   * @param {string} pluginId - ID of the plugin being loaded
    */
-  activatePlugin(pluginId) {
+  showPluginLoading(pluginId) {
+    changeState('pluginLoading', true);
+    changeState('loadingPluginId', pluginId);
+    
+    // Get plugin name for display
+    const plugin = getStateValue(`plugins.${pluginId}`);
+    const pluginName = plugin ? plugin.name || pluginId : pluginId;
+    
+    // Create or update the loading overlay
+    this.createLoadingOverlay(pluginName);
+  }
+  
+  /**
+   * Hide plugin loading screen
+   */
+  hidePluginLoading() {
+    changeState('pluginLoading', false);
+    changeState('loadingPluginId', null);
+    
+    // Remove the loading overlay
+    const loadingOverlay = document.getElementById('plugin-loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.style.opacity = '0';
+      setTimeout(() => {
+        if (loadingOverlay.parentNode) {
+          loadingOverlay.parentNode.removeChild(loadingOverlay);
+        }
+      }, 500);
+    }
+  }
+  
+  /**
+   * Create or update the loading overlay
+   * @param {string} pluginName - Name of the plugin to display
+   */
+  createLoadingOverlay(pluginName) {
+    // Remove existing overlay if any
+    let loadingOverlay = document.getElementById('plugin-loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.parentNode.removeChild(loadingOverlay);
+    }
+    
+    // Create new overlay
+    loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'plugin-loading-overlay';
+    loadingOverlay.style.position = 'fixed';
+    loadingOverlay.style.top = '0';
+    loadingOverlay.style.left = '0';
+    loadingOverlay.style.width = '100%';
+    loadingOverlay.style.height = '100%';
+    loadingOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    loadingOverlay.style.display = 'flex';
+    loadingOverlay.style.flexDirection = 'column';
+    loadingOverlay.style.alignItems = 'center';
+    loadingOverlay.style.justifyContent = 'center';
+    loadingOverlay.style.zIndex = '9999';
+    loadingOverlay.style.opacity = '0';
+    loadingOverlay.style.transition = 'opacity 0.3s ease';
+    
+    // Create content
+    const content = document.createElement('div');
+    content.style.backgroundColor = '#ffffff';
+    content.style.borderRadius = '8px';
+    content.style.padding = '30px';
+    content.style.textAlign = 'center';
+    content.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.2)';
+    content.style.maxWidth = '80%';
+    
+    // Create title
+    const title = document.createElement('h2');
+    title.textContent = `Loading ${pluginName}`;
+    title.style.margin = '0 0 20px 0';
+    title.style.color = '#333';
+    content.appendChild(title);
+    
+    // Create spinner
+    const spinner = document.createElement('div');
+    spinner.style.border = '5px solid #f3f3f3';
+    spinner.style.borderTop = '5px solid #3498db';
+    spinner.style.borderRadius = '50%';
+    spinner.style.width = '50px';
+    spinner.style.height = '50px';
+    spinner.style.margin = '0 auto 20px auto';
+    spinner.style.animation = 'spin 1s linear infinite';
+    content.appendChild(spinner);
+    
+    // Create message
+    const message = document.createElement('p');
+    message.textContent = 'This may take a few moments...';
+    message.style.color = '#666';
+    content.appendChild(message);
+    
+    // Add spinner keyframes if not already in document
+    if (!document.getElementById('loading-spinner-keyframes')) {
+      const style = document.createElement('style');
+      style.id = 'loading-spinner-keyframes';
+      style.textContent = `
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    // Add to overlay and document
+    loadingOverlay.appendChild(content);
+    document.body.appendChild(loadingOverlay);
+    
+    // Trigger reflow before setting opacity for transition to work
+    loadingOverlay.offsetWidth;
+    loadingOverlay.style.opacity = '1';
+  }
+  
+  /**
+   * Activate a plugin by ID (with lazy initialization)
+   * @param {string} pluginId - ID of the plugin to activate
+   * @returns {Promise<boolean>} Success status
+   */
+  async activatePlugin(pluginId) {
     console.log(`Activating plugin: ${pluginId}`);
     
     const plugins = getStateValue('plugins');
@@ -271,7 +394,7 @@ class App {
     if (!plugins[pluginId]) {
       console.error(`Plugin "${pluginId}" not found`);
       showNotification(`Plugin "${pluginId}" not found`, 3000);
-      return;
+      return false;
     }
     
     // Get plugin lifecycle state
@@ -285,6 +408,75 @@ class App {
     if (currentPluginId && currentPluginId !== pluginId) {
       // Clean up state from previous plugin first
       this.cleanupPluginState(currentPluginId);
+    }
+    
+    // Initialize the plugin if not already initialized
+    if (lifecycleState === 'registered') {
+      console.log(`Plugin ${pluginId} needs initialization first`);
+      
+      // Show loading screen
+      this.showPluginLoading(pluginId);
+      
+      try {
+        // Initialize the plugin
+        const success = await initializePlugin(pluginId);
+        if (!success) {
+          this.hidePluginLoading();
+          console.error(`Failed to initialize plugin: ${pluginId}`);
+          showNotification(`Failed to initialize plugin: ${pluginId}`, 3000);
+          return false;
+        }
+      } catch (error) {
+        this.hidePluginLoading();
+        console.error(`Error during plugin initialization: ${error.message}`);
+        showNotification(`Plugin initialization error: ${pluginId}`, 3000);
+        return false;
+      }
+      
+      // Hide loading screen
+      this.hidePluginLoading();
+    } else if (lifecycleState === 'initializing') {
+      console.log(`Plugin ${pluginId} is already initializing, waiting...`);
+      
+      // Show loading screen
+      this.showPluginLoading(pluginId);
+      
+      // Wait for the plugin to become ready (polling approach)
+      const maxWaitTime = 30000; // 30 seconds max wait
+      const pollInterval = 100; // 100ms between checks
+      let elapsedTime = 0;
+      
+      while (elapsedTime < maxWaitTime) {
+        // Check if plugin state has changed
+        const currentState = getStateValue(`plugins.${pluginId}.lifecycleState`);
+        if (currentState === 'ready' || currentState === 'active') {
+          console.log(`Plugin ${pluginId} is now ready`);
+          break;
+        } else if (currentState === 'error') {
+          this.hidePluginLoading();
+          console.error(`Plugin ${pluginId} failed to initialize`);
+          showNotification(`Plugin failed to initialize: ${pluginId}`, 3000);
+          return false;
+        }
+        
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        elapsedTime += pollInterval;
+      }
+      
+      // Check if we timed out
+      if (elapsedTime >= maxWaitTime) {
+        this.hidePluginLoading();
+        console.error(`Timed out waiting for plugin ${pluginId} to initialize`);
+        showNotification(`Plugin initialization timeout: ${pluginId}`, 3000);
+        return false;
+      }
+      
+      // Hide loading screen
+      this.hidePluginLoading();
+
+	//Add some time to wait for the hooks to register
+	await new Promise(resolve => setTimeout(resolve, 50));
     }
     
     // Set the new active plugin ID
@@ -312,6 +504,7 @@ class App {
         changeState('settingsMetadata', metadata);
       } else {
         console.warn(`No settings metadata found for plugin ${pluginId}`);
+	await this.pollForPluginMetadata(pluginId);
         changeState('settingsMetadata', {});
       }
       
@@ -323,16 +516,10 @@ class App {
         console.warn(`No export options found for plugin ${pluginId}`);
         changeState('exportOptions', []);
       }
-    } else if (lifecycleState === 'initializing') {
-      // If plugin is still initializing, show placeholder UI with loading indicator
-      console.log(`Plugin ${pluginId} is still initializing, showing placeholder UI`);
-      changeState('settingsMetadata', {
-        _loading: {
-          type: 'structural',
-          label: 'Loading Plugin...',
-          control: 'message'
-        }
-      });
+    } else {
+      // If plugin is in error state, show empty UI
+      console.log(`Plugin ${pluginId} is in state: ${lifecycleState}, showing minimal UI`);
+      changeState('settingsMetadata', {});
       changeState('exportOptions', []);
     }
     
@@ -349,8 +536,11 @@ class App {
     // Notify about plugin activation
     changeState('pluginActivated', { pluginId });
     
-    // IMPORTANT: Directly trigger UI rebuild after activation
-    this.rebuildUI();
+	//Build UI After activiation
+	setTimeout(() => {
+	  console.log("Performing delayed UI rebuild to ensure all plugin state is captured");
+	  this.rebuildUI();
+	}, 200);
     
     console.log(`Plugin ${pluginId} activated with settings:`, getStateValue('settings'));
     console.log(`Plugin ${pluginId} metadata:`, getStateValue('settingsMetadata'));
@@ -361,6 +551,8 @@ class App {
         this.canvasManager.render();
       }, 0);
     }
+    
+    return true;
   }
   
   /**
@@ -406,6 +598,35 @@ class App {
     console.log(`Plugin registered: ${plugin.id}`);
   }
   
+
+/**
+ * Poll for plugin metadata if not immediately available
+ * @param {string} pluginId - Plugin ID
+ * @returns {Promise<void>}
+ */
+async pollForPluginMetadata(pluginId, maxAttempts = 5) {
+  console.log(`Polling for metadata for plugin ${pluginId}`);
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    attempts++;
+    console.log(`Metadata poll attempt ${attempts}/${maxAttempts}`);
+    
+    // Try to get metadata again
+    const metadata = this.hooks.applyFilters('settingsMetadata', {}, pluginId);
+    
+    if (metadata && Object.keys(metadata).length > 0) {
+      console.log(`Got metadata on poll attempt ${attempts}`);
+      changeState('settingsMetadata', metadata);
+      return;
+    }
+    
+    // Wait a bit before trying again
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  console.warn(`Failed to get metadata after ${maxAttempts} attempts`);
+}
   /**
    * Set debug mode
    * @param {boolean} enabled - Whether debug mode should be enabled
@@ -462,6 +683,8 @@ class App {
     ];
   }
 }
+
+
 
 /**
  * Initialize the app
