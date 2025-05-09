@@ -1,0 +1,62 @@
+{
+  "id": "polytopeViewer",
+  "name": "Polytope Viewer",
+  "version": "1.0.0",
+  "description": "Interactive viewer for 3D polytopes with parametric controls",
+  "author": "Math Visualization Framework",
+  "minFrameworkVersion": "1.0.0",
+  "environment": {
+    "type": "3d-camera",
+    "options": {
+      "cameraPosition": [0, 0, 5],
+      "lookAt": [0, 0, 0]
+    }
+  },
+  "defaultSettings": {
+    "polytopeType": "cube",
+    "wireframe": false,
+    "showVertices": true,
+    "vertexSize": 0.1,
+    "edgeThickness": 1,
+    "edgeColor": "#000000",
+    "faceColor": "#3498db",
+    "faceOpacity": 0.85,
+    "showFaces": true,
+    "animation": false,
+    "size": 1
+  },
+  "uiCategories": [
+    {
+      "id": "structural",
+      "label": "Polytope Parameters",
+      "settings": ["polytopeType", "size"]
+    },
+    {
+      "id": "visual",
+      "label": "Visual Parameters",
+      "settings": [
+        "wireframe", 
+        "showFaces", 
+        "faceColor", 
+        "faceOpacity", 
+        "showVertices", 
+        "vertexSize",
+        "edgeColor",
+        "edgeThickness",
+        "animation"
+      ]
+    }
+  ],
+  "exportOptions": [
+    {
+      "id": "export-png",
+      "label": "Export PNG",
+      "type": "export"
+    },
+    {
+      "id": "reset-settings",
+      "label": "Reset Settings",
+      "type": "export"
+    }
+  ]
+}
