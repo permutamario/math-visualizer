@@ -1,4 +1,4 @@
-// src/plugins/asep-plugin/BaseASEPVisualization.js
+// src/plugins/asep-plugin/BaseASEPVisualization.js - Modified to fix initialization issue
 import { Visualization } from '../../core/Visualization.js';
 
 /**
@@ -25,15 +25,28 @@ export class BaseASEPVisualization extends Visualization {
   }
 
   /**
+   * Abstract initialize method (should be implemented by subclasses)
+   * @param {Object} parameters - Parameter values
+   */
+  async initialize(parameters) {
+    // To be implemented by subclasses
+    // By default, just clear any existing state
+    this.clearSimulation();
+    return true;
+  }
+
+  /**
    * Clear any existing simulation state
    */
   clearSimulation() {
     // Clear existing jump timeouts
-    this.state.jumpEvents.forEach(event => {
-      if (event.timeoutId) {
-        clearTimeout(event.timeoutId);
-      }
-    });
+    if (this.state && this.state.jumpEvents) {
+      this.state.jumpEvents.forEach(event => {
+        if (event.timeoutId) {
+          clearTimeout(event.timeoutId);
+        }
+      });
+    }
     
     // Reset state
     this.state.boxes = [];
@@ -46,6 +59,11 @@ export class BaseASEPVisualization extends Visualization {
    * @param {Object} parameters - Visualization parameters
    */
   createParticles(parameters) {
+    if (!parameters || !parameters.numParticles || !parameters.numBoxes) {
+      console.error("Cannot create particles: missing parameters");
+      return;
+    }
+
     const numParticles = Math.min(parameters.numParticles, parameters.numBoxes);
     const numBoxes = parameters.numBoxes;
     
@@ -67,8 +85,8 @@ export class BaseASEPVisualization extends Visualization {
         jumpProgress: 0,
         startPosition: positions[i],
         targetPosition: positions[i],
-        color: parameters.particleColor,
-        originalColor: parameters.particleColor,
+        color: parameters.particleColor || '#3498db',
+        originalColor: parameters.particleColor || '#3498db',
         radius: this.state.particleRadius,
         jumpSpeed: 2.0,
         jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
@@ -81,7 +99,7 @@ export class BaseASEPVisualization extends Visualization {
    * Schedule initial jumps for particles
    */
   scheduleInitialJumps() {
-    if (!this.state.isPaused) {
+    if (!this.state.isPaused && Array.isArray(this.state.particles)) {
       this.state.particles.forEach(particle => {
         this.scheduleNextJump(particle);
       });
@@ -95,6 +113,8 @@ export class BaseASEPVisualization extends Visualization {
    * @returns {boolean} True if position is occupied
    */
   isPositionOccupied(position, excludeParticle = null) {
+    if (!Array.isArray(this.state.particles)) return false;
+    
     return this.state.particles.some(p => 
       p !== excludeParticle && 
       ((p.position === position && (p.jumpState === 'none' || p.jumpState === 'inside')) || 
@@ -109,6 +129,7 @@ export class BaseASEPVisualization extends Visualization {
    */
   scheduleNextJump(particle) {
     // To be implemented by subclasses
+    console.log("BaseASEPVisualization: scheduleNextJump must be implemented by subclasses");
   }
   
   /**
@@ -117,7 +138,7 @@ export class BaseASEPVisualization extends Visualization {
   toggleSimulation() {
     this.state.isPaused = !this.state.isPaused;
     
-    if (!this.state.isPaused) {
+    if (!this.state.isPaused && Array.isArray(this.state.particles)) {
       // Resume by scheduling new jumps for non-jumping particles
       this.state.particles.forEach(particle => {
         if (!particle.isJumping) {
@@ -126,20 +147,22 @@ export class BaseASEPVisualization extends Visualization {
       });
     } else {
       // Pause by clearing all scheduled jumps
-      this.state.jumpEvents.forEach(event => {
-        if (event.timeoutId) {
-          clearTimeout(event.timeoutId);
-        }
-      });
-      this.state.jumpEvents = [];
+      if (Array.isArray(this.state.jumpEvents)) {
+        this.state.jumpEvents.forEach(event => {
+          if (event.timeoutId) {
+            clearTimeout(event.timeoutId);
+          }
+        });
+        this.state.jumpEvents = [];
+      }
     }
   }
   
   /**
    * Interpolate between two colors
    * @param {string} startColor - Starting color (hex or rgb)
-   * @param {number} t - Interpolation factor (0-1)
    * @param {string} endColor - Ending color (hex or rgb)
+   * @param {number} t - Interpolation factor (0-1)
    * @returns {string} Interpolated color
    */
   lerpColor(startColor, endColor, t) {
@@ -161,6 +184,10 @@ export class BaseASEPVisualization extends Visualization {
    * @returns {Object} RGB components
    */
   parseColor(colorStr) {
+    if (!colorStr) {
+      return { r: 0, g: 0, b: 0 }; // Default to black
+    }
+    
     // Handle hex colors
     if (colorStr.startsWith('#')) {
       const r = parseInt(colorStr.slice(1, 3), 16);
@@ -188,40 +215,46 @@ export class BaseASEPVisualization extends Visualization {
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   animate(deltaTime) {
+    if (!this.plugin || !this.plugin.parameters) {
+      return true; // Keep rendering to avoid freezing
+    }
+    
     // Update speed from parameters
-    this.state.timeScale = this.plugin.parameters.animationSpeed;
+    this.state.timeScale = this.plugin.parameters.animationSpeed || 1.0;
     
     // Always request continuous rendering by setting direct property
     this.isAnimating = true;
     
     // Update particle jump animations
     const particlesToRemove = [];
-    this.state.particles.forEach(particle => {
-      if (particle.isJumping) {
-        // Update jump progress
-        particle.jumpProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
-        
-        // Check for entering a box
-        if (particle.jumpState === 'entering' && particle.jumpProgress >= 0.5) {
-          particle.jumpState = 'inside';
-          particle.insideProgress = 0;
+    if (Array.isArray(this.state.particles)) {
+      this.state.particles.forEach(particle => {
+        if (particle.isJumping) {
+          // Update jump progress
+          particle.jumpProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
+          
+          // Check for entering a box
+          if (particle.jumpState === 'entering' && particle.jumpProgress >= 0.5) {
+            particle.jumpState = 'inside';
+            particle.insideProgress = 0;
+          }
+          // Check for exiting a box
+          else if (particle.jumpState === 'inside' && particle.insideProgress >= 1.0) {
+            particle.jumpState = 'exiting';
+          }
+          
+          // Update inside progress if particle is inside a box
+          if (particle.jumpState === 'inside') {
+            particle.insideProgress += deltaTime * particle.jumpSpeed * this.state.timeScale * 2;
+          }
+          
+          // Check if jump is complete
+          if (particle.jumpProgress >= 1) {
+            this.completeJump(particle, particlesToRemove);
+          }
         }
-        // Check for exiting a box
-        else if (particle.jumpState === 'inside' && particle.insideProgress >= 1.0) {
-          particle.jumpState = 'exiting';
-        }
-        
-        // Update inside progress if particle is inside a box
-        if (particle.jumpState === 'inside') {
-          particle.insideProgress += deltaTime * particle.jumpSpeed * this.state.timeScale * 2;
-        }
-        
-        // Check if jump is complete
-        if (particle.jumpProgress >= 1) {
-          this.completeJump(particle, particlesToRemove);
-        }
-      }
-    });
+      });
+    }
     
     // Remove particles that need to be removed
     if (particlesToRemove.length > 0) {
@@ -240,7 +273,7 @@ export class BaseASEPVisualization extends Visualization {
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   customAnimate(deltaTime) {
-    // To be implemented by subclasses
+    // To be implemented by subclasses - empty by default
   }
   
   /**
@@ -272,6 +305,8 @@ export class BaseASEPVisualization extends Visualization {
    * @param {number} scale - Scale factor (1.0 = normal size)
    */
   drawParticle(ctx, particle, x, y, scale = 1.0) {
+    if (!ctx || !particle) return;
+    
     // Draw particle
     ctx.beginPath();
     ctx.arc(x, y, particle.radius * scale, 0, Math.PI * 2);
@@ -290,18 +325,20 @@ export class BaseASEPVisualization extends Visualization {
    * @param {Object} parameters - New parameter values
    */
   update(parameters) {
+    if (!parameters) return;
+    
     // Update pause state
     if (parameters.isPaused !== undefined && parameters.isPaused !== this.state.isPaused) {
       this.state.isPaused = parameters.isPaused;
       
-      if (!this.state.isPaused) {
+      if (!this.state.isPaused && Array.isArray(this.state.particles)) {
         // Resume simulation
         this.state.particles.forEach(particle => {
           if (!particle.isJumping) {
             this.scheduleNextJump(particle);
           }
         });
-      } else {
+      } else if (Array.isArray(this.state.jumpEvents)) {
         // Pause simulation
         this.state.jumpEvents.forEach(event => {
           if (event.timeoutId) {
@@ -326,7 +363,7 @@ export class BaseASEPVisualization extends Visualization {
    * @param {Object} parameters - New parameter values
    */
   handleParameterUpdate(parameters) {
-    // To be implemented by subclasses
+    // To be implemented by subclasses - empty by default
   }
   
   /**
@@ -334,11 +371,13 @@ export class BaseASEPVisualization extends Visualization {
    */
   dispose() {
     // Clear all timeouts
-    this.state.jumpEvents.forEach(event => {
-      if (event.timeoutId) {
-        clearTimeout(event.timeoutId);
-      }
-    });
+    if (Array.isArray(this.state.jumpEvents)) {
+      this.state.jumpEvents.forEach(event => {
+        if (event.timeoutId) {
+          clearTimeout(event.timeoutId);
+        }
+      });
+    }
     
     // Reset state
     this.state.jumpEvents = [];
@@ -346,5 +385,24 @@ export class BaseASEPVisualization extends Visualization {
     this.state.boxes = [];
     this.state.isAnimating = false;
     this.isAnimating = false;
+  }
+  
+  /**
+   * Default render2D method to prevent errors
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
+   */
+  render2D(ctx, parameters) {
+    // Default implementation - should be overridden by subclasses
+    if (ctx) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+      ctx.fillRect(-100, -100, 200, 200);
+      ctx.fillStyle = '#333';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Visualization not implemented', 0, 0);
+      ctx.restore();
+    }
   }
 }

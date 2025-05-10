@@ -1,4 +1,5 @@
-// src/plugins/asep-plugin/index.js
+// src/plugins/asep-plugin/index.js - Modified to fix initialization issue
+
 import { Plugin } from '../../core/Plugin.js';
 import { ClosedASEPVisualization } from './ClosedASEPVisualization.js';
 import { OpenASEPVisualization } from './OpenASEPVisualization.js';
@@ -13,32 +14,37 @@ export default class ASEPPlugin extends Plugin {
   constructor(core) {
     super(core);
     
-    // Create visualization instances map (will be populated in initialize)
-    this.visualizations = {
-      'closed': null,
-      //'open': null,
-      //'circular': null
-    };
+    // Initialize the visualization map - but don't create instances yet
+    this.visualizations = new Map();
   }
 
   async _initializeDefaultVisualization() {
     // Create all visualization types
-    this.visualizations = {
-      'closed': new ClosedASEPVisualization(this),
-      'open': new OpenASEPVisualization(this),
-      'circular': new CircularASEPVisualization(this)
-    };
+    const closedViz = new ClosedASEPVisualization(this);
+    const openViz = new OpenASEPVisualization(this);
+    const circularViz = new CircularASEPVisualization(this);
     
     // Register all visualizations
-    for (const [key, viz] of Object.entries(this.visualizations)) {
-      this.registerVisualization(key, viz);
-    }
+    this.registerVisualization('closed', closedViz);
+    this.registerVisualization('open', openViz);
+    this.registerVisualization('circular', circularViz);
     
     // Get model type from parameters
     const modelType = this.parameters.modelType || 'closed';
     
-    // Set initial visualization
-    this.currentVisualization = this.visualizations[modelType];
+    // Set initial visualization based on model type
+    switch (modelType) {
+      case 'open':
+        this.currentVisualization = openViz;
+        break;
+      case 'circular':
+        this.currentVisualization = circularViz;
+        break;
+      case 'closed':
+      default:
+        this.currentVisualization = closedViz;
+        break;
+    }
     
     // Initialize the visualization
     await this.currentVisualization.initialize(this.parameters);
@@ -168,8 +174,7 @@ export default class ASEPPlugin extends Plugin {
     
     // Handle model type change (switch visualization)
     if (parameterId === 'modelType') {
-      // Get the new visualization
-      const newViz = this.visualizations[value];
+      const newViz = this.visualizations.get(value);
       
       if (newViz && newViz !== this.currentVisualization) {
         // Deactivate current visualization if needed

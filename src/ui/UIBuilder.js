@@ -371,6 +371,77 @@ export class UIBuilder {
   }
   
   /**
+   * Create an error message box
+   * @param {string} message - Error message
+   * @param {number} duration - Duration in milliseconds (use 0 for no auto-hide)
+   * @returns {HTMLElement} Error message element
+   */
+  createErrorBox(message, duration = 8000) {
+    // Remove any existing error boxes
+    const existingErrors = document.querySelectorAll('.error-box');
+    existingErrors.forEach(e => {
+      if (e.parentNode) {
+        e.parentNode.removeChild(e);
+      }
+    });
+    
+    // Create error element
+    const errorBox = document.createElement('div');
+    errorBox.className = 'error-box';
+    
+    // Create message container
+    const messageContainer = document.createElement('div');
+    
+    // Add error icon
+    const iconSpan = document.createElement('span');
+    iconSpan.innerHTML = '⚠️';
+    iconSpan.style.marginRight = '10px';
+    messageContainer.appendChild(iconSpan);
+    
+    // Add message text
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    messageContainer.appendChild(messageSpan);
+    
+    // Add close button
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '&times;';
+    
+    closeButton.addEventListener('click', () => {
+      if (errorBox.parentNode) {
+        errorBox.parentNode.removeChild(errorBox);
+      }
+    });
+    
+    // Assemble the error box
+    errorBox.appendChild(messageContainer);
+    errorBox.appendChild(closeButton);
+    document.body.appendChild(errorBox);
+    
+    // Fade in animation
+    errorBox.style.opacity = '0';
+    setTimeout(() => {
+      errorBox.style.opacity = '1';
+    }, 10);
+    
+    // Auto-hide after duration (if specified)
+    if (duration > 0) {
+      setTimeout(() => {
+        if (errorBox.parentNode) {
+          errorBox.style.opacity = '0';
+          setTimeout(() => {
+            if (errorBox.parentNode) {
+              errorBox.parentNode.removeChild(errorBox);
+            }
+          }, 300);
+        }
+      }, duration);
+    }
+    
+    return errorBox;
+  }
+  
+  /**
    * Create a loading indicator
    * @param {string} message - Loading message
    * @returns {HTMLElement} Loading indicator element
