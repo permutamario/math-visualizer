@@ -57,7 +57,7 @@ export class PluginRegistry {
       for (const pluginId of pluginList) {
         try {
           // Dynamically import the plugin module
-          const module = await import(`/src/plugins/${pluginId}/index.js`);
+          const module = await import(`/math-visualizer/src/plugins/${pluginId}/index.js`);
           
           // Get the plugin class (expecting it to be the default export)
           const PluginClass = module.default;
