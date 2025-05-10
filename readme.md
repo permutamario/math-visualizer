@@ -1,3 +1,4 @@
+
 # Math Visualization Plugin Framework
 
 A modular, extensible framework for creating interactive mathematical visualizations through a plugin-based architecture.
@@ -33,6 +34,8 @@ This framework allows for creating and managing different mathematical visualiza
     ├── core/                 # Core functionality
     │   ├── app.js            # Main application controller
     │   ├── pluginManager.js  # Plugin discovery and loading
+    │   ├── PluginController.js    # Plugin lifecycle management
+    │   ├── PluginControllerRegistry.js  # Registry of plugin controllers 
     │   ├── stateManager.js   # State management
     │   ├── canvasManager.js  # Canvas rendering
     │   ├── hooks.js          # Plugin hook system
@@ -83,7 +86,7 @@ The application entry point that bootstraps the framework:
 
 The central controller for the application:
 - Initializes the framework components
-- Manages the plugin lifecycle (registration → initialization → activation → deactivation)
+- Manages the plugin lifecycle through the Plugin Controller Registry
 - Coordinates between plugins and the UI
 - Handles the rebuilding of UI components
 - Manages settings and metadata for active plugins
@@ -95,10 +98,29 @@ The central controller for the application:
 
 Responsible for discovering and managing plugins:
 - Scans for available plugins
-- Registers plugins with minimal overhead (without initialization)
+- Registers plugins with the Plugin Controller Registry
 - Only initializes plugins when actually needed
 - Manages plugin initialization
 - Provides information about available plugins
+
+### src/core/PluginController.js
+
+Manages the complete lifecycle of individual plugins:
+- Controls the plugin states (registered, initializing, ready, active, error)
+- Handles asynchronous initialization properly
+- Ensures metadata and settings are properly loaded
+- Manages plugin resources
+- Centralizes plugin activation/deactivation logic
+- Ensures settings changes are properly propagated
+
+### src/core/PluginControllerRegistry.js
+
+Maintains a registry of all plugin controllers:
+- Tracks the active plugin
+- Manages plugin state transitions
+- Ensures only one plugin is active at a time
+- Handles plugin activation/deactivation sequences
+- Provides access to plugin controllers
 
 ### src/core/stateManager.js
 
@@ -181,18 +203,23 @@ The framework uses a plugin architecture that allows for easy extension. Each pl
 
 ### Plugin Lifecycle
 
-1. **Registration**: Plugin metadata is registered with the system (minimal overhead)
-2. **Initialization**: Plugin code is initialized when selected for the first time
-3. **Activation**: Plugin becomes active when selected
-4. **Deactivation**: Plugin is deactivated when another is selected
+The Plugin Controller system manages the complete plugin lifecycle:
 
-### Enhanced Lazy Loading
+1. **Registration**: Plugin metadata is registered with the system and a controller is created
+2. **Initialization**: Plugin code is initialized through its controller when selected for the first time
+3. **Activation**: Plugin becomes active when selected, with proper state management
+4. **Deactivation**: Plugin is deactivated when another is selected, cleaning up resources
+5. **State Management**: Plugin states (registered, initializing, ready, active, error) are properly tracked
 
-The framework now implements lazy-loading for plugins:
-- Only the default plugin is initialized at startup
-- Other plugins are only initialized when first selected
-- A loading screen appears during initialization for complex plugins
-- Resources are only loaded when needed
+### Enhanced Plugin Controller Architecture
+
+The framework now implements a robust Plugin Controller pattern:
+- Each plugin has a dedicated controller that manages its entire lifecycle
+- Controllers handle asynchronous operations properly
+- UI rendering is coordinated with plugin readiness
+- Resources are properly tracked and cleaned up
+- Setting changes are reliably propagated to plugins
+- Plugin activation and deactivation follow a consistent sequence
 
 ### Hook Points
 
@@ -342,15 +369,22 @@ To create a new plugin:
 
 See the [How to Create a Plugin.md](./How%20to%20Create%20a%20Plugin.md) guide for detailed instructions.
 
-### Optimizing Plugin Loading
+### Optimizing Plugin Loading with the Plugin Controller System
 
-To create plugins that work well with the lazy-loading system:
+The Plugin Controller system provides these benefits for plugin developers:
 
-1. Keep registration light - avoid heavy computation in plugin definition
-2. Use asynchronous initialization for plugins that need to load resources
-3. Register hook handlers immediately, even if the actual resources are loaded later
-4. Use lifecycle.setPluginState to signal plugin readiness
-5. Consider showing load progress when initializing large resources
+1. **Proper Asynchronous Initialization**: Your plugin can properly initialize asynchronously without causing race conditions with the UI
+2. **Resource Management**: Register resources with your controller for automatic cleanup
+3. **Reliable Settings Updates**: Setting changes are properly tracked and propagated to your plugin
+4. **Clear Lifecycle States**: Your plugin transitions through well-defined states (registered, initializing, ready, active, error)
+5. **Coordinated UI Updates**: UI is only updated when your plugin is fully ready
+
+Plugins should follow these best practices:
+
+1. Use `async/await` for initialization that requires asynchronous operations
+2. Register all resources with the controller for proper cleanup
+3. Follow the lifecycle hooks for proper activation/deactivation
+4. Use the Plugin Controller's state management for tracking your plugin's state
 
 ## Dependencies for 3D Visualization
 
@@ -403,6 +437,3 @@ The framework is designed to work on:
 
 Note: 3D features require WebGL support in the browser.
 
-## License
-
-MIT License

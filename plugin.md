@@ -1,27 +1,33 @@
-# How to Create a Plugin
+# Creating Plugins for the Math Visualization Framework
 
-This guide walks you through creating a custom visualization plugin for the Math Visualization Framework.
+This guide explains how to create custom visualization plugins for the Math Visualization Framework. The framework uses a plugin-based architecture that makes it easy to add new visualizations without modifying the core code.
 
 ## Overview
 
 Each plugin in the framework consists of:
-1. A directory in `src/plugins/` with the plugin name
-2. An `index.js` file with the plugin implementation
-3. A `manifest.json` file with plugin metadata
 
-## Step-by-Step Guide
+1. A directory in `src/plugins/` with your plugin name
+2. An `index.js` file containing your plugin's implementation code
+3. A `manifest.json` file defining plugin metadata and default settings
 
-### 1. Create Plugin Directory
+The framework's Plugin Controller system handles plugin lifecycle management, ensuring proper initialization, activation, and cleanup.
+
+## Plugin Structure
+
+### Directory Structure
 
 Create a new directory in the `src/plugins/` folder with your plugin name:
 
 ```
 src/plugins/myPlugin/
+├── index.js           # Main plugin implementation
+├── manifest.json      # Plugin metadata
+└── [other files]      # Optional additional files
 ```
 
-### 2. Create manifest.json
+### Manifest File
 
-Create a `manifest.json` file with metadata about your plugin:
+The `manifest.json` file defines your plugin's metadata, default settings, and environment requirements:
 
 ```json
 {
@@ -72,9 +78,9 @@ Create a `manifest.json` file with metadata about your plugin:
 }
 ```
 
-### 3. Create index.js
+### Main Plugin File
 
-Create an `index.js` file with your plugin implementation:
+The `index.js` file contains your plugin's implementation:
 
 ```javascript
 /**
@@ -224,6 +230,8 @@ export default function initMyPlugin(core) {
   hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
     if (pluginId === 'myPlugin') {
       console.log("My Plugin deactivated");
+      
+      // Clean up any resources here
     }
   });
   
@@ -300,93 +308,96 @@ function renderMyVisualization(ctx, canvas, settings) {
 }
 ```
 
-### 4. Update Plugin Registry
+## Plugin Lifecycle
 
-You need to update the `pluginManager.js` file to include your new plugin:
+With the Plugin Controller system, your plugin goes through these lifecycle states:
 
-1. Import your plugin:
+1. **Registered**: The plugin is registered with the framework but not initialized
+2. **Initializing**: The plugin is being initialized (loading resources, registering hooks)
+3. **Ready**: The plugin is initialized and ready to be activated
+4. **Active**: The plugin is currently active and being displayed
+5. **Error**: An error occurred during initialization or activation
+
+## Required Hook Registration
+
+Your plugin should register these hooks:
+
+### Essential Hooks
+
+1. **settingsMetadata**: Define UI controls for your plugin's settings
+2. **render**: The main rendering function for your visualization
+3. **availableVisualizations**: Register your plugin with the visualization system
+
 ```javascript
-import initMyPlugin from '../plugins/myPlugin/index.js';
-```
+// Register settings metadata
+hooks.addFilter('settingsMetadata', 'myPlugin', (metadata) => {
+  return mySettingsMetadata;
+});
 
-2. Add your plugin to the `PLUGINS` array:
-```javascript
-const PLUGINS = [
-  // ... other plugins
-  {
+// Register render function
+hooks.addAction('render', 'myPlugin', (ctx, canvas, settings) => {
+  if (state.getState().activePluginId === 'myPlugin') {
+    renderMyVisualization(ctx, canvas, settings);
+    return true;
+  }
+  return false;
+});
+
+// Register with visualization system
+hooks.addFilter('availableVisualizations', 'myPlugin', (visualizations) => {
+  return [...visualizations, {
     id: 'myPlugin',
     name: 'My Visualization',
-    description: 'A custom visualization',
-    init: initMyPlugin,
-    manifest: {
-      defaultSettings: {
-        size: 100,
-        color: '#3498db',
-        opacity: 1.0,
-        rotation: 0,
-        backgroundColor: '#f5f5f5',
-        showBorder: true,
-        borderColor: '#000000',
-        borderWidth: 2,
-      },
-      environment: {
-        type: '2d-camera',
-        options: {}
-      }
-    }
-  }
-];
+    description: 'A custom visualization'
+  }];
+});
 ```
 
-## Rendering Environments
+### Optional Hooks
 
-The framework supports different rendering environments for different types of visualizations. You can specify which environment your plugin requires in its manifest.
+1. **defaultSettings**: Default values for your plugin's settings
+2. **exportOptions**: Options for exporting or interacting with your visualization
+3. **activatePlugin/deactivatePlugin**: Handle plugin activation/deactivation
+4. **onSettingChanged**: React to setting changes
+5. **beforeRender/afterRender**: Perform actions before/after rendering
 
-### Available Environments
+```javascript
+// Handle setting changes
+hooks.addAction('onSettingChanged', 'myPlugin', ({ path, value }) => {
+  console.log(`Setting changed: ${path} = ${value}`);
+});
 
-#### 2D Camera Environment (`2d-camera`)
+// Handle plugin activation
+hooks.addAction('activatePlugin', 'myPlugin', ({ pluginId }) => {
+  if (pluginId === 'myPlugin') {
+    console.log("Plugin activated");
+  }
+});
 
-Best for visualizations that need camera navigation:
+// Handle plugin deactivation
+hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
+  if (pluginId === 'myPlugin') {
+    console.log("Plugin deactivated");
+    // Clean up resources
+  }
+});
+```
+
+## Event Handling with 2D Event Environment
+
+If you need to handle user interactions, use the 2D Event environment:
 
 ```json
-"environment": {
-  "type": "2d-camera",
-  "options": {
-    "initialZoom": 1.0
+// In manifest.json
+{
+  "environment": {
+    "type": "2d-event",
+    "options": {}
   }
 }
 ```
 
-**Details:**
-- Uses a 2D canvas rendering context
-- Provides panning and zooming capabilities
-- Automatically transforms coordinates so you can draw relative to (0,0)
-- Good for mathematical plots and diagrams
-- No special dependencies required
-
-**Implementation Requirements:**
-- Draw relative to (0,0) in your render function
-- The environment will handle translating and scaling
-
-#### 2D Event Environment (`2d-event`)
-
-Best for interactive visualizations that need to handle user input:
-
-```json
-"environment": {
-  "type": "2d-event",
-  "options": {}
-}
-```
-
-**Details:**
-- Uses a 2D canvas rendering context
-- Passes mouse and keyboard events directly to your plugin
-- Good for interactive elements and custom interactions
-- No special dependencies required
-
-**Implementation Requirements:**
-- Register event handlers for the interactions you want to handle:
+Then register event handlers:
 
 ```javascript
 // Handle mouse click events
@@ -399,84 +410,87 @@ hooks.addAction('onClick', 'myPlugin', (event) => {
   
   return true; // Event was handled
 });
+
+// Handle mouse move events
+hooks.addAction('onMouseMove', 'myPlugin', (event) => {
+  if (state.getState().activePluginId !== 'myPlugin') return false;
+  
+  const { x, y } = event;
+  // Handle mouse movement
+  
+  return true;
+});
 ```
 
-#### 3D Camera Environment (`3d-camera`)
+## 3D Visualization with THREE.js
 
-For 3D visualizations using THREE.js:
+For 3D visualizations, use the 3D Camera environment:
 
 ```json
-"environment": {
-  "type": "3d-camera",
-  "options": {
-    "cameraPosition": [0, 0, 5],
-    "lookAt": [0, 0, 0]
+// In manifest.json
+{
+  "environment": {
+    "type": "3d-camera",
+    "options": {
+      "cameraPosition": [0, 0, 5],
+      "lookAt": [0, 0, 0]
+    }
   }
 }
 ```
 
-**Details:**
-- Uses WebGL for 3D rendering via THREE.js
-- Provides orbit camera controls for navigation
-- Handles scene, camera, and lighting setup
-- Requires THREE.js and camera-controls libraries
-
-**Dependencies:**
-- THREE.js: Must be loaded and globally available
-- camera-controls: Must be properly initialized with THREE.js
-
-**Implementation Requirements:**
-- Register environment requirements:
+Then in your plugin:
 
 ```javascript
-hooks.addFilter('environmentRequirements', 'myPlugin', () => {
-  return {
-    type: '3d-camera',
-    options: {
-      cameraPosition: [0, 0, 5],
-      lookAt: [0, 0, 0]
-    }
-  };
-});
-```
-
-- Use THREE.js objects for rendering:
-
-```javascript
-// In your plugin's activate handler
+// Register activation handler - create the 3D scene
 hooks.addAction('activatePlugin', 'myPlugin', ({ pluginId }) => {
   if (pluginId !== 'myPlugin') return;
   
-  // Get the 3D environment
+  // Get the current environment
   const canvasManager = window.AppInstance.canvasManager;
-  const environment = canvasManager.currentEnvironment;
   
-  // Access THREE.js scene, camera, and renderer
-  const scene = environment.getScene();
-  
-  // Create THREE.js objects
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshStandardMaterial({
-    color: settings.color,
-    wireframe: settings.wireframe
-  });
-  
-  // Create and add mesh to scene
-  this.mesh = new THREE.Mesh(geometry, material);
-  scene.add(this.mesh);
+  // Access the THREE.js scene
+  if (canvasManager.currentEnvironment && 
+      canvasManager.currentEnvironment.scene && 
+      window.THREE) {
+    
+    const scene = canvasManager.currentEnvironment.scene;
+    const THREE = window.THREE;
+    
+    // Create a mesh
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshStandardMaterial({
+      color: settings.color,
+      opacity: settings.opacity,
+      transparent: settings.opacity < 1,
+      wireframe: settings.wireframe
+    });
+    
+    this.mesh = new THREE.Mesh(geometry, material);
+    scene.add(this.mesh);
+    
+    // Set background color
+    if (canvasManager.currentEnvironment.renderer) {
+      canvasManager.currentEnvironment.renderer.setClearColor(
+        settings.backgroundColor
+      );
+    }
+  }
 });
-```
 
-- Clean up resources when deactivated:
-
-```javascript
+// Register deactivation handler - clean up the 3D scene
 hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
   if (pluginId !== 'myPlugin') return;
   
-  // Clean up THREE.js objects
+  // Clean up the scene
   if (this.mesh) {
-    const scene = window.AppInstance.canvasManager.currentEnvironment.getScene();
-    scene.remove(this.mesh);
+    const canvasManager = window.AppInstance.canvasManager;
+    if (canvasManager.currentEnvironment && 
+        canvasManager.currentEnvironment.scene) {
+      canvasManager.currentEnvironment.scene.remove(this.mesh);
+    }
+    
+    // Dispose of geometry and material
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
     this.mesh = null;
@@ -484,372 +498,39 @@ hooks.addAction('deactivatePlugin', 'myPlugin', ({ pluginId }) => {
 });
 ```
 
-## Full 3D Visualization Example
+## Async Resource Loading
 
-Here's a complete example of a simple cube plugin using the 3D camera environment:
+For plugins that need to load resources asynchronously:
 
 ```javascript
-/**
- * Cube Plugin - 3D Visualization Example
- * @param {Object} core - Core APIs provided by the framework
- */
-export default function initCubePlugin(core) {
-  const { hooks, state } = core;
+export default async function initMyPlugin(core) {
+  const { hooks, state, lifecycle } = core;
   
-  console.log("Initializing Cube Plugin");
+  // Indicate the plugin is initializing
+  lifecycle.setPluginState('initializing');
   
-  // Mesh reference for cleanup
-  let cubeMesh = null;
-  
-  // Define settings metadata
-  const cubeSettingsMetadata = {
-    // Structural settings
-    cubeSize: { 
-      type: 'structural', 
-      label: 'Cube Size', 
-      control: 'slider', 
-      min: 0.1, 
-      max: 3, 
-      step: 0.1, 
-      default: 1 
-    },
-    wireframe: { 
-      type: 'structural', 
-      label: 'Wireframe', 
-      control: 'checkbox', 
-      default: true 
-    },
-    rotation: { 
-      type: 'structural', 
-      label: 'Auto-rotate', 
-      control: 'checkbox', 
-      default: true 
-    },
+  try {
+    // Load resources asynchronously
+    const data = await fetch('https://example.com/data.json')
+      .then(response => response.json());
     
-    // Visual settings
-    cubeColor: { 
-      type: 'visual', 
-      label: 'Cube Color', 
-      control: 'color', 
-      default: '#3498db' 
-    },
-    opacity: { 
-      type: 'visual', 
-      label: 'Opacity', 
-      control: 'slider', 
-      min: 0, 
-      max: 1, 
-      step: 0.01, 
-      default: 1.0 
-    },
-    backgroundColor: { 
-      type: 'visual', 
-      label: 'Background Color', 
-      control: 'color', 
-      default: '#f5f5f5' 
-    }
-  };
-  
-  // Register with visualization system
-  hooks.addFilter('availableVisualizations', 'cube', (visualizations) => {
-    return [...visualizations, {
-      id: 'cube',
-      name: 'Cube (3D)',
-      description: 'A 3D cube visualization'
-    }];
-  });
-  
-  // Register environment requirements
-  hooks.addFilter('environmentRequirements', 'cube', () => {
-    return {
-      type: '3d-camera',
-      options: {
-        cameraPosition: [0, 0, 5],
-        lookAt: [0, 0, 0]
-      }
-    };
-  });
-  
-  // Register settings metadata
-  hooks.addFilter('settingsMetadata', 'cube', (metadata) => {
-    // Only return metadata for the cube plugin
-    if (state.getState().activePluginId === 'cube') {
-      return cubeSettingsMetadata;
-    }
-    return metadata;
-  });
-  
-  // Register default settings
-  hooks.addFilter('defaultSettings', 'cube', (settings) => {
-    // Only return defaults for the cube plugin
-    if (state.getState().activePluginId === 'cube') {
-      return {
-        cubeSize: 1,
-        cubeColor: '#3498db',
-        opacity: 1.0,
-        wireframe: true,
-        rotation: true,
-        backgroundColor: '#f5f5f5'
-      };
-    }
-    return settings;
-  });
-  
-  // Register render function for 3D
-  hooks.addAction('render', 'cube', (ctx, canvas, settings) => {
-    // Only render if this is the active plugin
-    if (state.getState().activePluginId !== 'cube') {
-      return false;
-    }
+    // Register hooks with the loaded data
+    registerPluginHooks(hooks, data);
     
-    // For 3D, we set up the scene when the plugin is activated
-    // The actual rendering happens in the environment's animation loop
+    // Indicate the plugin is ready
+    lifecycle.setPluginState('ready');
     
-    return true; // We handled the rendering setup
-  });
-  
-  // Register activation handler - create the 3D scene
-  hooks.addAction('activatePlugin', 'cube', ({ pluginId }) => {
-    if (pluginId !== 'cube') return;
-    
-    console.log("Cube Plugin activated");
-    
-    // Get the current environment
-    const canvasManager = window.AppInstance.canvasManager;
-    
-    // If not using 3D environment, request it
-    if (canvasManager.environmentType !== '3d-camera') {
-      canvasManager.setupEnvironment('3d-camera');
-    }
-    
-    // Get current settings
-    const settings = state.getState().settings;
-    
-    // Access the THREE.js scene
-    if (canvasManager.currentEnvironment && 
-        canvasManager.currentEnvironment.getScene && 
-        window.THREE) {
-      
-      const scene = canvasManager.currentEnvironment.getScene();
-      
-      // Create a cube mesh
-      const size = settings.cubeSize;
-      const geometry = new THREE.BoxGeometry(size, size, size);
-      
-      // Create material based on settings
-      const material = new THREE.MeshStandardMaterial({
-        color: settings.cubeColor,
-        opacity: settings.opacity,
-        transparent: settings.opacity < 1,
-        wireframe: settings.wireframe
-      });
-      
-      // Create the cube and add to scene
-      cubeMesh = new THREE.Mesh(geometry, material);
-      scene.add(cubeMesh);
-      
-      // Set background color if available
-      if (canvasManager.currentEnvironment.getRenderer) {
-        const renderer = canvasManager.currentEnvironment.getRenderer();
-        if (renderer) {
-          renderer.setClearColor(settings.backgroundColor || '#f5f5f5');
-        }
-      }
-      
-      // Add before render hook for animation
-      hooks.addAction('beforeRender', 'cubeAnimation', (ctx, canvas, settings) => {
-        if (state.getState().activePluginId !== 'cube') return;
-        
-        // Animate the cube if rotation is enabled
-        if (cubeMesh && settings.rotation) {
-          cubeMesh.rotation.x += 0.01;
-          cubeMesh.rotation.y += 0.01;
-        }
-      });
-    } else {
-      console.warn('THREE.js environment not available for cube plugin');
-    }
-  });
-  
-  // Register deactivation handler - clean up the 3D scene
-  hooks.addAction('deactivatePlugin', 'cube', ({ pluginId }) => {
-    if (pluginId !== 'cube') return;
-    
-    console.log("Cube Plugin deactivated");
-    
-    // Clean up the cube from the scene
-    if (cubeMesh) {
-      const canvasManager = window.AppInstance.canvasManager;
-      if (canvasManager.currentEnvironment && canvasManager.currentEnvironment.getScene) {
-        const scene = canvasManager.currentEnvironment.getScene();
-        scene.remove(cubeMesh);
-      }
-      
-      // Dispose of geometry and material
-      cubeMesh.geometry.dispose();
-      cubeMesh.material.dispose();
-      cubeMesh = null;
-    }
-    
-    // Remove animation hook
-    hooks.removeAction('beforeRender', 'cubeAnimation');
-  });
-  
-  // Handle setting changes
-  hooks.addAction('onSettingChanged', 'cube', ({ path, value }) => {
-    if (state.getState().activePluginId !== 'cube' || !cubeMesh) return;
-    
-    // Update the cube based on setting changes
-    if (path === 'cubeSize') {
-      // Replace geometry with new size
-      const oldGeometry = cubeMesh.geometry;
-      cubeMesh.geometry = new THREE.BoxGeometry(value, value, value);
-      oldGeometry.dispose(); // Clean up old geometry
-    } 
-    else if (path === 'cubeColor' && cubeMesh.material) {
-      cubeMesh.material.color.set(value);
-    }
-    else if (path === 'opacity' && cubeMesh.material) {
-      cubeMesh.material.opacity = value;
-      cubeMesh.material.transparent = value < 1;
-    }
-    else if (path === 'wireframe' && cubeMesh.material) {
-      cubeMesh.material.wireframe = value;
-    }
-    else if (path === 'backgroundColor') {
-      // Get environment and update background
-      const canvasManager = window.AppInstance.canvasManager;
-      if (canvasManager.currentEnvironment && 
-          canvasManager.currentEnvironment.getRenderer) {
-        const renderer = canvasManager.currentEnvironment.getRenderer();
-        if (renderer) {
-          renderer.setClearColor(value);
-        }
-      }
-    }
-  });
-  
-  // Register export options
-  hooks.addFilter('exportOptions', 'cube', (options) => {
-    if (state.getState().activePluginId !== 'cube') return options;
-    
-    return [
-      {
-        id: 'export-png',
-        label: 'Export PNG',
-        type: 'export'
-      },
-      {
-        id: 'reset-settings',
-        label: 'Reset Settings',
-        type: 'export'
-      }
-    ];
-  });
-  
-  console.log("Cube Plugin initialized");
+    console.log("Plugin initialized with async resources");
+  } catch (error) {
+    console.error("Failed to initialize plugin:", error);
+    lifecycle.setPluginState('error');
+  }
 }
 ```
 
-## Key Components Explained
+## Control Types
 
-### Settings Metadata
-
-Settings metadata defines the UI controls for your plugin's settings. Each setting has:
-
-- **key**: The setting identifier
-- **type**: Category of the setting (visual, structural)
-- **label**: Display name in the UI
-- **control**: Type of control (slider, checkbox, color, etc.)
-- **default**: Default value
-- Additional properties based on the control type (min, max, step, options)
-
-### Hook Points
-
-Your plugin interacts with the framework through these hooks:
-
-#### Action Hooks
-
-- **render**: Draws your visualization
-  ```javascript
-  hooks.addAction('render', 'pluginId', (ctx, canvas, settings) => {
-    // Your rendering code
-    return true; // Return true to indicate rendering was handled
-  });
-  ```
-
-- **activatePlugin**: Called when your plugin is activated
-  ```javascript
-  hooks.addAction('activatePlugin', 'pluginId', ({ pluginId }) => {
-    if (pluginId === 'myPlugin') {
-      // Your activation code
-    }
-  });
-  ```
-
-- **deactivatePlugin**: Called when your plugin is deactivated
-  ```javascript
-  hooks.addAction('deactivatePlugin', 'pluginId', ({ pluginId }) => {
-    if (pluginId === 'myPlugin') {
-      // Your deactivation code
-    }
-  });
-  ```
-
-- **onSettingChanged**: Called when a setting changes
-  ```javascript
-  hooks.addAction('onSettingChanged', 'pluginId', ({ path, value }) => {
-    // React to setting changes
-  });
-  ```
-
-- **Event Hooks** (for 2d-event environment):
-  ```javascript
-  hooks.addAction('onMouseDown', 'pluginId', (event) => {
-    // Handle mouse down event
-    return true; // Return true to indicate the event was handled
-  });
-  ```
-
-#### Filter Hooks
-
-- **settingsMetadata**: Define UI controls for settings
-  ```javascript
-  hooks.addFilter('settingsMetadata', 'pluginId', (metadata) => {
-    return yourSettingsMetadata;
-  });
-  ```
-
-- **defaultSettings**: Set default values for settings
-  ```javascript
-  hooks.addFilter('defaultSettings', 'pluginId', (settings) => {
-    return yourDefaultSettings;
-  });
-  ```
-
-- **exportOptions**: Define export options
-  ```javascript
-  hooks.addFilter('exportOptions', 'pluginId', (options) => {
-    return yourExportOptions;
-  });
-  ```
-
-- **environmentRequirements**: Specify environment requirements 
-  ```javascript
-  hooks.addFilter('environmentRequirements', 'pluginId', () => {
-    return {
-      type: '3d-camera',
-      options: {
-        cameraPosition: [0, 0, 5],
-        lookAt: [0, 0, 0]
-      }
-    };
-  });
-  ```
-
-## Available Control Types
-
-The framework supports these control types:
+The framework supports these control types for settings:
 
 ### Slider
 ```javascript
@@ -908,87 +589,522 @@ The framework supports these control types:
 }
 ```
 
-## Environment-Specific Best Practices
+## Plugin Registration
 
-### For 2D Camera Environment
-- Draw relative to the origin (0, 0)
-- Use the provided canvas context for drawing
-- Use settings to control the appearance of your visualization
+After creating your plugin, you need to register it in `src/core/pluginManager.js`:
 
-### For 2D Event Environment
-- Register handlers for the events you need (click, mousemove, etc.)
-- Only handle events when your plugin is active
-- Return true from event handlers to indicate the event was handled
+1. Import your plugin at the top:
+```javascript
+import initMyPlugin from '../plugins/myPlugin/index.js';
+```
 
-### For 3D Camera Environment
-- Ensure THREE.js is properly loaded
-- Create and manage THREE.js objects in activation/deactivation handlers
-- Dispose of resources (geometries, materials) when your plugin is deactivated
-- Use the scene, camera, and renderer provided by the environment
+2. Add your plugin to the `getPluginsList()` function:
+```javascript
+function getPluginsList() {
+  return [
+    // Existing plugins...
+    
+    // Your plugin
+    { 
+      id: 'myPlugin',
+      name: 'My Visualization',
+      description: 'A custom visualization',
+      init: initMyPlugin,
+      manifest: {
+        defaultSettings: {
+          size: 100,
+          color: '#3498db',
+          opacity: 1.0,
+          rotation: 0,
+          backgroundColor: '#f5f5f5',
+          showBorder: true,
+          borderColor: '#000000',
+          borderWidth: 2,
+        },
+        environment: {
+          type: '2d-camera',
+          options: {}
+        }
+      }
+    }
+  ];
+}
+```
 
 ## Best Practices
 
-1. **Unique Plugin ID**: Ensure your plugin ID is unique
+1. **Unique Plugin ID**: Ensure your plugin ID is unique and consistent across all hook registrations
 2. **Namespacing**: Use your plugin ID as the namespace for all hooks
-3. **Clean Activation/Deactivation**: Properly handle plugin lifecycle
-4. **Resource Cleanup**: Clean up resources on deactivation
-5. **Descriptive Settings**: Use clear labels and appropriate defaults
-6. **Optimized Rendering**: Keep your render function efficient
-7. **Error Handling**: Include error handling in your code
-8. **Active Plugin Check**: Always check if your plugin is active before rendering
-9. **Documentation**: Document your plugin functionality
+3. **Resource Cleanup**: Clean up resources in the deactivation handler
+4. **Async Operations**: Use async/await for resource loading and properly signal plugin state
+5. **Setting Changes**: Handle setting changes properly to update your visualization
+6. **Error Handling**: Add appropriate error handling throughout your plugin
+7. **Active Plugin Check**: Always check if your plugin is active before rendering or handling events
+8. **Event Handlers**: Return `true` from event handlers to indicate the event was handled
+9. **Documentation**: Document your plugin's settings and functionality
 
-## Troubleshooting
+## Example 2D Plugin: Simple Clock
 
-- **Plugin not showing**: Check if it's registered in `pluginManager.js`
-- **Settings not displaying**: Verify your `settingsMetadata` filter
-- **Rendering issues**: Debug your render function with console logs
-- **Settings not applying**: Check your default settings and control types
-- **UI not updating**: Force a UI rebuild through the debug panel
-- **Plugins drawing over each other**: Make sure to check if your plugin is active before rendering
-- **THREE.js not available**: Ensure THREE.js is properly loaded before your plugin tries to use it
-- **3D rendering not working**: Check for WebGL support in the browser
-
-## Example: Animation
-
-To add animation to your visualization:
+Here's a complete example of a simple clock plugin:
 
 ```javascript
-// In your plugin's init function
-hooks.addAction('beforeRender', 'myPlugin', (ctx, canvas, settings) => {
-  // Only animate if this is the active plugin
-  if (settings.animation && state.getState().activePluginId === 'myPlugin') {
-    // Update animation state
-    const currentRotation = settings.rotation || 0;
-    const newRotation = (currentRotation + 1) % 360;
-    window.changeState('settings.rotation', newRotation);
-  }
-});
-```
-
-## Example: Custom Export
-
-To add a custom export option:
-
-```javascript
-hooks.addFilter('exportOptions', 'myPlugin', (options) => {
-  return [
-    ...options,
-    {
-      id: 'export-data',
-      label: 'Export Data',
-      type: 'export'
+// src/plugins/clock/index.js
+export default function initClockPlugin(core) {
+  const { hooks, state } = core;
+  
+  // Define settings metadata
+  const clockSettingsMetadata = {
+    // Visual settings
+    faceColor: { 
+      type: 'visual', 
+      label: 'Face Color', 
+      control: 'color', 
+      default: '#ffffff' 
+    },
+    borderColor: { 
+      type: 'visual', 
+      label: 'Border Color', 
+      control: 'color', 
+      default: '#000000' 
+    },
+    hourHandColor: { 
+      type: 'visual', 
+      label: 'Hour Hand Color', 
+      control: 'color', 
+      default: '#000000' 
+    },
+    minuteHandColor: { 
+      type: 'visual', 
+      label: 'Minute Hand Color', 
+      control: 'color', 
+      default: '#333333' 
+    },
+    secondHandColor: { 
+      type: 'visual', 
+      label: 'Second Hand Color', 
+      control: 'color', 
+      default: '#ff0000' 
+    },
+    
+    // Structural settings
+    size: { 
+      type: 'structural', 
+      label: 'Clock Size', 
+      control: 'slider', 
+      min: 50, 
+      max: 300, 
+      step: 1, 
+      default: 150 
+    },
+    showSeconds: { 
+      type: 'structural', 
+      label: 'Show Seconds Hand', 
+      control: 'checkbox', 
+      default: true 
+    },
+    use24Hour: { 
+      type: 'structural', 
+      label: 'Use 24-Hour Format', 
+      control: 'checkbox', 
+      default: false 
     }
-  ];
-});
+  };
+  
+  // Register with visualization system
+  hooks.addFilter('availableVisualizations', 'clock', (visualizations) => {
+    return [...visualizations, {
+      id: 'clock',
+      name: 'Analog Clock',
+      description: 'A simple analog clock visualization'
+    }];
+  });
+  
+  // Register render function
+  hooks.addAction('render', 'clock', (ctx, canvas, settings) => {
+    if (state.getState().activePluginId === 'clock') {
+      renderClock(ctx, canvas, settings);
+      return true;
+    }
+    return false;
+  });
+  
+  // Register UI controls
+  hooks.addFilter('settingsMetadata', 'clock', (metadata) => {
+    return clockSettingsMetadata;
+  });
+  
+  // Register default settings
+  hooks.addFilter('defaultSettings', 'clock', (settings) => {
+    return {
+      faceColor: '#ffffff',
+      borderColor: '#000000',
+      hourHandColor: '#000000',
+      minuteHandColor: '#333333',
+      secondHandColor: '#ff0000',
+      size: 150,
+      showSeconds: true,
+      use24Hour: false
+    };
+  });
+  
+  // Register export options
+  hooks.addFilter('exportOptions', 'clock', (options) => {
+    return [
+      {
+        id: 'export-png',
+        label: 'Export PNG',
+        type: 'export'
+      },
+      {
+        id: 'reset-settings',
+        label: 'Reset Settings',
+        type: 'export'
+      }
+    ];
+  });
+  
+  // Handle animation - register with beforeRender hook
+  hooks.addAction('beforeRender', 'clock', (ctx, canvas, settings) => {
+    // Request constant rerendering for the clock to update
+    if (state.getState().activePluginId === 'clock') {
+      // Request next frame
+      if (window.AppInstance && window.AppInstance.canvasManager) {
+        window.AppInstance.canvasManager.render();
+      }
+    }
+  });
+  
+  console.log("Clock plugin initialized");
+}
 
-hooks.addAction('exportAction', 'myPlugin', (actionId) => {
-  if (actionId === 'export-data') {
-    // Handle custom export
-    const data = generateDataFromVisualization();
-    downloadData(data, 'visualization-data.json');
-    return true; // Action handled
+/**
+ * Render the clock visualization
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {HTMLCanvasElement} canvas - Canvas element
+ * @param {Object} settings - Current settings
+ */
+function renderClock(ctx, canvas, settings) {
+  const size = settings.size || 150;
+  const showSeconds = settings.showSeconds !== undefined ? settings.showSeconds : true;
+  
+  // Get current time
+  const now = new Date();
+  const hours = now.getHours() % (settings.use24Hour ? 24 : 12);
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  
+  // Draw at center
+  const x = 0;
+  const y = 0;
+  
+  // Save context
+  ctx.save();
+  
+  // Draw clock face
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fillStyle = settings.faceColor || '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = settings.borderColor || '#000000';
+  ctx.lineWidth = size / 20;
+  ctx.stroke();
+  
+  // Draw hour marks
+  for (let i = 0; i < 12; i++) {
+    const angle = (i * Math.PI) / 6;
+    const markSize = size * 0.05;
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    ctx.beginPath();
+    ctx.moveTo(0, -size + markSize * 2);
+    ctx.lineTo(0, -size + markSize);
+    ctx.strokeStyle = settings.borderColor || '#000000';
+    ctx.lineWidth = markSize;
+    ctx.stroke();
+    
+    ctx.restore();
   }
-  return false; // Not handled
-});
+  
+  // Draw hour hand
+  const hourAngle = ((hours % 12) * Math.PI) / 6 + (minutes * Math.PI) / (6 * 60);
+  drawHand(ctx, x, y, hourAngle, size * 0.5, size * 0.07, settings.hourHandColor || '#000000');
+  
+  // Draw minute hand
+  const minuteAngle = (minutes * Math.PI) / 30 + (seconds * Math.PI) / (30 * 60);
+  drawHand(ctx, x, y, minuteAngle, size * 0.75, size * 0.04, settings.minuteHandColor || '#333333');
+  
+  // Draw second hand if enabled
+  if (showSeconds) {
+    const secondAngle = (seconds * Math.PI) / 30;
+    drawHand(ctx, x, y, secondAngle, size * 0.85, size * 0.02, settings.secondHandColor || '#ff0000');
+  }
+  
+  // Draw center circle
+  ctx.beginPath();
+  ctx.arc(x, y, size * 0.04, 0, Math.PI * 2);
+  ctx.fillStyle = settings.borderColor || '#000000';
+  ctx.fill();
+  
+  // Restore context
+  ctx.restore();
+}
+
+/**
+ * Draw a clock hand
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {number} x - Center X
+ * @param {number} y - Center Y
+ * @param {number} angle - Angle in radians
+ * @param {number} length - Hand length
+ * @param {number} width - Hand width
+ * @param {string} color - Hand color
+ */
+function drawHand(ctx, x, y, angle, length, width, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, -length);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  
+  ctx.restore();
+}
 ```
+
+## Example 3D Plugin: Simple Cube
+
+Here's an example of a 3D cube plugin using THREE.js:
+
+```javascript
+// src/plugins/3dcube/index.js
+export default function initCubePlugin(core) {
+  const { hooks, state } = core;
+  
+  // Store the cube object for animation and cleanup
+  let cube = null;
+  
+  // Define settings metadata
+  const cubeSettingsMetadata = {
+    // Visual settings
+    cubeColor: { 
+      type: 'visual', 
+      label: 'Cube Color', 
+      control: 'color', 
+      default: '#3498db' 
+    },
+    opacity: { 
+      type: 'visual', 
+      label: 'Opacity', 
+      control: 'slider', 
+      min: 0, 
+      max: 1, 
+      step: 0.01, 
+      default: 1.0 
+    },
+    wireframe: { 
+      type: 'visual', 
+      label: 'Wireframe Mode', 
+      control: 'checkbox', 
+      default: false 
+    },
+    backgroundColor: { 
+      type: 'visual', 
+      label: 'Background Color', 
+      control: 'color', 
+      default: '#f5f5f5' 
+    },
+    
+    // Structural settings
+    size: { 
+      type: 'structural', 
+      label: 'Cube Size', 
+      control: 'slider', 
+      min: 0.1, 
+      max: 2, 
+      step: 0.1, 
+      default: 1 
+    },
+    rotation: { 
+      type: 'structural', 
+      label: 'Auto-rotate', 
+      control: 'checkbox', 
+      default: true 
+    },
+    rotationSpeed: { 
+      type: 'structural', 
+      label: 'Rotation Speed', 
+      control: 'slider', 
+      min: 0.1, 
+      max: 2, 
+      step: 0.1, 
+      default: 1 
+    }
+  };
+  
+  // Register with visualization system
+  hooks.addFilter('availableVisualizations', 'cube', (visualizations) => {
+    return [...visualizations, {
+      id: 'cube',
+      name: '3D Cube',
+      description: 'A 3D cube visualization'
+    }];
+  });
+  
+  // Register environment requirements
+  hooks.addFilter('environmentRequirements', 'cube', () => {
+    return {
+      type: '3d-camera',
+      options: {
+        cameraPosition: [0, 0, 5],
+        lookAt: [0, 0, 0]
+      }
+    };
+  });
+  
+  // Register settings metadata
+  hooks.addFilter('settingsMetadata', 'cube', (metadata) => {
+    return cubeSettingsMetadata;
+  });
+  
+  // Register default settings
+  hooks.addFilter('defaultSettings', 'cube', (settings) => {
+    return {
+      cubeColor: '#3498db',
+      opacity: 1.0,
+      wireframe: false,
+      backgroundColor: '#f5f5f5',
+      size: 1,
+      rotation: true,
+      rotationSpeed: 1
+    };
+  });
+  
+  // Register render function
+  hooks.addAction('render', 'cube', (ctx, canvas, settings) => {
+    // For 3D, we set up the scene when the plugin is activated
+    return true;
+  });
+  
+  // Register activation handler - create the 3D scene
+  hooks.addAction('activatePlugin', 'cube', ({ pluginId }) => {
+    if (pluginId !== 'cube') return;
+    
+    // Get the current environment
+    const canvasManager = window.AppInstance.canvasManager;
+    
+    // Access the THREE.js scene
+    if (canvasManager.currentEnvironment && 
+        canvasManager.currentEnvironment.scene && 
+        window.THREE) {
+      
+      const scene = canvasManager.currentEnvironment.scene;
+      const THREE = window.THREE;
+      const settings = state.getState().settings;
+      
+      // Create a cube mesh
+      const geometry = new THREE.BoxGeometry(settings.size, settings.size, settings.size);
+      const material = new THREE.MeshStandardMaterial({
+        color: settings.cubeColor,
+        opacity: settings.opacity,
+        transparent: settings.opacity < 1,
+        wireframe: settings.wireframe
+      });
+      
+      cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      
+      // Set background color
+      if (canvasManager.currentEnvironment.renderer) {
+        canvasManager.currentEnvironment.renderer.setClearColor(
+          settings.backgroundColor
+        );
+      }
+    }
+  });
+  
+  // Register animation function
+  hooks.addAction('beforeRender', 'cube', (ctx, canvas, settings) => {
+    // Animate the cube if rotation is enabled
+    if (cube && settings.rotation) {
+      cube.rotation.x += 0.01 * settings.rotationSpeed;
+      cube.rotation.y += 0.01 * settings.rotationSpeed;
+    }
+  });
+  
+  // Handle setting changes
+  hooks.addAction('onSettingChanged', 'cube', ({ path, value }) => {
+    if (!cube) return;
+    
+    // Update the cube based on setting changes
+    switch (path) {
+      case 'size':
+        const oldGeometry = cube.geometry;
+        cube.geometry = new THREE.BoxGeometry(value, value, value);
+        oldGeometry.dispose(); // Clean up old geometry
+        break;
+        
+      case 'cubeColor':
+        cube.material.color.set(value);
+        break;
+        
+      case 'opacity':
+        cube.material.opacity = value;
+        cube.material.transparent = value < 1;
+        break;
+        
+      case 'wireframe':
+        cube.material.wireframe = value;
+        break;
+        
+      case 'backgroundColor':
+        const canvasManager = window.AppInstance.canvasManager;
+        if (canvasManager.currentEnvironment && 
+            canvasManager.currentEnvironment.renderer) {
+          canvasManager.currentEnvironment.renderer.setClearColor(value);
+        }
+        break;
+    }
+  });
+  
+  // Register deactivation handler - clean up the 3D scene
+  hooks.addAction('deactivatePlugin', 'cube', ({ pluginId }) => {
+    if (pluginId !== 'cube') return;
+    
+    // Clean up the cube from the scene
+    if (cube) {
+      const canvasManager = window.AppInstance.canvasManager;
+      if (canvasManager.currentEnvironment && 
+          canvasManager.currentEnvironment.scene) {
+        canvasManager.currentEnvironment.scene.remove(cube);
+      }
+      
+      // Dispose of resources
+      cube.geometry.dispose();
+      cube.material.dispose();
+      cube = null;
+    }
+  });
+  
+  console.log("Cube plugin initialized");
+}
+```
+
+## Conclusion
+
+By following this guide, you should be able to create custom visualization plugins for the Math Visualization Framework. Remember that each plugin should:
+
+1. Register all necessary hooks with the framework
+2. Implement a render function to draw the visualization
+3. Handle plugin activation and deactivation properly
+4. Clean up resources when deactivated
+5. Properly handle setting changes
+
+The Plugin Controller system will manage your plugin's lifecycle, ensuring that it's properly initialized, activated, and cleaned up when no longer in use.

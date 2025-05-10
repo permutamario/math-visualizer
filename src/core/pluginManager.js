@@ -1,10 +1,8 @@
 // src/core/pluginManager.js
-// Updated to support deferred plugin initialization
-
 import { getState } from './stateManager.js';
 import { showNotification } from './utils.js';
 
-// Import plugins directly - this is the most reliable approach
+// Import plugins directly
 import initSquarePlugin from '../plugins/square/index.js';
 import initCirclePlugin from '../plugins/circle/index.js';
 import initCubePlugin from '../plugins/cube/index.js';
@@ -17,7 +15,7 @@ import initPolytopeViewerPlugin from '../plugins/polytope-viewer/index.js';
  */
 export async function loadPlugins() {
   try {
-    console.log("Registering plugins...");
+    console.log("Registering plugins with Plugin Controller Registry");
     
     // 1. Get app instance
     const app = window.AppInstance;
@@ -32,22 +30,14 @@ export async function loadPlugins() {
 
     // 2. Use our predefined list of plugins
     const plugins = getPluginsList();
-    //console.log(`Found ${plugins.length} plugins:`, plugins.map(p => p.id));
 
     const registeredPlugins = [];
 
-    // Log available hooks before loading plugins
-    if (app.hooks) {
-      app.hooks.listRegisteredHooks();
-    }
-
     for (const plugin of plugins) {
-      //console.log(`Registering plugin: ${plugin.id}`);
-      
       // Set lifecycle state to 'registered' but not initialized
       plugin.lifecycleState = 'registered';
       
-      // Register the plugin with the app (but don't initialize)
+      // Register the plugin with the app (now uses Plugin Controller Registry)
       app.registerPlugin(plugin);
       
       registeredPlugins.push(plugin);
@@ -56,20 +46,20 @@ export async function loadPlugins() {
     return registeredPlugins;
     
   } catch (error) {
-    console.error('Failed to register plugins:', error);
+    console.error('Failed to register plugins with registry:', error);
     showNotification('Failed to register plugins', 3000);
     return [];
   }
 }
 
 /**
- * Initialize a specific plugin
+ * Initialize a specific plugin using the Plugin Controller Registry
  * @param {string} pluginId - ID of the plugin to initialize
  * @returns {Promise<boolean>} Success status
  */
 export async function initializePlugin(pluginId) {
   try {
-    console.log(`Initializing plugin: ${pluginId}`);
+    console.log(`Initializing plugin through registry: ${pluginId}`);
     
     // Get app instance
     const app = window.AppInstance;
@@ -77,72 +67,18 @@ export async function initializePlugin(pluginId) {
       throw new Error('App instance not found');
     }
     
-    // Get the plugin
-    const plugin = getState().plugins[pluginId];
-    if (!plugin) {
-      throw new Error(`Plugin ${pluginId} not found`);
-    }
+    // Use the registry to initialize the plugin
+    const controller = await app.pluginRegistry.initializePlugin(pluginId);
     
-    // Skip if already initialized
-    if (plugin.lifecycleState === 'ready' || plugin.lifecycleState === 'active') {
-      console.log(`Plugin ${pluginId} already initialized`);
+    if (controller) {
       return true;
+    } else {
+      console.error(`Failed to initialize plugin ${pluginId} through registry`);
+      return false;
     }
-    
-    // Check if the plugin has an init function
-    if (typeof plugin.init !== 'function') {
-      console.log(`Plugin ${pluginId} has no init function, marking as ready`);
-      app.setPluginLifecycleState(pluginId, 'ready');
-      return true;
-    }
-    
-    // Set up initialization context
-    const core = {
-      hooks: app.hooks,
-      state: {
-        getState,
-      },
-      canvas: app.canvasManager,
-      lifecycle: {
-        setPluginState: (state) => app.setPluginLifecycleState(pluginId, state)
-      }
-    };
-    
-    // Set to initializing state
-    app.setPluginLifecycleState(pluginId, 'initializing');
-    
-    // Show loading indicator for the plugin
-    app.showPluginLoading(pluginId);
-    
-    // Initialize the plugin
-    const initResult = plugin.init(core);
-    
-    // If init returns a promise, wait for it
-    if (initResult instanceof Promise) {
-      await initResult;
- 	await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    // If plugin didn't explicitly set state to ready, do it now
-    if (plugin.lifecycleState === 'initializing') {
-      app.setPluginLifecycleState(pluginId, 'ready');
-    }
-    
-    // Hide loading indicator
-    app.hidePluginLoading();
-    
-    console.log(`Plugin ${pluginId} initialized successfully`);
-    return true;
     
   } catch (error) {
-    console.error(`Error initializing plugin ${pluginId}:`, error);
-    const app = window.AppInstance;
-    
-    if (app) {
-      app.setPluginLifecycleState(pluginId, 'error');
-      app.hidePluginLoading();
-    }
-    
+    console.error(`Error initializing plugin ${pluginId} through registry:`, error);
     showNotification(`Failed to initialize plugin: ${pluginId}`, 3000);
     return false;
   }
@@ -150,12 +86,11 @@ export async function initializePlugin(pluginId) {
 
 /**
  * Get the list of plugins with their initialization functions
- * Most reliable approach: direct imports and hardcoded manifests
  */
 function getPluginsList() {
   return [
     // Square Plugin
-    {
+    { 
       id: 'square',
       name: 'Square Visualization',
       description: 'A simple square visualization',

@@ -1,11 +1,9 @@
 // src/index.js
-// Updated to implement lazy loading plugin strategy
-
 import { detectPlatform, showNotification } from './core/utils.js';
 import { setupDesktopUI } from './ui/desktopUI.js';
 import { setupMobileUI } from './ui/mobileUI.js';
 import { initializeApp } from './core/app.js';
-import { loadPlugins, initializePlugin } from './core/pluginManager.js';
+import { loadPlugins } from './core/pluginManager.js';
 
 // Import CameraControls for proper initialization
 import CameraControlsFactory from '../vendors/cameraControls3d/camera-controls.module.js';
@@ -71,7 +69,7 @@ function initializeThreeDependencies() {
   // Initialize CameraControls with THREE
   try {
     CameraControlsFactory.install({ THREE: THREE });
-    console.log('CameraControls initialized with THREE.js successfully');
+    console.log('CameraControls initialized with THREE.js');
   } catch (error) {
     console.error('Failed to initialize CameraControls:', error);
     throw error;
@@ -83,7 +81,7 @@ function initializeThreeDependencies() {
  */
 async function main() {
   try {
-    console.log("Starting application...");
+    console.log("Starting application with Plugin Controller Registry");
     updateLoadingMessage("Initializing system...");
     
     // 0. Initialize 3D dependencies
@@ -92,58 +90,47 @@ async function main() {
     } catch (error) {
       console.error("Failed to initialize THREE.js:", error);
       updateLoadingMessage("Failed to initialize 3D environment. 3D plugins will not be available.");
-      // Don't throw - we can still continue with 2D plugins
     }
     
     // 1. Detect platform (mobile or desktop)
     const isMobile = detectPlatform();
-    console.log('Platform detected:', isMobile ? 'Mobile' : 'Desktop');
     
     // 2. Initialize app core
     updateLoadingMessage("Initializing core framework...");
     const app = await initializeApp();
-    console.log('App core initialized successfully');
     
-    // 3. Discover and register all available plugins (but don't initialize them)
-    updateLoadingMessage("Registering plugins...");
+    // 3. Discover and register all available plugins with the registry
+    updateLoadingMessage("Registering plugins with registry...");
     const plugins = await loadPlugins();
-    console.log('Registered plugins:', plugins.map(p => p.name));
     
     // 4. Set up empty placeholder UI - this will be rebuilt when a plugin activates
     updateLoadingMessage("Setting up user interface...");
     if (isMobile) {
       setupMobileUI(app.canvasManager);
-      console.log('Initial mobile UI placeholder set up');
     } else {
       setupDesktopUI(app.canvasManager);
-      console.log('Initial desktop UI placeholder set up');
     }
     
     // 5. Start the render loop
     app.canvasManager.startRenderLoop();
     
-    // 6. Enable or disable debug mode - set to false to disable debug
-    const enableDebugMode = false; // Set this to true to enable debug mode, false to disable it
+    // 6. Enable or disable debug mode
+    const enableDebugMode = false;
     app.setDebugMode(enableDebugMode);
-    console.log(`Debug mode is ${enableDebugMode ? 'enabled' : 'disabled'}`);
     
     // 7. Initialize and activate the default plugin
-    const defaultPluginId = 'square'; // Use square as the default plugin
+    const defaultPluginId = 'square';
     
-    updateLoadingMessage(`Initializing default plugin: ${defaultPluginId}...`);
-    await initializePlugin(defaultPluginId);
+    updateLoadingMessage(`Activating default plugin: ${defaultPluginId}...`);
     
     // Hide loading screen now that plugin is initialized
     hideLoadingScreen();
     
-    // Activate the default plugin - UI will be rebuilt as part of activation
-    //console.log('Activating default plugin:', defaultPluginId);
+    // Activate the default plugin through the registry
     setTimeout(async () => {
       await app.activatePlugin(defaultPluginId);
       showNotification('Math Visualization Framework loaded successfully!', 2000);
     }, 100);
-    
-    //console.log('Application started successfully');
     
   } catch (error) {
     console.error('Application failed to start:', error);
