@@ -18,8 +18,7 @@ export class BasePolytopeVisualization extends Visualization {
       edges: null,       // Edge wireframe
       vertices: null,    // Vertex spheres
       extraMesh: null,   // Extra visualization elements
-      isAnimating: false, // Animation state
-      ConvexGeometry: null // Reference to the ConvexGeometry constructor
+      isAnimating: false // Animation state
     };
   }
 
@@ -61,37 +60,25 @@ export class BasePolytopeVisualization extends Visualization {
   }
   
   /**
-   * Load the ConvexGeometry module
-   * @param {Object} THREE - THREE.js library
-   * @returns {Promise<Function>} The ConvexGeometry constructor
-   */
-  async loadConvexGeometry(THREE) {
-    try {
-      // If we already have the ConvexGeometry, return it
-      if (this.state.ConvexGeometry) {
-        return this.state.ConvexGeometry;
-      }
-      
-      // Import the ConvexGeometry module
-      const module = await import('/vendors/examples/jsm/geometries/ConvexGeometry.js');
-      
-      // Store the ConvexGeometry constructor
-      this.state.ConvexGeometry = module.ConvexGeometry;
-      
-      return this.state.ConvexGeometry;
-    } catch (error) {
-      console.error("Failed to load ConvexGeometry:", error);
-      throw error;
-    }
-  }
-  
-  /**
    * Render the visualization in 3D
    * @param {Object} THREE - THREE.js library
    * @param {THREE.Scene} scene - THREE.js scene
    * @param {Object} parameters - Current parameters
    */
   async render3D(THREE, scene, parameters) {
+    // Check if ConvexGeometry is available globally
+    if (!window.ConvexGeometry) {
+      console.error("ConvexGeometry not available. Make sure it's loaded in index.html.");
+      
+      // Create a simple error mesh
+      const errorMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
+      );
+      scene.add(errorMesh);
+      return;
+    }
+    
     // Remove existing mesh if present
     if (this.state.meshGroup && this.state.meshGroup.parent) {
       scene.remove(this.state.meshGroup);
@@ -100,9 +87,6 @@ export class BasePolytopeVisualization extends Visualization {
     // Create new meshes if needed
     if (!this.state.meshGroup) {
       try {
-        // Load the ConvexGeometry constructor if not already loaded
-        const ConvexGeometry = await this.loadConvexGeometry(THREE);
-        
         // Create mesh group
         this.state.meshGroup = new THREE.Group();
         
@@ -110,7 +94,7 @@ export class BasePolytopeVisualization extends Visualization {
         const vertices = this.getVertices(THREE, parameters);
         
         // Create the polytope from vertices
-        await this.createPolytope(THREE, ConvexGeometry, vertices, parameters);
+        this.createPolytope(THREE, vertices, parameters);
         
         // Get any extra mesh from subclass
         const extraMesh = this.getExtraMesh(THREE, parameters);
@@ -143,19 +127,18 @@ export class BasePolytopeVisualization extends Visualization {
   /**
    * Create a polytope from vertices
    * @param {Object} THREE - THREE.js library
-   * @param {Function} ConvexGeometry - The ConvexGeometry constructor
    * @param {Array<THREE.Vector3>} vertices - Array of vertices
    * @param {Object} parameters - Visualization parameters
    */
-  async createPolytope(THREE, ConvexGeometry, vertices, parameters) {
+  createPolytope(THREE, vertices, parameters) {
     try {
       // Check if we have enough vertices
       if (!vertices || vertices.length < 4) {
         throw new Error("Not enough vertices to create a polytope");
       }
       
-      // Create convex hull geometry
-      const hullGeometry = new ConvexGeometry(vertices);
+      // Create convex hull geometry using global ConvexGeometry
+      const hullGeometry = new window.ConvexGeometry(vertices);
       
       // Create materials
       const faceMaterial = new THREE.MeshStandardMaterial({

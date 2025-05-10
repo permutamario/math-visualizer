@@ -112,7 +112,12 @@
     <p class="loading-text">Initializing...</p>
   </div>
   
-
+  <!-- Import THREE.js ConvexGeometry module -->
+  <script type="module">
+    // Import ConvexGeometry and make it globally available
+    import { ConvexGeometry } from './vendors/examples/jsm/geometries/ConvexGeometry.js';
+    window.ConvexGeometry = ConvexGeometry;
+  </script>
   
   <!-- Core application script -->
   <script type="module">
