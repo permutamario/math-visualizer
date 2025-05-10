@@ -8,7 +8,7 @@ import {
   createDropdown,
   createButton,
   createNumberInput,
-  createMessage // Add this import
+  createMessage
 } from './baseControls.js';
 import { showNotification } from '../core/utils.js';
 import { getState, getStateValue, changeState, subscribe } from '../core/stateManager.js';
@@ -49,7 +49,7 @@ export function setupDesktopUI(canvasManager) {
   
   // Listen for UI rebuild events
   subscribe('rebuildUI', () => {
-    ////console.log("Rebuilding Desktop UI due to rebuildUI event");
+    console.log("Rebuilding Desktop UI due to rebuildUI event");
     setupDesktopUI(canvasManager);
   });
 }
@@ -79,11 +79,11 @@ function createPluginSelector() {
   const state = getState();
   const plugins = state.availablePlugins || [];
   
-  ////console.log("Creating plugin selector with available plugins:", plugins);
+  console.log("Creating plugin selector with available plugins:", plugins);
   
   // Skip if no plugins available
   if (plugins.length <= 1) {
-    ////console.log("Not creating plugin selector - not enough plugins");
+    console.log("Not creating plugin selector - not enough plugins");
     return;
   }
   
@@ -115,7 +115,7 @@ function createPluginSelector() {
   const pluginOptions = plugins.map(plugin => plugin.id);
   const activePluginId = state.activePluginId || '';
   
-  ////console.log("Plugin options:", pluginOptions, "Active plugin:", activePluginId);
+  console.log("Plugin options:", pluginOptions, "Active plugin:", activePluginId);
   
   const pluginSelect = createDropdown({
     id: 'plugin-select',
@@ -125,7 +125,7 @@ function createPluginSelector() {
     onChange: (pluginId) => {
       // Get app instance and activate the plugin
       if (window.AppInstance) {
-        //////console.log("Activating plugin from dropdown:", pluginId);
+        console.log("Activating plugin from dropdown:", pluginId);
         window.AppInstance.activatePlugin(pluginId);
       } else {
         console.error("AppInstance not found when trying to activate plugin");
@@ -172,7 +172,7 @@ function createVisualPanel() {
   const visualSettings = getSettingsByCategory('visual');
   const activePluginId = state.activePluginId;
   
-  ////console.log(`Getting visual settings for plugin ${activePluginId}:`, visualSettings);
+  console.log(`Getting visual settings for plugin ${activePluginId}:`, visualSettings);
     
   if (visualSettings.length === 0) {
     const message = document.createElement('p');
@@ -185,7 +185,7 @@ function createVisualPanel() {
   } else {
     // Create controls for each visual setting
     visualSettings.forEach(setting => {
-      //////console.log(`Creating control for visual setting: ${setting.key}`);
+      console.log(`Creating control for visual setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -230,7 +230,7 @@ function createExportPanel(canvasManager) {
   const exportOptions = state.exportOptions || [];
   const activePluginId = state.activePluginId;
   
-  ////console.log(`Export options for plugin ${activePluginId}:`, exportOptions);
+  console.log(`Export options for plugin ${activePluginId}:`, exportOptions);
   
   if (exportOptions.length === 0) {
     const message = document.createElement('p');
@@ -303,7 +303,7 @@ function createStructuralPanel() {
   // Apply styles
   Object.assign(panel.style, {
     position: 'fixed',
-    top: '300px',
+    top: '100px',
     right: '20px',
     width: '300px',
     backgroundColor: '#ffffff',
@@ -326,7 +326,7 @@ function createStructuralPanel() {
   const structuralSettings = getSettingsByCategory('structural');
   const activePluginId = state.activePluginId;
   
-  ////console.log(`Getting structural settings for plugin ${activePluginId}:`, structuralSettings);
+  console.log(`Getting structural settings for plugin ${activePluginId}:`, structuralSettings);
   
   if (structuralSettings.length === 0) {
     const message = document.createElement('p');
@@ -339,7 +339,7 @@ function createStructuralPanel() {
   } else {
     // Create controls for each structural setting
     structuralSettings.forEach(setting => {
-      //////console.log(`Creating control for structural setting: ${setting.key}`);
+      console.log(`Creating control for structural setting: ${setting.key}`);
       const control = createControlFromSetting(setting, value => {
         changeState(`settings.${setting.key}`, value);
       });
@@ -404,7 +404,7 @@ function createDebugPanel() {
     id: 'log-state',
     label: 'Log State to Console',
     onClick: () => {
-      ////console.log("Current State:", state);
+      console.log("Current State:", state);
       showNotification('State logged to console');
     }
   });
@@ -506,17 +506,43 @@ function appendToDebugLog(message) {
  */
 function getSettingsByCategory(category) {
   const state = getState();
-  const metadata = state.settingsMetadata || {};
-  const settings = state.settings || {};
   const result = [];
   
-  ////console.log(`Getting ${category} settings with metadata:`, metadata);
+  // Handle the new manifest structure
+  const metadata = state.settingsMetadata || {};
   
+  // First try the new format (nested arrays under categories)
+  if (metadata[category] && Array.isArray(metadata[category])) {
+    console.log(`Found settings in the new manifest format for category: ${category}`);
+    
+    // Map from the new format to the expected format
+    metadata[category].forEach(setting => {
+      if (setting.key) {
+        result.push({
+          key: setting.key,
+          value: state.settings?.[setting.key],
+          type: category,
+          label: setting.label,
+          control: setting.control,
+          min: setting.min,
+          max: setting.max,
+          step: setting.step,
+          default: setting.default,
+          options: setting.options
+        });
+      }
+    });
+    
+    return result;
+  }
+  
+  // Fall back to the old format (type property on each setting)
+  console.log(`Falling back to old format for category: ${category}`);
   Object.keys(metadata).forEach(key => {
-    if (metadata[key].type === category) {
+    if (metadata[key]?.type === category) {
       result.push({
         key,
-        value: settings[key],
+        value: state.settings?.[key],
         ...metadata[key]
       });
     }
@@ -532,11 +558,26 @@ function resetAllSettings() {
   const state = getState();
   const metadata = state.settingsMetadata || {};
   
-  Object.entries(metadata).forEach(([key, data]) => {
-    if ('default' in data) {
-      changeState(`settings.${key}`, data.default);
-    }
-  });
+  // Handle both metadata formats
+  if (metadata.visual && Array.isArray(metadata.visual)) {
+    // New format
+    ['visual', 'structural'].forEach(category => {
+      if (metadata[category] && Array.isArray(metadata[category])) {
+        metadata[category].forEach(setting => {
+          if (setting.key && 'default' in setting) {
+            changeState(`settings.${setting.key}`, setting.default);
+          }
+        });
+      }
+    });
+  } else {
+    // Old format
+    Object.entries(metadata).forEach(([key, data]) => {
+      if ('default' in data) {
+        changeState(`settings.${key}`, data.default);
+      }
+    });
+  }
   
   changeState('settingsReset', true);
 }
@@ -550,16 +591,15 @@ function resetAllSettings() {
 function createControlFromSetting(setting, onChange) {
   const { key, control, label, value } = setting;
   
-  //////console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
+  console.log(`Creating control for setting: ${key}, type: ${control}, value: ${value}`);
   
   switch (control) {
-
-	case 'message':
-	  return createMessage({
-	    id: key,
-	    label,
-	    text: setting.text || ''
-	  });
+    case 'message':
+      return createMessage({
+        id: key,
+        label,
+        text: setting.text || ''
+      });
     case 'slider':
       return createSlider({
         id: key,

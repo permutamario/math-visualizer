@@ -1,4 +1,4 @@
-// src/core/app.js
+// src/core/app.js - Fixed version with proper UI rebuilding
 import { initState, getState, getStateValue, changeState, subscribe } from './stateManager.js';
 import { initializeHooks } from './hooks.js';
 import { CanvasManager } from './canvasManager.js';
@@ -94,13 +94,27 @@ class App {
       // Track the active plugin
       this.activePlugin = getStateValue(`plugins.${pluginId}`);
       
-      // Trigger UI rebuild
-      this.rebuildUI();
+      // Trigger UI rebuild with slight delay to ensure state is ready
+      setTimeout(() => {
+        console.log(`Plugin activated event received for ${pluginId}, rebuilding UI`);
+        this.rebuildUI();
+      }, 50);
       
       // Trigger render
       if (this.canvasManager) {
         setTimeout(() => {
           this.canvasManager.render();
+        }, 100);
+      }
+    });
+    
+    // NEW: Listen for activePluginId changes
+    subscribe('stateChanged', ({ path, value }) => {
+      if (path === 'activePluginId' && value) {
+        console.log(`Active plugin ID changed to ${value}, rebuilding UI`);
+        // Delay UI rebuild to ensure settings are in the state
+        setTimeout(() => {
+          this.rebuildUI();
         }, 50);
       }
     });
@@ -113,6 +127,12 @@ class App {
         // Update the setting in the active plugin controller
         if (this.pluginRegistry && this.pluginRegistry.activeController) {
           this.pluginRegistry.updateActiveSetting(settingPath, value);
+        }
+        
+        // NEW: Check if it's a structural setting that should trigger UI rebuild
+        if (isStructuralSetting(settingPath)) {
+          console.log(`Structural setting ${settingPath} changed, rebuilding UI`);
+          this.rebuildUI();
         }
         
         // Trigger render
@@ -136,13 +156,34 @@ class App {
       }
       return false;
     });
+    
+    // NEW: Listen for settings metadata changes
+    subscribe('stateChanged', ({ path }) => {
+      if (path === 'settingsMetadata' || path === 'exportOptions') {
+        console.log(`${path} changed, rebuilding UI`);
+        // Delay UI rebuild to ensure all related state is ready
+        setTimeout(() => {
+          this.rebuildUI();
+        }, 50);
+      }
+    });
   }
   
   /**
    * Rebuild the UI based on current state
    */
   rebuildUI() {
+    console.log("Rebuilding UI");
     const isMobile = detectPlatform();
+    
+    // Log current state before rebuilding
+    const state = getState();
+    console.log("UI rebuild with state:", {
+      activePluginId: state.activePluginId,
+      settingsCount: Object.keys(state.settings || {}).length,
+      metadataCount: Object.keys(state.settingsMetadata || {}).length,
+      exportOptionsCount: (state.exportOptions || []).length
+    });
     
     // Rebuild UI based on platform
     if (isMobile) {
@@ -150,6 +191,8 @@ class App {
     } else {
       setupDesktopUI(this.canvasManager);
     }
+    
+    console.log("UI rebuild complete");
   }
   
   /**
@@ -345,6 +388,13 @@ class App {
       if (!success) {
         console.error(`Failed to activate plugin ${pluginId}`);
         showNotification(`Failed to activate plugin: ${pluginId}`, 3000);
+      } else {
+        // NEW: Explicitly rebuild UI after successful activation
+        console.log(`Plugin ${pluginId} activated successfully, explicitly rebuilding UI`);
+        // Add a small delay to ensure all settings are in state
+        setTimeout(() => {
+          this.rebuildUI();
+        }, 100);
       }
       
       return success;
@@ -411,6 +461,20 @@ class App {
       }
     ];
   }
+}
+
+/**
+ * Helper function to determine if a setting is structural
+ * @param {string} settingPath - Setting path
+ * @returns {boolean} True if the setting is structural
+ */
+function isStructuralSetting(settingPath) {
+  // List of structural settings that should trigger UI rebuild
+  const structuralSettings = [
+    'sides', 'radius', 'circleSections', 'squareSize', 'rotation'
+  ];
+  
+  return structuralSettings.includes(settingPath);
 }
 
 /**

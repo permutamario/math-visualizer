@@ -2,13 +2,6 @@
 import { getState } from './stateManager.js';
 import { showNotification } from './utils.js';
 
-// Import plugins directly
-import initSquarePlugin from '../plugins/square/index.js';
-import initCirclePlugin from '../plugins/circle/index.js';
-import initCubePlugin from '../plugins/cube/index.js';
-import initInteractivePlugin from '../plugins/interactive/index.js';
-import initPolytopeViewerPlugin from '../plugins/polytope-viewer/index.js';
-
 // Cache for loaded plugin manifests
 const manifestCache = new Map();
 
@@ -26,27 +19,60 @@ export async function loadPlugins() {
       throw new Error('App instance not found');
     }
 
-    // 2. Use our predefined list of plugins
-    const plugins = getPluginsList();
+    // 2. Load plugin_list.json to get available plugins
+    const pluginList = await loadPluginList();
+    if (!pluginList || !Array.isArray(pluginList) || pluginList.length === 0) {
+      throw new Error('Failed to load plugin list or no plugins found');
+    }
     
-    // 3. Try to load manifests for each plugin
-    const manifestPromises = plugins.map(plugin => loadPluginManifest(plugin.id));
-    const manifests = await Promise.allSettled(manifestPromises);
+    console.log(`Found ${pluginList.length} plugins in plugin_list.json:`, pluginList);
     
-    const registeredPlugins = [];
-
-    // 4. Register each plugin with its manifest if available
-    for (let i = 0; i < plugins.length; i++) {
-      const plugin = plugins[i];
-      
-      // If manifest was loaded successfully, use it
-      if (manifests[i].status === 'fulfilled' && manifests[i].value) {
-        plugin.manifest = manifests[i].value;
+    // 3. Create plugin objects for each plugin ID
+    const plugins = [];
+    for (const pluginId of pluginList) {
+      try {
+        // Try to load manifest first to get metadata
+        const manifest = await loadPluginManifest(pluginId);
+        
+        // Create plugin object
+        const plugin = {
+          id: pluginId,
+          name: manifest?.name || pluginId,
+          description: manifest?.description || `${pluginId} visualization`,
+          manifest: manifest,
+          init: null // Will be dynamically imported below
+        };
+        
+        plugins.push(plugin);
+      } catch (error) {
+        console.error(`Error creating plugin object for ${pluginId}:`, error);
       }
-      
-      // Register the plugin with the app
-      app.registerPlugin(plugin);
-      registeredPlugins.push(plugin);
+    }
+    
+    // 4. Try to load manifests and implementation files for each plugin
+    const registeredPlugins = [];
+    
+    for (const plugin of plugins) {
+      try {
+        // Dynamically import the plugin's index.js
+        const moduleUrl = `/src/plugins/${plugin.id}/index.js`;
+        const module = await import(moduleUrl);
+        
+        // Get the default export as the init function
+        if (module.default && typeof module.default === 'function') {
+          plugin.init = module.default;
+          
+          // Register the plugin with the app
+          app.registerPlugin(plugin);
+          registeredPlugins.push(plugin);
+          
+          console.log(`Successfully registered plugin: ${plugin.id}`);
+        } else {
+          console.error(`Plugin ${plugin.id} has no valid init function`);
+        }
+      } catch (error) {
+        console.error(`Failed to load implementation for plugin ${plugin.id}:`, error);
+      }
     }
 
     console.log(`Registered ${registeredPlugins.length} plugins`);
@@ -55,6 +81,26 @@ export async function loadPlugins() {
   } catch (error) {
     console.error('Failed to load plugins:', error);
     showNotification('Failed to load plugins', 3000);
+    return [];
+  }
+}
+
+/**
+ * Load the plugin list from plugin_list.json
+ * @returns {Promise<Array<string>>} Array of plugin IDs
+ */
+async function loadPluginList() {
+  try {
+    const response = await fetch('/src/plugins/plugin_list.json');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load plugin list: ${response.statusText}`);
+    }
+    
+    const pluginList = await response.json();
+    return pluginList;
+  } catch (error) {
+    console.error('Error loading plugin list:', error);
     return [];
   }
 }
@@ -72,7 +118,7 @@ async function loadPluginManifest(pluginId) {
   
   // Try to load manifest
   try {
-    const manifestUrl = `src/plugins/${pluginId}/manifest.json`;
+    const manifestUrl = `/src/plugins/${pluginId}/manifest.json`;
     const response = await fetch(manifestUrl);
     
     if (!response.ok) {
@@ -109,7 +155,7 @@ export async function discoverPlugin(pluginId) {
     // Helper function to load implementation files
     const loadImplementation = async (fileName) => {
       try {
-        const module = await import(`../plugins/${pluginId}/${fileName}.js`);
+        const module = await import(`/src/plugins/${pluginId}/${fileName}.js`);
         return module;
       } catch (error) {
         console.warn(`Could not load ${fileName}.js for ${pluginId}:`, error);
@@ -172,51 +218,4 @@ export async function registerPluginFromManifest(pluginId) {
     console.error(`Error registering plugin ${pluginId} from manifest:`, error);
     return false;
   }
-}
-
-/**
- * Get the list of plugins with their initialization functions
- */
-function getPluginsList() {
-  return [
-    // Square Plugin
-    { 
-      id: 'square',
-      name: 'Square Visualization',
-      description: 'A simple square visualization',
-      init: initSquarePlugin
-    },
-    
-    // Circle Plugin
-    {
-      id: 'circle',
-      name: 'Circle Visualization',
-      description: 'A sectioned circle visualization with interaction',
-      init: initCirclePlugin
-    },
-    
-    // 3D Cube Plugin
-    {
-      id: 'cube',
-      name: '3D Cube Visualization',
-      description: 'A 3D cube visualization with camera controls',
-      init: initCubePlugin
-    },
-    
-    // Interactive Shapes Plugin
-    {
-      id: 'interactive',
-      name: 'Interactive Shapes',
-      description: 'Interactive shapes that can be clicked and dragged',
-      init: initInteractivePlugin
-    },
-    
-    // Polytope Viewer Plugin
-    {
-      id: 'polytopeViewer',
-      name: 'Polytope Viewer',
-      description: 'Interactive viewer for 3D polytopes with parametric controls',
-      init: initPolytopeViewerPlugin
-    }
-  ];
 }

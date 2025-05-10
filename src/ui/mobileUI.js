@@ -8,7 +8,7 @@ import {
   createDropdown,
   createButton,
   createNumberInput,
-  createMessage // Add this import
+  createMessage
 } from './baseControls.js';
 import { showNotification } from '../core/utils.js';
 import { getState, getStateValue, changeState, subscribe } from '../core/stateManager.js';
@@ -347,15 +347,43 @@ function createExportMenu(canvasManager) {
  */
 function getSettingsByCategory(category) {
   const state = getState();
-  const metadata = state.settingsMetadata || {};
-  const settings = state.settings || {};
   const result = [];
   
+  // Handle the new manifest structure
+  const metadata = state.settingsMetadata || {};
+  
+  // First try the new format (nested arrays under categories)
+  if (metadata[category] && Array.isArray(metadata[category])) {
+    console.log(`Found settings in the new manifest format for category: ${category}`);
+    
+    // Map from the new format to the expected format
+    metadata[category].forEach(setting => {
+      if (setting.key) {
+        result.push({
+          key: setting.key,
+          value: state.settings?.[setting.key],
+          type: category,
+          label: setting.label,
+          control: setting.control,
+          min: setting.min,
+          max: setting.max,
+          step: setting.step,
+          default: setting.default,
+          options: setting.options
+        });
+      }
+    });
+    
+    return result;
+  }
+  
+  // Fall back to the old format (type property on each setting)
+  console.log(`Falling back to old format for category: ${category}`);
   Object.keys(metadata).forEach(key => {
-    if (metadata[key].type === category) {
+    if (metadata[key]?.type === category) {
       result.push({
         key,
-        value: settings[key],
+        value: state.settings?.[key],
         ...metadata[key]
       });
     }
@@ -371,11 +399,26 @@ function resetAllSettings() {
   const state = getState();
   const metadata = state.settingsMetadata || {};
   
-  Object.entries(metadata).forEach(([key, data]) => {
-    if ('default' in data) {
-      changeState(`settings.${key}`, data.default);
-    }
-  });
+  // Handle both metadata formats
+  if (metadata.visual && Array.isArray(metadata.visual)) {
+    // New format
+    ['visual', 'structural'].forEach(category => {
+      if (metadata[category] && Array.isArray(metadata[category])) {
+        metadata[category].forEach(setting => {
+          if (setting.key && 'default' in setting) {
+            changeState(`settings.${setting.key}`, setting.default);
+          }
+        });
+      }
+    });
+  } else {
+    // Old format
+    Object.entries(metadata).forEach(([key, data]) => {
+      if ('default' in data) {
+        changeState(`settings.${key}`, data.default);
+      }
+    });
+  }
   
   changeState('settingsReset', true);
 }
@@ -390,13 +433,12 @@ function createControlFromSetting(setting, onChange) {
   const { key, control, label, value } = setting;
   
   switch (control) {
-
-	case 'message':
-	  return createMessage({
-	    id: key,
-	    label,
-	    text: setting.text || ''
-	  });
+    case 'message':
+      return createMessage({
+        id: key,
+        label,
+        text: setting.text || ''
+      });
     case 'slider':
       return createSlider({
         id: `${key}-mobile`,
