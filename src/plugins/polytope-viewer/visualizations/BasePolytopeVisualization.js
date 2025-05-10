@@ -73,7 +73,7 @@ export class BasePolytopeVisualization extends Visualization {
       }
       
       // Import the ConvexGeometry module
-      const module = await import('/vendors/jsm/geometries/ConvexGeometry.js');
+      const module = await import('/vendors/examples/jsm/geometries/ConvexGeometry.js');
       
       // Store the ConvexGeometry constructor
       this.state.ConvexGeometry = module.ConvexGeometry;
