@@ -27,7 +27,8 @@ export class BasePolytopeVisualization extends Visualization {
       },
       extraMesh: null,    // Optional extra mesh provided by subclasses
       isAnimating: false, // Animation enabled
-      rotationSpeed: 0.5  // Rotation speed
+      rotationSpeed: 0.5, // Rotation speed
+      ConvexGeometry: null // Store the ConvexGeometry constructor once loaded
     };
   }
 
@@ -39,8 +40,35 @@ export class BasePolytopeVisualization extends Visualization {
     // Base implementation - should be overridden by subclasses
     this.state.isAnimating = parameters.rotation;
     
+    // Try to import ConvexGeometry early
+    try {
+      await this.importConvexGeometry();
+    } catch (error) {
+      console.warn("Failed to preload ConvexGeometry:", error);
+    }
+    
     // Subclasses should override to generate vertices and extra meshes
     return true;
+  }
+  
+  /**
+   * Import the ConvexGeometry module
+   * @returns {Promise<Function>} The ConvexGeometry constructor
+   */
+  async importConvexGeometry() {
+    if (this.state.ConvexGeometry) {
+      return this.state.ConvexGeometry;
+    }
+    
+    try {
+      // Import directly from vendors path
+      const ConvexGeometryModule = await import('/vendors/jsm/geometries/ConvexGeometry.js');
+      this.state.ConvexGeometry = ConvexGeometryModule.ConvexGeometry;
+      return this.state.ConvexGeometry;
+    } catch (error) {
+      console.error('Failed to import ConvexGeometry:', error);
+      throw new Error('ConvexGeometry import failed. This is required for polytope visualization.');
+    }
   }
   
   /**
@@ -144,8 +172,10 @@ export class BasePolytopeVisualization extends Visualization {
         throw new Error('Not enough vertices to create a 3D polytope');
       }
       
+      // Get the ConvexGeometry constructor
+      const ConvexGeometry = await this.importConvexGeometry();
+      
       // Create a convex hull geometry from the points
-      const ConvexGeometry = await this.getConvexGeometry(THREE);
       const hullGeometry = new ConvexGeometry(vertices);
       
       // Create materials
@@ -186,22 +216,6 @@ export class BasePolytopeVisualization extends Visualization {
     }
     
     return group;
-  }
-  
-  /**
-   * Get the ConvexGeometry constructor
-   * @param {Object} THREE - THREE.js library
-   * @returns {Promise<Function>} ConvexGeometry constructor
-   */
-  async getConvexGeometry(THREE) {
-    try {
-      // Import directly from vendors path
-      const ConvexGeometryModule = await import('/vendors/jsm/geometries/ConvexGeometry.js');
-      return ConvexGeometryModule.ConvexGeometry;
-    } catch (error) {
-      console.error('Failed to import ConvexGeometry:', error);
-      throw new Error('ConvexGeometry import failed. This is required for polytope visualization.');
-    }
   }
   
   /**
