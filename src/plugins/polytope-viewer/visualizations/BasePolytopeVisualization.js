@@ -55,7 +55,7 @@ export class BasePolytopeVisualization extends Visualization {
   /**
    * Build a polytope from vertex data
    * @param {Object} THREE - THREE.js library
-   * @param {Array} vertices - Array of vertex coordinates
+   * @param {Array} vertices - Array of vertex coordinates or THREE.Vector3
    * @param {Object} parameters - Visualization parameters
    * @returns {THREE.Group} Group containing polytope meshes
    */
@@ -63,17 +63,62 @@ export class BasePolytopeVisualization extends Visualization {
     // Clean up any existing meshes
     this.cleanupMeshes();
     
-    // Convert vertices to THREE.Vector3 if needed
-    const points = Array.isArray(vertices[0]) ? 
-      PolytopeUtils.verticesToPoints(THREE, vertices) : vertices;
-    
-    // Create a convex hull geometry from the points
-    const geometry = await PolytopeUtils.createConvexHullGeometry(THREE, points);
-    
     // Create the mesh group
-    this.state.meshGroup = this.createPolytopeMeshGroup(THREE, geometry, parameters);
+    const group = new THREE.Group();
     
-    return this.state.meshGroup;
+    try {
+      // Convert vertices to THREE.Vector3 if needed
+      const points = Array.isArray(vertices[0]) ? 
+        PolytopeUtils.verticesToPoints(THREE, vertices) : vertices;
+      
+      // Ensure we have enough points for a 3D convex hull
+      if (points.length < 4) {
+        throw new Error('Not enough vertices to create a 3D polytope');
+      }
+      
+      // Create a convex hull geometry from the points
+      const hullGeometry = await PolytopeUtils.createConvexHullGeometry(THREE, points);
+      
+      // Create materials
+      const faceMaterial = this.createFaceMaterial(THREE, parameters);
+      const edgeMaterial = this.createEdgeMaterial(THREE, parameters);
+      
+      // Create face mesh
+      const faceMesh = new THREE.Mesh(hullGeometry, faceMaterial);
+      
+      // Create edge mesh
+      const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
+      const edgesMesh = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+      
+      // Create vertex spheres
+      const vertexGroup = this.createVertexSpheres(THREE, points, parameters);
+      
+      // Add meshes to group
+      group.add(faceMesh);
+      group.add(edgesMesh);
+      group.add(vertexGroup);
+      
+      // Store references
+      this.state.meshGroup = group;
+      this.state.meshes.solid = faceMesh;
+      this.state.meshes.edges = edgesMesh;
+      this.state.meshes.vertices = vertexGroup;
+    } catch (error) {
+      console.error('Error building polytope:', error);
+      
+      // Create fallback if there's an error
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ 
+        color: 0xff0000, 
+        wireframe: true 
+      });
+      const errorMesh = new THREE.Mesh(geometry, material);
+      
+      group.add(errorMesh);
+      this.state.meshGroup = group;
+    }
+    
+    return group;
   }
   
   /**
@@ -294,64 +339,6 @@ export class BasePolytopeVisualization extends Visualization {
     vertexGroup.visible = parameters.showVertices !== false;
     
     return vertexGroup;
-  }
-  
-  /**
-   * Create mesh group for the polytope
-   * @param {Object} THREE - THREE.js library
-   * @param {Object} geometry - Polytope geometry
-   * @param {Object} parameters - Visualization parameters
-   * @returns {THREE.Group} Group containing polytope meshes
-   */
-  createPolytopeMeshGroup(THREE, geometry, parameters) {
-    // Create a group to hold all meshes
-    const group = new THREE.Group();
-    
-    // Create materials
-    const faceMaterial = this.createFaceMaterial(THREE, parameters);
-    const edgeMaterial = this.createEdgeMaterial(THREE, parameters);
-    
-    // Create face mesh
-    const faceMesh = new THREE.Mesh(geometry, faceMaterial);
-    
-    // Create edge mesh
-    const edgesGeometry = new THREE.EdgesGeometry(geometry);
-    const edgesMesh = new THREE.LineSegments(edgesGeometry, edgeMaterial);
-    
-    // Create vertex spheres
-    const vertexPositions = [];
-    const positionAttribute = geometry.getAttribute('position');
-    
-    // Extract unique vertex positions
-    const uniqueVertices = new Set();
-    
-    for (let i = 0; i < positionAttribute.count; i++) {
-      const vertexKey = `${positionAttribute.getX(i).toFixed(5)},${positionAttribute.getY(i).toFixed(5)},${positionAttribute.getZ(i).toFixed(5)}`;
-      
-      if (!uniqueVertices.has(vertexKey)) {
-        uniqueVertices.add(vertexKey);
-        vertexPositions.push({
-          x: positionAttribute.getX(i),
-          y: positionAttribute.getY(i),
-          z: positionAttribute.getZ(i)
-        });
-      }
-    }
-    
-    const vertexGroup = this.createVertexSpheres(THREE, vertexPositions, parameters);
-    
-    // Add meshes to group
-    group.add(faceMesh);
-    group.add(edgesMesh);
-    group.add(vertexGroup);
-    
-    // Store references
-    this.state.meshGroup = group;
-    this.state.meshes.solid = faceMesh;
-    this.state.meshes.edges = edgesMesh;
-    this.state.meshes.vertices = vertexGroup;
-    
-    return group;
   }
   
   /**

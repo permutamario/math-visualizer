@@ -62,12 +62,25 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
     
     // Create new solid if needed
     if (!this.state.meshGroup) {
-      // For Platonic solids, we'll extract vertices from the built-in THREE.js geometries
-      const vertices = this.getPlatonicSolidVertices(THREE, parameters);
-      // Use the base class method to build the polytope from vertices
-      await this.buildPolytope(THREE, vertices, parameters);
-      
-      // Add any platonic-specific visualizations here if needed
+      try {
+        // Get vertices for the selected platonic solid
+        const vertices = this.getPlatonicSolidVertices(THREE, parameters);
+        
+        // Use the base class method to build the polytope from vertices
+        this.state.meshGroup = await this.buildPolytope(THREE, vertices, parameters);
+      } catch (error) {
+        console.error("Error creating platonic solid:", error);
+        
+        // Create a simple error indicator
+        this.state.meshGroup = new THREE.Group();
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ 
+          color: 0xff0000, 
+          wireframe: true 
+        });
+        const errorMesh = new THREE.Mesh(geometry, material);
+        this.state.meshGroup.add(errorMesh);
+      }
     }
     
     // Add mesh to scene
@@ -85,7 +98,7 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
     const solidType = parameters.solidType || 'tetrahedron';
     const size = parameters.size || 1;
     
-    // Create temporary geometry to extract vertices
+    // Create geometry based on selected solid type
     let geometry;
     
     switch (solidType) {

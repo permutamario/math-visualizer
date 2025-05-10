@@ -129,38 +129,20 @@ export class PolytopeUtils {
   }
   
   /**
-   * Check if ConvexGeometry is available in THREE.js
+   * Import ConvexGeometry from the THREE.js examples
    * @param {Object} THREE - THREE.js library
-   * @returns {boolean} Whether ConvexGeometry is available
+   * @returns {Promise<Function>} ConvexGeometry constructor
    */
-  static isConvexGeometryAvailable(THREE) {
-    return typeof THREE.ConvexGeometry === 'function';
-  }
-  
-  /**
-   * Import ConvexGeometry if needed
-   * @param {Object} THREE - THREE.js library
-   * @returns {Promise<boolean>} Whether import was successful
-   */
-  static async importConvexGeometry(THREE) {
-    if (this.isConvexGeometryAvailable(THREE)) {
-      return true;
-    }
-    
+  static async getConvexGeometry() {
     try {
-      // Try to import from vendors
-      const ConvexGeometry = await import('/vendors/jsm/examples/geometries/ConvexGeometry.js');
+      // Import directly from vendors path
+      const ConvexHull = await import('/vendors/jsm/math/ConvexHull.js');
+      const ConvexGeometry = await import('/vendors/jsm/geometries/ConvexGeometry.js');
       
-      // Add to THREE
-      if (ConvexGeometry && ConvexGeometry.ConvexGeometry) {
-        THREE.ConvexGeometry = ConvexGeometry.ConvexGeometry;
-        return true;
-      }
-      
-      return false;
+      return ConvexGeometry.ConvexGeometry;
     } catch (error) {
-      console.warn('Failed to import ConvexGeometry:', error);
-      return false;
+      console.error('Failed to import ConvexGeometry:', error);
+      throw new Error('ConvexGeometry import failed. This is required for polytope visualization.');
     }
   }
   
@@ -168,35 +150,23 @@ export class PolytopeUtils {
    * Create a convex hull geometry from points
    * @param {Object} THREE - THREE.js library
    * @param {Array<THREE.Vector3>} points - Array of 3D points
-   * @returns {THREE.BufferGeometry} Convex hull geometry
+   * @returns {Promise<THREE.BufferGeometry>} Convex hull geometry
    */
   static async createConvexHullGeometry(THREE, points) {
-    // Ensure ConvexGeometry is available
-    await this.importConvexGeometry(THREE);
-    
-    // Create the convex hull geometry
-    if (this.isConvexGeometryAvailable(THREE)) {
-      return new THREE.ConvexGeometry(points);
+    if (!points || points.length < 4) {
+      console.error('Not enough points to create convex hull geometry');
+      return new THREE.BufferGeometry();
     }
     
-    // Fallback if ConvexGeometry is not available
-    console.warn('ConvexGeometry not available, using fallback');
-    return this.createFallbackGeometry(THREE, points);
-  }
-  
-  /**
-   * Create a fallback geometry when ConvexGeometry is not available
-   * @param {Object} THREE - THREE.js library
-   * @param {Array<THREE.Vector3>} points - Array of 3D points
-   * @returns {THREE.BufferGeometry} Simple geometry from points
-   */
-  static createFallbackGeometry(THREE, points) {
-    // Create a simple buffer geometry from points
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    
-    // Compute vertex normals
-    geometry.computeVertexNormals();
-    
-    return geometry;
+    try {
+      // Get ConvexGeometry constructor
+      const ConvexGeometry = await this.getConvexGeometry();
+      
+      // Create the convex hull geometry
+      return new ConvexGeometry(points);
+    } catch (error) {
+      console.error('Failed to create convex hull geometry:', error);
+      return new THREE.BufferGeometry();
+    }
   }
 }
