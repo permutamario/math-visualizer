@@ -18,9 +18,6 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
     // Call parent initialize
     await super.initialize(parameters);
     
-    // Clean up any existing meshes
-    this.cleanupMeshes();
-    
     // Set animation state based on parameters
     this.state.isAnimating = parameters.rotation || false;
     
@@ -28,72 +25,25 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
   }
 
   /**
-   * Update the visualization with new parameters
+   * Determine if the polytope should be rebuilt after a parameter change
    * @param {Object} parameters - New parameters
    * @param {Object} prevParameters - Previous parameters
+   * @returns {boolean} Whether to rebuild the polytope
    */
-  update(parameters, prevParameters = null) {
-    // Call parent update
-    super.update(parameters, prevParameters);
-    
-    // Check if solid type has changed
-    const needsRebuild = !prevParameters || 
-                        parameters.solidType !== prevParameters.solidType ||
-                        parameters.size !== prevParameters.size;
-                        
-    // Mark for rebuild if needed
-    if (needsRebuild) {
-      // Clean up existing meshes
-      this.cleanupMeshes();
-    }
+  shouldRebuildOnUpdate(parameters, prevParameters) {
+    // Rebuild if solid type or size changes
+    return !prevParameters || 
+            parameters.solidType !== prevParameters.solidType ||
+            parameters.size !== prevParameters.size;
   }
 
   /**
-   * Render the visualization in 3D
-   * @param {Object} THREE - THREE.js library
-   * @param {THREE.Scene} scene - THREE.js scene
-   * @param {Object} parameters - Current parameters
-   */
-  async render3D(THREE, scene, parameters) {
-    // Remove existing mesh if present
-    if (this.state.meshGroup) {
-      scene.remove(this.state.meshGroup);
-    }
-    
-    // Create new solid if needed
-    if (!this.state.meshGroup) {
-      try {
-        // Get vertices for the selected platonic solid
-        const vertices = this.getPlatonicSolidVertices(THREE, parameters);
-        
-        // Use the base class method to build the polytope from vertices
-        this.state.meshGroup = await this.buildPolytope(THREE, vertices, parameters);
-      } catch (error) {
-        console.error("Error creating platonic solid:", error);
-        
-        // Create a simple error indicator
-        this.state.meshGroup = new THREE.Group();
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshBasicMaterial({ 
-          color: 0xff0000, 
-          wireframe: true 
-        });
-        const errorMesh = new THREE.Mesh(geometry, material);
-        this.state.meshGroup.add(errorMesh);
-      }
-    }
-    
-    // Add mesh to scene
-    scene.add(this.state.meshGroup);
-  }
-  
-  /**
-   * Get vertices for the selected platonic solid
+   * Get the vertices for this platonic solid
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
    * @returns {Array<THREE.Vector3>} Array of vertices
    */
-  getPlatonicSolidVertices(THREE, parameters) {
+  getVertices(THREE, parameters) {
     // Get parameters
     const solidType = parameters.solidType || 'tetrahedron';
     const size = parameters.size || 1;
@@ -129,5 +79,19 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
     geometry.dispose();
     
     return vertices;
+  }
+  
+  /**
+   * Get any extra meshes specific to this platonic solid
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} parameters - Visualization parameters
+   * @returns {THREE.Object3D|null} Extra mesh or null
+   */
+  getExtraMesh(THREE, parameters) {
+    // No extra meshes needed for basic platonic solids
+    return null;
+    
+    // If you want to add custom features specific to platonic solids,
+    // like symmetry axes or face labels, this would be the place to do it
   }
 }

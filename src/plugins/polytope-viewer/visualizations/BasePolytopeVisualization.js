@@ -25,6 +25,7 @@ export class BasePolytopeVisualization extends Visualization {
         edge: null,
         vertex: null
       },
+      extraMesh: null,    // Optional extra mesh provided by subclasses
       isAnimating: false, // Animation enabled
       rotationSpeed: 0.5  // Rotation speed
     };
@@ -37,6 +38,8 @@ export class BasePolytopeVisualization extends Visualization {
   async initialize(parameters) {
     // Base implementation - should be overridden by subclasses
     this.state.isAnimating = parameters.rotation;
+    
+    // Subclasses should override to generate vertices and extra meshes
     return true;
   }
   
@@ -53,31 +56,97 @@ export class BasePolytopeVisualization extends Visualization {
   }
   
   /**
-   * Build a polytope from vertex data
+   * Get the vertices for this polytope
+   * Must be implemented by subclasses
    * @param {Object} THREE - THREE.js library
-   * @param {Array} vertices - Array of vertex coordinates or THREE.Vector3
    * @param {Object} parameters - Visualization parameters
-   * @returns {THREE.Group} Group containing polytope meshes
+   * @returns {Array<THREE.Vector3>} Array of vertices
    */
-  async buildPolytope(THREE, vertices, parameters) {
-    // Clean up any existing meshes
-    this.cleanupMeshes();
+  getVertices(THREE, parameters) {
+    // Abstract method - must be implemented by subclasses
+    console.warn("BasePolytopeVisualization.getVertices() must be implemented by subclasses");
+    return [];
+  }
+  
+  /**
+   * Get any extra meshes for this polytope
+   * Can be implemented by subclasses to add custom rendering elements
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} parameters - Visualization parameters
+   * @returns {THREE.Object3D|null} Extra mesh or null
+   */
+  getExtraMesh(THREE, parameters) {
+    // Optional method - can be implemented by subclasses
+    return null;
+  }
+  
+  /**
+   * Render the visualization in 3D
+   * This is the main method called by the core system
+   * @param {Object} THREE - THREE.js library
+   * @param {THREE.Scene} scene - THREE.js scene
+   * @param {Object} parameters - Current parameters
+   */
+  async render3D(THREE, scene, parameters) {
+    // Remove existing mesh if present
+    if (this.state.meshGroup && this.state.meshGroup.parent) {
+      scene.remove(this.state.meshGroup);
+    }
     
+    // Create new meshes if needed
+    if (!this.state.meshGroup) {
+      try {
+        // Get vertices from the subclass
+        const vertices = this.getVertices(THREE, parameters);
+        
+        // Create the mesh group
+        this.state.meshGroup = await this.buildPolytopeMeshes(THREE, vertices, parameters);
+        
+        // Get any extra mesh from the subclass
+        const extraMesh = this.getExtraMesh(THREE, parameters);
+        if (extraMesh) {
+          this.state.extraMesh = extraMesh;
+          this.state.meshGroup.add(extraMesh);
+        }
+      } catch (error) {
+        console.error("Error creating polytope:", error);
+        
+        // Create a simple error indicator
+        this.state.meshGroup = new THREE.Group();
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ 
+          color: 0xff0000, 
+          wireframe: true 
+        });
+        const errorMesh = new THREE.Mesh(geometry, material);
+        this.state.meshGroup.add(errorMesh);
+      }
+    }
+    
+    // Add mesh to scene
+    scene.add(this.state.meshGroup);
+  }
+  
+  /**
+   * Build the polytope meshes from vertices
+   * @param {Object} THREE - THREE.js library
+   * @param {Array<THREE.Vector3>} vertices - Array of vertex coordinates
+   * @param {Object} parameters - Visualization parameters
+   * @returns {Promise<THREE.Group>} Group containing polytope meshes
+   */
+  async buildPolytopeMeshes(THREE, vertices, parameters) {
     // Create the mesh group
     const group = new THREE.Group();
     
     try {
-      // Convert vertices to THREE.Vector3 if needed
-      const points = Array.isArray(vertices[0]) ? 
-        PolytopeUtils.verticesToPoints(THREE, vertices) : vertices;
-      
-      // Ensure we have enough points for a 3D convex hull
-      if (points.length < 4) {
+      // Check if we have enough vertices
+      if (!vertices || vertices.length < 4) {
         throw new Error('Not enough vertices to create a 3D polytope');
       }
       
       // Create a convex hull geometry from the points
-      const hullGeometry = await PolytopeUtils.createConvexHullGeometry(THREE, points);
+      const ConvexGeometry = await this.getConvexGeometry(THREE);
+      const hullGeometry = new ConvexGeometry(vertices);
       
       // Create materials
       const faceMaterial = this.createFaceMaterial(THREE, parameters);
@@ -91,7 +160,7 @@ export class BasePolytopeVisualization extends Visualization {
       const edgesMesh = new THREE.LineSegments(edgesGeometry, edgeMaterial);
       
       // Create vertex spheres
-      const vertexGroup = this.createVertexSpheres(THREE, points, parameters);
+      const vertexGroup = this.createVertexSpheres(THREE, vertices, parameters);
       
       // Add meshes to group
       group.add(faceMesh);
@@ -99,12 +168,11 @@ export class BasePolytopeVisualization extends Visualization {
       group.add(vertexGroup);
       
       // Store references
-      this.state.meshGroup = group;
       this.state.meshes.solid = faceMesh;
       this.state.meshes.edges = edgesMesh;
       this.state.meshes.vertices = vertexGroup;
     } catch (error) {
-      console.error('Error building polytope:', error);
+      console.error('Error building polytope meshes:', error);
       
       // Create fallback if there's an error
       const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -115,10 +183,25 @@ export class BasePolytopeVisualization extends Visualization {
       const errorMesh = new THREE.Mesh(geometry, material);
       
       group.add(errorMesh);
-      this.state.meshGroup = group;
     }
     
     return group;
+  }
+  
+  /**
+   * Get the ConvexGeometry constructor
+   * @param {Object} THREE - THREE.js library
+   * @returns {Promise<Function>} ConvexGeometry constructor
+   */
+  async getConvexGeometry(THREE) {
+    try {
+      // Import directly from vendors path
+      const ConvexGeometryModule = await import('/vendors/jsm/geometries/ConvexGeometry.js');
+      return ConvexGeometryModule.ConvexGeometry;
+    } catch (error) {
+      console.error('Failed to import ConvexGeometry:', error);
+      throw new Error('ConvexGeometry import failed. This is required for polytope visualization.');
+    }
   }
   
   /**
@@ -153,7 +236,24 @@ export class BasePolytopeVisualization extends Visualization {
     // Update vertex visibility
     this.updateVertexVisibility(parameters);
     
-    // Subclasses should call this and then implement their specific updates
+    // Check if we need to rebuild the entire mesh
+    const shouldRebuild = this.shouldRebuildOnUpdate(parameters, prevParameters);
+    
+    if (shouldRebuild) {
+      // Clean up existing meshes
+      this.cleanupMeshes();
+    }
+  }
+  
+  /**
+   * Determine if the polytope should be rebuilt after a parameter change
+   * @param {Object} parameters - New parameters
+   * @param {Object} prevParameters - Previous parameters
+   * @returns {boolean} Whether to rebuild the polytope
+   */
+  shouldRebuildOnUpdate(parameters, prevParameters) {
+    // Subclasses should override this method if they have specific rebuild conditions
+    return false;
   }
   
   /**
@@ -245,6 +345,16 @@ export class BasePolytopeVisualization extends Visualization {
       if (material) material.dispose();
     }
     
+    // Clean up extra mesh if any
+    if (this.state.extraMesh) {
+      if (this.state.extraMesh.geometry) {
+        this.state.extraMesh.geometry.dispose();
+      }
+      if (this.state.extraMesh.material) {
+        this.state.extraMesh.material.dispose();
+      }
+    }
+    
     // Reset state
     this.state.meshGroup = null;
     this.state.meshes = {
@@ -257,6 +367,7 @@ export class BasePolytopeVisualization extends Visualization {
       edge: null,
       vertex: null
     };
+    this.state.extraMesh = null;
   }
   
   /**
@@ -339,16 +450,5 @@ export class BasePolytopeVisualization extends Visualization {
     vertexGroup.visible = parameters.showVertices !== false;
     
     return vertexGroup;
-  }
-  
-  /**
-   * Render the visualization in 3D (abstract method)
-   * @param {Object} THREE - THREE.js library
-   * @param {THREE.Scene} scene - THREE.js scene
-   * @param {Object} parameters - Current parameters
-   */
-  render3D(THREE, scene, parameters) {
-    // Abstract method to be implemented by subclasses
-    console.warn("BasePolytopeVisualization.render3D() should be implemented by subclasses");
   }
 }

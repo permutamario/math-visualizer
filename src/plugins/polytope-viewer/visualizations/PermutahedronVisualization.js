@@ -18,9 +18,6 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
     // Call parent initialize
     await super.initialize(parameters);
     
-    // Clean up any existing meshes
-    this.cleanupMeshes();
-    
     // Set animation state based on parameters
     this.state.isAnimating = parameters.rotation || false;
     
@@ -28,60 +25,25 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
   }
 
   /**
-   * Update the visualization with new parameters
+   * Determine if the polytope should be rebuilt after a parameter change
    * @param {Object} parameters - New parameters
    * @param {Object} prevParameters - Previous parameters
+   * @returns {boolean} Whether to rebuild the polytope
    */
-  update(parameters, prevParameters = null) {
-    // Call parent update
-    super.update(parameters, prevParameters);
-    
-    // Check if dimension or size has changed
-    const needsRebuild = !prevParameters || 
-                        parameters.dimension !== prevParameters.dimension ||
-                        parameters.size !== prevParameters.size;
-                        
-    // Mark for rebuild if needed
-    if (needsRebuild) {
-      // Clean up existing meshes
-      this.cleanupMeshes();
-    }
+  shouldRebuildOnUpdate(parameters, prevParameters) {
+    // Rebuild if dimension or size changes
+    return !prevParameters || 
+            parameters.dimension !== prevParameters.dimension ||
+            parameters.size !== prevParameters.size;
   }
 
   /**
-   * Render the visualization in 3D
+   * Get the vertices for this permutahedron
    * @param {Object} THREE - THREE.js library
-   * @param {THREE.Scene} scene - THREE.js scene
-   * @param {Object} parameters - Current parameters
-   */
-  async render3D(THREE, scene, parameters) {
-    // Remove existing mesh if present
-    if (this.state.meshGroup) {
-      scene.remove(this.state.meshGroup);
-    }
-    
-    // Create new permutahedron if needed
-    if (!this.state.meshGroup) {
-      // Generate vertices for the permutahedron
-      const vertices = this.generatePermutahedronVertices(parameters);
-      
-      // Use the base class method to build the polytope from vertices
-      await this.buildPolytope(THREE, vertices, parameters);
-      
-      // Add permutahedron-specific visualizations if needed
-      this.addPermutahedronSpecificVisualizations(THREE, parameters);
-    }
-    
-    // Add mesh to scene
-    scene.add(this.state.meshGroup);
-  }
-  
-  /**
-   * Generate vertices for the permutahedron
    * @param {Object} parameters - Visualization parameters
-   * @returns {Array<Array<number>>} Array of vertex coordinates
+   * @returns {Array<THREE.Vector3>} Array of vertices
    */
-  generatePermutahedronVertices(parameters) {
+  getVertices(THREE, parameters) {
     // Get parameters
     const dimension = parameters.dimension || 4;
     const size = parameters.size || 1;
@@ -90,19 +52,39 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
     const vertices = PolytopeUtils.createTypeAPermutahedronVertices(dimension);
     
     // Scale the vertices
-    return PolytopeUtils.scaleVertices(vertices, size);
+    const scaledVertices = PolytopeUtils.scaleVertices(vertices, size);
+    
+    // Convert to THREE.Vector3 objects
+    return PolytopeUtils.verticesToPoints(THREE, scaledVertices);
   }
   
   /**
-   * Add permutahedron-specific visualizations
+   * Get any extra meshes specific to this permutahedron
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
+   * @returns {THREE.Object3D|null} Extra mesh or null
    */
-  addPermutahedronSpecificVisualizations(THREE, parameters) {
-    // No additional visualizations for now, but could include:
-    // - Coordinate axes
-    // - Permutation labels
-    // - Highlighting specific permutations
-    // - Showing permutation group structure
+  getExtraMesh(THREE, parameters) {
+    // Create a group for extra visualization elements
+    const extraGroup = new THREE.Group();
+    
+    // Optional: Add coordinate axes visualization
+    if (parameters.showAxes) {
+      const axesHelper = new THREE.AxesHelper(parameters.size * 1.5);
+      extraGroup.add(axesHelper);
+    }
+    
+    // Optional: Add permutation labels
+    if (parameters.showLabels) {
+      // This would be more complex - would need to create text sprites
+      // for each vertex showing the permutation
+    }
+    
+    // If no extras were added, return null
+    if (extraGroup.children.length === 0) {
+      return null;
+    }
+    
+    return extraGroup;
   }
 }

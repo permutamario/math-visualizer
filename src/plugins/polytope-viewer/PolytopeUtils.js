@@ -127,46 +127,4 @@ export class PolytopeUtils {
     // Project onto the hyperplane where coordinates sum to zero
     return this.projectToHyperplane(vertices);
   }
-  
-  /**
-   * Import ConvexGeometry from the THREE.js examples
-   * @param {Object} THREE - THREE.js library
-   * @returns {Promise<Function>} ConvexGeometry constructor
-   */
-  static async getConvexGeometry() {
-    try {
-      // Import directly from vendors path
-      const ConvexHull = await import('/vendors/jsm/math/ConvexHull.js');
-      const ConvexGeometry = await import('/vendors/jsm/geometries/ConvexGeometry.js');
-      
-      return ConvexGeometry.ConvexGeometry;
-    } catch (error) {
-      console.error('Failed to import ConvexGeometry:', error);
-      throw new Error('ConvexGeometry import failed. This is required for polytope visualization.');
-    }
-  }
-  
-  /**
-   * Create a convex hull geometry from points
-   * @param {Object} THREE - THREE.js library
-   * @param {Array<THREE.Vector3>} points - Array of 3D points
-   * @returns {Promise<THREE.BufferGeometry>} Convex hull geometry
-   */
-  static async createConvexHullGeometry(THREE, points) {
-    if (!points || points.length < 4) {
-      console.error('Not enough points to create convex hull geometry');
-      return new THREE.BufferGeometry();
-    }
-    
-    try {
-      // Get ConvexGeometry constructor
-      const ConvexGeometry = await this.getConvexGeometry();
-      
-      // Create the convex hull geometry
-      return new ConvexGeometry(points);
-    } catch (error) {
-      console.error('Failed to create convex hull geometry:', error);
-      return new THREE.BufferGeometry();
-    }
-  }
 }
