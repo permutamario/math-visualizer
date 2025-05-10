@@ -1,4 +1,3 @@
-
 # Math Visualization Plugin Framework
 
 A modular, extensible framework for creating interactive mathematical visualizations through a plugin-based architecture.
@@ -12,6 +11,8 @@ This framework allows for creating and managing different mathematical visualiza
 - [Directory Structure](#directory-structure)
 - [Core Components](#core-components)
 - [Plugin System](#plugin-system)
+- [Plugin Lifecycle](#plugin-lifecycle)
+- [Manifest-Based Plugin Registration](#manifest-based-plugin-registration)
 - [UI System](#ui-system)
 - [State Management](#state-management)
 - [Rendering Environments](#rendering-environments)
@@ -106,8 +107,7 @@ Responsible for discovering and managing plugins:
 ### src/core/PluginController.js
 
 Manages the complete lifecycle of individual plugins:
-- Controls the plugin states (registered, initializing, ready, active, error)
-- Handles asynchronous initialization properly
+- Controls the plugin states (registered, ready, active, error)
 - Ensures metadata and settings are properly loaded
 - Manages plugin resources
 - Centralizes plugin activation/deactivation logic
@@ -159,6 +159,88 @@ Utility functions used throughout the application:
 - Debounce and throttle functions
 - Toast notification system
 
+## Plugin System
+
+The framework uses a plugin architecture that allows for easy extension. Each plugin is isolated and has its own:
+- Settings and metadata
+- Rendering logic
+- UI controls
+- Export options
+- Environment requirements
+
+## Plugin Lifecycle
+
+The framework implements a clean plugin lifecycle that ensures complete separation between visualizations:
+
+### 1. Registration
+- Plugin is registered with the framework
+- Manifest is loaded
+- No initialization occurs yet
+
+### 2. Activation
+- Plugin is activated when selected by the user
+- All initialization happens at this point
+- Rendering environment is set up
+- Resources are allocated
+- Initial state is established
+- UI controls are generated based on manifest
+- First render occurs
+
+### 3. Active State
+- Plugin handles rendering
+- Plugin responds to user interactions
+- Plugin reacts to setting changes
+- Plugin handles animation frames
+
+### 4. Deactivation
+- Plugin is deactivated when user switches to another visualization
+- All resources are released
+- All state is cleared
+- No information persists for next activation
+- Complete cleanup ensures no memory leaks
+
+### 5. Re-Activation
+- If the plugin is selected again, it starts fresh
+- Treated as if it's the first activation
+- Previous state is not restored
+- All initialization happens again
+
+This approach ensures a clean separation between visualizations, prevents state leakage between activations, and makes each visualization truly independent.
+
+## Manifest-Based Plugin Registration
+
+The framework uses a declarative, manifest-based approach for plugin registration:
+
+### Key Components
+
+1. **manifest.json**: A declarative configuration file that defines:
+   - Plugin metadata (ID, name, description)
+   - Environment requirements
+   - Hook bindings
+   - Default settings
+   - UI controls metadata
+   - Export options
+
+2. **Implementation Files**:
+   - `requiredFunctions.js`: Core visualization functions (render, activate, deactivate, etc.)
+   - `exportActions.js`: Export-related functionality
+   - `interactionHandlers.js`: User interaction handlers
+
+3. **Plugin Entry Point**:
+   - `index.js`: Imports the manifest and implementation files and registers the plugin
+
+This approach simplifies plugin development by handling boilerplate code, providing clear separation of concerns, and making plugins self-documenting.
+
+### Hooks in the Lifecycle
+
+- `activate`: Complete initialization, create all resources, set up environment
+- `render`: Draw the visualization based on current settings
+- `beforeRender`: Handle animation frames or prepare for rendering
+- `afterRender`: Perform any post-render operations
+- `settingChanged`: React to user changing settings
+- `deactivate`: Complete cleanup, release all resources, reset state
+- Various event handlers (click, mousemove, etc.): Handle user interactions
+
 ## UI System
 
 ### src/ui/baseControls.js
@@ -192,60 +274,30 @@ Builds and manages the mobile user interface:
 - Adapts desktop controls for mobile use
 - Handles UI rebuilding for mobile devices
 
-## Plugin System
+## State Management
 
-The framework uses a plugin architecture that allows for easy extension. Each plugin is isolated and has its own:
-- Settings and metadata
-- Rendering logic
-- UI controls
-- Export options
-- Environment requirements
+The framework uses a centralized state store with these key sections:
 
-### Plugin Lifecycle
+### Core State
+- `plugins`: Registered plugin objects
+- `activePluginId`: Currently active plugin
+- `previousPluginId`: Previously active plugin
+- `currentEnvironment`: Currently active environment type
+- `pluginLoading`: Whether a plugin is loading
+- `loadingPluginId`: ID of the plugin currently loading
 
-The Plugin Controller system manages the complete plugin lifecycle:
+### UI State
+- `availablePlugins`: List of available plugins
+- `rebuildUI`: Flag to trigger UI rebuilding
 
-1. **Registration**: Plugin metadata is registered with the system and a controller is created
-2. **Initialization**: Plugin code is initialized through its controller when selected for the first time
-3. **Activation**: Plugin becomes active when selected, with proper state management
-4. **Deactivation**: Plugin is deactivated when another is selected, cleaning up resources
-5. **State Management**: Plugin states (registered, initializing, ready, active, error) are properly tracked
+### Settings and Metadata
+- `settings`: Current settings values
+- `settingsMetadata`: Metadata about settings (type, range, etc.)
+- `exportOptions`: Available export options
 
-### Enhanced Plugin Controller Architecture
-
-The framework now implements a robust Plugin Controller pattern:
-- Each plugin has a dedicated controller that manages its entire lifecycle
-- Controllers handle asynchronous operations properly
-- UI rendering is coordinated with plugin readiness
-- Resources are properly tracked and cleaned up
-- Setting changes are reliably propagated to plugins
-- Plugin activation and deactivation follow a consistent sequence
-
-### Hook Points
-
-Plugins can use these hook points to extend functionality:
-
-**Actions (void functions)**:
-- `render`: Called to render the visualization
-- `beforeRender`: Called before rendering starts
-- `afterRender`: Called after rendering completes
-- `onSettingChanged`: Called when a setting changes
-- `activatePlugin`: Called when a plugin is activated
-- `deactivatePlugin`: Called when a plugin is deactivated
-- `onMouseDown`, `onMouseMove`, `onMouseUp`, `onClick`, etc.: For event handling in 2D event environment
-
-**Filters (modify and return data)**:
-- `settingsMetadata`: Define UI controls for settings
-- `defaultSettings`: Set default values for settings
-- `exportOptions`: Define export options
-- `environmentRequirements`: Specify environment requirements for the plugin
-
-### Example Plugins
-
-- **Square**: A simple square visualization using 2D camera environment
-- **Circle**: A sectioned circle visualization using 2D event environment
-- **Cube**: A 3D cube visualization using 3D camera environment with THREE.js
-- **Interactive**: Draggable shapes using 2D event environment
+### Debug Options
+- `debugMode`: Whether debug mode is enabled
+- `debugOptions`: Available debug options
 
 ## Rendering Environments
 
@@ -298,45 +350,6 @@ Plugins specify their environment requirements in the manifest:
 }
 ```
 
-For 3D environments, additional camera options can be specified:
-
-```json
-{
-  "environment": {
-    "type": "3d-camera",
-    "options": {
-      "cameraPosition": [0, 1, 5],
-      "lookAt": [0, 0, 0]
-    }
-  }
-}
-```
-
-## State Management
-
-The framework uses a centralized state store with these key sections:
-
-### Core State
-- `plugins`: Registered plugin objects
-- `activePluginId`: Currently active plugin
-- `previousPluginId`: Previously active plugin
-- `currentEnvironment`: Currently active environment type
-- `pluginLoading`: Whether a plugin is loading
-- `loadingPluginId`: ID of the plugin currently loading
-
-### UI State
-- `availablePlugins`: List of available plugins
-- `rebuildUI`: Flag to trigger UI rebuilding
-
-### Settings and Metadata
-- `settings`: Current settings values
-- `settingsMetadata`: Metadata about settings (type, range, etc.)
-- `exportOptions`: Available export options
-
-### Debug Options
-- `debugMode`: Whether debug mode is enabled
-- `debugOptions`: Available debug options
-
 ## Getting Started
 
 ### Prerequisites
@@ -363,28 +376,26 @@ The framework uses a centralized state store with these key sections:
 To create a new plugin:
 
 1. Create a directory in `src/plugins/` with your plugin name
-2. Create an `index.js` file with your plugin implementation
-3. Create a `manifest.json` file with plugin metadata including environment requirements
-4. Register with necessary hooks
+2. Create the plugin files:
+   - `manifest.json`: Plugin configuration
+   - `requiredFunctions.js`: Core visualization functions
+   - `exportActions.js`: Export-related functionality
+   - `interactionHandlers.js`: User interaction handlers
+   - `index.js`: Plugin entry point
+3. Register your plugin in `pluginManager.js`
 
-See the [How to Create a Plugin.md](./How%20to%20Create%20a%20Plugin.md) guide for detailed instructions.
+This modular, declarative approach simplifies plugin development by handling boilerplate code while you focus on creating outstanding visualizations.
 
-### Optimizing Plugin Loading with the Plugin Controller System
+### Recommended File Structure
 
-The Plugin Controller system provides these benefits for plugin developers:
-
-1. **Proper Asynchronous Initialization**: Your plugin can properly initialize asynchronously without causing race conditions with the UI
-2. **Resource Management**: Register resources with your controller for automatic cleanup
-3. **Reliable Settings Updates**: Setting changes are properly tracked and propagated to your plugin
-4. **Clear Lifecycle States**: Your plugin transitions through well-defined states (registered, initializing, ready, active, error)
-5. **Coordinated UI Updates**: UI is only updated when your plugin is fully ready
-
-Plugins should follow these best practices:
-
-1. Use `async/await` for initialization that requires asynchronous operations
-2. Register all resources with the controller for proper cleanup
-3. Follow the lifecycle hooks for proper activation/deactivation
-4. Use the Plugin Controller's state management for tracking your plugin's state
+```
+src/plugins/myPlugin/
+├── manifest.json           # Plugin configuration
+├── requiredFunctions.js    # Core visualization functions
+├── exportActions.js        # Export-related functionality
+├── interactionHandlers.js  # User interaction handlers
+└── index.js                # Main entry point
+```
 
 ## Dependencies for 3D Visualization
 
@@ -396,10 +407,7 @@ The 3D environment has specific dependencies:
 
 2. **camera-controls**: A camera control library for THREE.js
    - Provides smooth camera navigation
-   - Must be initialized with THREE.js reference using:
-     ```javascript
-     CameraControls.install({ THREE: THREE });
-     ```
+   - Must be initialized with THREE.js reference
 
 The framework handles the initialization of these dependencies, but plugin developers should be aware of them when creating 3D visualizations.
 
@@ -436,4 +444,3 @@ The framework is designed to work on:
 - Edge (latest)
 
 Note: 3D features require WebGL support in the browser.
-
