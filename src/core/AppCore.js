@@ -71,33 +71,43 @@ export class AppCore {
     }
   }
   
-  /**
-   * Activate a plugin by ID
-   * @param {string} pluginId - ID of the plugin to activate
-   * @returns {Promise<boolean>} Whether activation was successful
-   */
-  async activatePlugin(pluginId) {
+ /**
+ * Activate a plugin by ID
+ * @param {string} pluginId - ID of the plugin to activate
+ * @returns {Promise<boolean>} Whether activation was successful
+ */
+async activatePlugin(pluginId) {
+  try {
+    // Store reference to previous active plugin for recovery if needed
+    if (this.activePlugin && this.activePlugin.constructor.id !== pluginId) {
+      this.previousActivePlugin = this.activePlugin;
+    }
+    
+    // Check if plugin is already active
+    if (this.activePlugin && this.activePlugin.constructor.id === pluginId) {
+      console.log(`Plugin ${pluginId} is already active`);
+      return true;
+    }
+    
+    // Get the plugin instance
+    const plugin = this.pluginRegistry.getPlugin(pluginId);
+    
+    if (!plugin) {
+      // Show error notification
+      this.uiManager.showError(`Plugin "${pluginId}" not found`);
+      console.error(`Plugin ${pluginId} not found`);
+      return false;
+    }
+    
+    // Pause rendering during plugin transition
+    const wasRendering = this.renderingManager.rendering;
+    if (wasRendering) {
+      this.renderingManager.stopRenderLoop();
+    }
+    
     try {
-      // Store reference to previous active plugin for recovery if needed
-      if (this.activePlugin && this.activePlugin.constructor.id !== pluginId) {
-        this.previousActivePlugin = this.activePlugin;
-      }
-      
-      // Check if plugin is already active
-      if (this.activePlugin && this.activePlugin.constructor.id === pluginId) {
-        console.log(`Plugin ${pluginId} is already active`);
-        return true;
-      }
-      
-      // Get the plugin instance
-      const plugin = this.pluginRegistry.getPlugin(pluginId);
-      
-      if (!plugin) {
-        // Show error notification
-        this.uiManager.showError(`Plugin "${pluginId}" not found`);
-        console.error(`Plugin ${pluginId} not found`);
-        return false;
-      }
+      // Show loading indicator
+      this.uiManager.showLoading(`Loading ${plugin.constructor.name}...`);
       
       // Deactivate current plugin if any
       if (this.activePlugin) {
@@ -110,11 +120,19 @@ export class AppCore {
       }
       
       // Setup appropriate rendering environment
+      // This now fully disposes and recreates the environment
       try {
-        this.renderingManager.setEnvironment(plugin.constructor.renderingType);
+        await this.renderingManager.setEnvironment(plugin.constructor.renderingType);
       } catch (renderingError) {
         this.uiManager.showError(`Error setting up rendering environment: ${renderingError.message}`);
         console.error(`Error setting up rendering environment:`, renderingError);
+        
+        // Restore rendering if it was active
+        if (wasRendering) {
+          this.renderingManager.startRenderLoop();
+        }
+        
+        this.uiManager.hideLoading();
         return false;
       }
       
@@ -152,22 +170,41 @@ export class AppCore {
             // Continue even if plugin UI update has errors
           }
           
-          // Trigger render
-          this.renderingManager.requestRender();
+          // Restore rendering if it was active
+          if (wasRendering) {
+            this.renderingManager.startRenderLoop();
+          } else {
+            // Force a single render to show the new plugin
+            this.renderingManager.requestRender();
+          }
           
           console.log(`Plugin ${pluginId} activated successfully`);
+          this.uiManager.hideLoading();
+          this.uiManager.showNotification(`${plugin.constructor.name} loaded successfully`);
         } else {
+          this.uiManager.hideLoading();
           this.uiManager.showError(`Failed to activate plugin "${plugin.constructor.name}"`);
           console.error(`Failed to activate plugin ${pluginId}`);
+          
+          // Restore rendering if it was active
+          if (wasRendering) {
+            this.renderingManager.startRenderLoop();
+          }
         }
         
         return success;
       } catch (activationError) {
         // Show detailed error message to user
+        this.uiManager.hideLoading();
         this.uiManager.showError(`Error loading plugin "${plugin.constructor.name}": ${activationError.message}`);
         
         // Log detailed error
         console.error(`Error activating plugin ${pluginId}:`, activationError);
+        
+        // Restore rendering if it was active
+        if (wasRendering) {
+          this.renderingManager.startRenderLoop();
+        }
         
         // If a previous plugin was active, try to reactivate it
         if (this.previousActivePlugin) {
@@ -179,14 +216,19 @@ export class AppCore {
         
         return false;
       }
-    } catch (error) {
-      // Show error message to user for any other errors
-      this.uiManager.showError(`Error loading plugin "${pluginId}": ${error.message}`);
-      
-      console.error(`Error activating plugin ${pluginId}:`, error);
-      return false;
+    } finally {
+      // Ensure loading indicator is hidden in all cases
+      this.uiManager.hideLoading();
     }
+  } catch (error) {
+    // Show error message to user for any other errors
+    this.uiManager.hideLoading();
+    this.uiManager.showError(`Error loading plugin "${pluginId}": ${error.message}`);
+    
+    console.error(`Error activating plugin ${pluginId}:`, error);
+    return false;
   }
+}
   
   /**
    * Toggles Fullscreen mode

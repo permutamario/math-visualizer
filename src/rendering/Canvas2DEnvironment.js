@@ -196,6 +196,39 @@ deactivate() {
     // Restore context
     this.ctx.restore();
   }
+
+
+/*
+* Dispose. Remove data. Used for tear down
+*/
+dispose() {
+  // Properly deactivate first
+  this.deactivate();
+  
+  // Clear any stored state
+  this.ctx = null;
+  
+  // Reset camera and interaction state
+  this.camera = {
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0
+  };
+  
+  this.interaction = {
+    isDragging: false,
+    lastX: 0,
+    lastY: 0,
+    keys: {}
+  };
+  
+  // Reset initialization flag
+  this.initialized = false;
+  this.active = false;
+  
+  console.log("2D canvas environment disposed");
+}
   
   // Event handlers
   

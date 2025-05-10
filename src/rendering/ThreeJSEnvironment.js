@@ -263,6 +263,51 @@ updateControls(deltaTime) {
   }
 }
 
+/*
+* Dispose
+*/
+	dispose() {
+	  // Properly deactivate first
+	  this.deactivate();
+	  
+	  // Dispose of THREE.js resources
+	  if (this.scene) {
+	    this.clearScene();
+	  }
+	  
+	  if (this.renderer) {
+	    this.renderer.dispose();
+	    this.renderer = null;
+	  }
+	  
+	  if (this.controls && typeof this.controls.dispose === 'function') {
+	    this.controls.dispose();
+	    this.controls = null;
+	  }
+  
+  // Remove the THREE.js canvas
+  if (this.threeCanvas && this.threeCanvas.parentElement) {
+    this.threeCanvas.parentElement.removeChild(this.threeCanvas);
+    this.threeCanvas = null;
+  }
+  
+  // Reset other properties
+  this.scene = null;
+  this.camera = null;
+  this.clock = null;
+  this.renderTarget = null;
+  
+  // Reset initialization flag
+  this.initialized = false;
+  this.active = false;
+  
+  console.log("3D environment disposed");
+  
+  // Show the original canvas again in case it was hidden
+  if (this.canvas) {
+    this.canvas.style.display = 'block';
+  }
+}
 
   /**
    * Set up fallback controls when CameraControls is not available
