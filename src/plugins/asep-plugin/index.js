@@ -10,6 +10,17 @@ export default class ASEPPlugin extends Plugin {
   static description = "Asymmetric Simple Exclusion Process simulation";
   static renderingType = "2d";
 
+  constructor(core) {
+    super(core);
+    
+    // Create visualization instances
+    this.visualizations = {
+      'closed': null,
+      'open': null,
+      'circular': null
+    };
+  }
+
   async _initializeDefaultVisualization() {
     // Create all visualization types
     this.visualizations = {
@@ -167,6 +178,7 @@ export default class ASEPPlugin extends Plugin {
     
     // Add styles for the button
     const style = document.createElement('style');
+    style.dataset.asepStyles = true;
     style.textContent = `
       .fullscreen-button {
         position: fixed;
@@ -330,7 +342,9 @@ export default class ASEPPlugin extends Plugin {
           this.currentVisualization.update({ isPaused: this.parameters.isPaused });
           
           // Update UI to reflect the new state
-          this.core.uiManager.updateControls(this.parameters);
+          if (this.core && this.core.uiManager) {
+            this.core.uiManager.updateControls(this.parameters);
+          }
         }
         return true;
         
