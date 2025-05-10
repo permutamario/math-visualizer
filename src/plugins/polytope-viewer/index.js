@@ -55,38 +55,35 @@ export default class PolytopeViewerPlugin extends Plugin {
     let typeSpecificStructural = [];
     
     // Add type-specific parameters based on current type
-    switch (this.parameters.polytopeType) {
-      case 'permutahedron':
-        typeSpecificStructural = [
-          {
-            id: 'dimension',
-            type: 'slider',
-            label: 'Dimension',
-            min: 3,
-            max: 5,
-            step: 1,
-            default: 4
-          }
-        ];
-        break;
-      case 'platonic':
-      default:
-        typeSpecificStructural = [
-          {
-            id: 'solidType',
-            type: 'dropdown',
-            label: 'Solid Type',
-            options: [
-              { value: 'tetrahedron', label: 'Tetrahedron (4 faces)' },
-              { value: 'cube', label: 'Cube (6 faces)' },
-              { value: 'octahedron', label: 'Octahedron (8 faces)' },
-              { value: 'dodecahedron', label: 'Dodecahedron (12 faces)' },
-              { value: 'icosahedron', label: 'Icosahedron (20 faces)' }
-            ],
-            default: 'tetrahedron'
-          }
-        ];
-        break;
+    if (this.parameters && this.parameters.polytopeType === 'permutahedron') {
+      typeSpecificStructural = [
+        {
+          id: 'dimension',
+          type: 'slider',
+          label: 'Dimension',
+          min: 3,
+          max: 5,
+          step: 1,
+          default: 4
+        }
+      ];
+    } else {
+      // Default to platonic solid parameters
+      typeSpecificStructural = [
+        {
+          id: 'solidType',
+          type: 'dropdown',
+          label: 'Solid Type',
+          options: [
+            { value: 'tetrahedron', label: 'Tetrahedron (4 faces)' },
+            { value: 'cube', label: 'Cube (6 faces)' },
+            { value: 'octahedron', label: 'Octahedron (8 faces)' },
+            { value: 'dodecahedron', label: 'Dodecahedron (12 faces)' },
+            { value: 'icosahedron', label: 'Icosahedron (20 faces)' }
+          ],
+          default: 'tetrahedron'
+        }
+      ];
     }
     
     // Combine common and specific parameters
@@ -175,11 +172,14 @@ export default class PolytopeViewerPlugin extends Plugin {
    * @param {any} value - New parameter value
    */
   onParameterChanged(parameterId, value) {
+    // Store the previous value for comparison
+    const prevValue = this.parameters[parameterId];
+    
     // Update parameter value
     this.parameters[parameterId] = value;
     
     // Handle polytope type change (switch visualization)
-    if (parameterId === 'polytopeType') {
+    if (parameterId === 'polytopeType' && value !== prevValue) {
       const newViz = this.visualizations.get(value);
       
       if (newViz && newViz !== this.currentVisualization) {
@@ -199,14 +199,10 @@ export default class PolytopeViewerPlugin extends Plugin {
         }
       }
     } 
-    // Handle structural parameter changes that require reinitializing
-    else if (['solidType', 'dimension'].includes(parameterId) && this.currentVisualization) {
-      // Reinitialize visualization with updated parameters
-      this.currentVisualization.initialize(this.parameters);
-    } 
+    // Update current visualization with changed parameter
     else if (this.currentVisualization) {
-      // For other parameters, just update without reinitializing
-      this.currentVisualization.update(this.parameters);
+      this.currentVisualization.update(this.parameters, 
+        { ...this.parameters, [parameterId]: prevValue });
     }
   }
   

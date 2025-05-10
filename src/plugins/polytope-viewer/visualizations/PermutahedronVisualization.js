@@ -11,33 +11,6 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
   }
 
   /**
-   * Initialize the visualization
-   * @param {Object} parameters - Parameter values
-   */
-  async initialize(parameters) {
-    // Call parent initialize
-    await super.initialize(parameters);
-    
-    // Set animation state based on parameters
-    this.state.isAnimating = parameters.rotation || false;
-    
-    return true;
-  }
-
-  /**
-   * Determine if the polytope should be rebuilt after a parameter change
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
-   * @returns {boolean} Whether to rebuild the polytope
-   */
-  shouldRebuildOnUpdate(parameters, prevParameters) {
-    // Rebuild if dimension or size changes
-    return !prevParameters || 
-            parameters.dimension !== prevParameters.dimension ||
-            parameters.size !== prevParameters.size;
-  }
-
-  /**
    * Get the vertices for this permutahedron
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
@@ -59,32 +32,30 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
   }
   
   /**
-   * Get any extra meshes specific to this permutahedron
+   * Get any extra meshes for this permutahedron
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
    * @returns {THREE.Object3D|null} Extra mesh or null
    */
   getExtraMesh(THREE, parameters) {
-    // Create a group for extra visualization elements
-    const extraGroup = new THREE.Group();
-    
     // Optional: Add coordinate axes visualization
     if (parameters.showAxes) {
-      const axesHelper = new THREE.AxesHelper(parameters.size * 1.5);
-      extraGroup.add(axesHelper);
+      return new THREE.AxesHelper(parameters.size * 1.5);
     }
     
-    // Optional: Add permutation labels
-    if (parameters.showLabels) {
-      // This would be more complex - would need to create text sprites
-      // for each vertex showing the permutation
-    }
-    
-    // If no extras were added, return null
-    if (extraGroup.children.length === 0) {
-      return null;
-    }
-    
-    return extraGroup;
+    return null;
+  }
+  
+  /**
+   * Determine if the polytope should be rebuilt after a parameter change
+   * @param {Object} parameters - New parameters
+   * @param {Object} prevParameters - Previous parameters
+   * @returns {boolean} Whether to rebuild the polytope
+   */
+  shouldRebuildOnUpdate(parameters, prevParameters) {
+    // Rebuild if dimension or size changes
+    return !prevParameters || 
+           parameters.dimension !== prevParameters.dimension ||
+           parameters.size !== prevParameters.size;
   }
 }

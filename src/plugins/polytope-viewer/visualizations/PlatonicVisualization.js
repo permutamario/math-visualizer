@@ -11,33 +11,6 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
   }
 
   /**
-   * Initialize the visualization
-   * @param {Object} parameters - Parameter values
-   */
-  async initialize(parameters) {
-    // Call parent initialize
-    await super.initialize(parameters);
-    
-    // Set animation state based on parameters
-    this.state.isAnimating = parameters.rotation || false;
-    
-    return true;
-  }
-
-  /**
-   * Determine if the polytope should be rebuilt after a parameter change
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
-   * @returns {boolean} Whether to rebuild the polytope
-   */
-  shouldRebuildOnUpdate(parameters, prevParameters) {
-    // Rebuild if solid type or size changes
-    return !prevParameters || 
-            parameters.solidType !== prevParameters.solidType ||
-            parameters.size !== prevParameters.size;
-  }
-
-  /**
    * Get the vertices for this platonic solid
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
@@ -82,16 +55,26 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
   }
   
   /**
-   * Get any extra meshes specific to this platonic solid
+   * Get any extra meshes for this platonic solid
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
    * @returns {THREE.Object3D|null} Extra mesh or null
    */
   getExtraMesh(THREE, parameters) {
-    // No extra meshes needed for basic platonic solids
+    // No extra visualization elements for basic platonic solids
     return null;
-    
-    // If you want to add custom features specific to platonic solids,
-    // like symmetry axes or face labels, this would be the place to do it
+  }
+  
+  /**
+   * Determine if the polytope should be rebuilt after a parameter change
+   * @param {Object} parameters - New parameters
+   * @param {Object} prevParameters - Previous parameters
+   * @returns {boolean} Whether to rebuild the polytope
+   */
+  shouldRebuildOnUpdate(parameters, prevParameters) {
+    // Rebuild if solid type or size changes
+    return !prevParameters || 
+           parameters.solidType !== prevParameters.solidType ||
+           parameters.size !== prevParameters.size;
   }
 }
