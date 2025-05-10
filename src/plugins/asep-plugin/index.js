@@ -1,6 +1,8 @@
 // src/plugins/asep-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
-import { LinearASEPVisualization } from './LinearASEPVisualization.js';
+import { ClosedASEPVisualization } from './ClosedASEPVisualization.js';
+import { OpenASEPVisualization } from './OpenASEPVisualization.js';
+import { CircularASEPVisualization } from './CircularASEPVisualization.js';
 
 export default class ASEPPlugin extends Plugin {
   static id = "asep-plugin";
@@ -9,10 +11,26 @@ export default class ASEPPlugin extends Plugin {
   static renderingType = "2d";
 
   async _initializeDefaultVisualization() {
-    const visualization = new LinearASEPVisualization(this);
-    this.registerVisualization('linear', visualization);
-    this.currentVisualization = visualization;
-    await visualization.initialize(this.parameters);
+    // Create all visualization types
+    this.visualizations = {
+      'closed': new ClosedASEPVisualization(this),
+      'open': new OpenASEPVisualization(this),
+      'circular': new CircularASEPVisualization(this)
+    };
+    
+    // Register all visualizations
+    for (const [key, viz] of Object.entries(this.visualizations)) {
+      this.registerVisualization(key, viz);
+    }
+    
+    // Get model type from parameters
+    const modelType = this.parameters.modelType || 'closed';
+    
+    // Set initial visualization
+    this.currentVisualization = this.visualizations[modelType];
+    
+    // Initialize the visualization
+    await this.currentVisualization.initialize(this.parameters);
     
     // Add fullscreen button after initialization
     this.addFullscreenButton();
@@ -21,6 +39,17 @@ export default class ASEPPlugin extends Plugin {
   getParameterSchema() {
     return {
       structural: [
+        {
+          id: 'modelType',
+          type: 'dropdown',
+          label: 'Model Type',
+          options: [
+            { value: 'closed', label: 'Closed Linear' },
+            { value: 'open', label: 'Open Boundary' },
+            { value: 'circular', label: 'Circular' }
+          ],
+          default: 'closed'
+        },
         {
           id: 'numBoxes',
           type: 'slider',
@@ -52,6 +81,24 @@ export default class ASEPPlugin extends Plugin {
           id: 'leftJumpRate',
           type: 'slider',
           label: 'Left Jump Rate',
+          min: 0,
+          max: 5,
+          step: 0.1,
+          default: 0.5
+        },
+        {
+          id: 'entryRate',
+          type: 'slider',
+          label: 'Entry Rate (Open)',
+          min: 0,
+          max: 5,
+          step: 0.1,
+          default: 0.5
+        },
+        {
+          id: 'exitRate',
+          type: 'slider',
+          label: 'Exit Rate (Open)',
           min: 0,
           max: 5,
           step: 0.1,
@@ -91,6 +138,12 @@ export default class ASEPPlugin extends Plugin {
           type: 'color',
           label: 'Box Color',
           default: '#2c3e50'
+        },
+        {
+          id: 'portalColor',
+          type: 'color',
+          label: 'Portal Color (Open)',
+          default: '#9C27B0'
         }
       ]
     };
@@ -212,17 +265,32 @@ export default class ASEPPlugin extends Plugin {
     // Update parameter value
     this.parameters[parameterId] = value;
     
+    // Handle model type change (switch visualization)
+    if (parameterId === 'modelType') {
+      // Get the new visualization
+      const newViz = this.visualizations[value];
+      
+      if (newViz && newViz !== this.currentVisualization) {
+        // Deactivate current visualization if needed
+        if (this.currentVisualization) {
+          this.currentVisualization.dispose();
+        }
+        
+        // Set and initialize the new visualization
+        this.currentVisualization = newViz;
+        this.currentVisualization.initialize(this.parameters);
+      }
+    } 
     // Handle pause toggle
-    if (parameterId === 'isPaused' && this.currentVisualization) {
+    else if (parameterId === 'isPaused' && this.currentVisualization) {
       this.currentVisualization.update({ isPaused: value });
     }
-    
     // Handle structural parameter changes that require reinitializing
-    const structuralParams = ['numBoxes', 'numParticles'];
-    if (structuralParams.includes(parameterId) && this.currentVisualization) {
+    else if (['numBoxes', 'numParticles'].includes(parameterId) && this.currentVisualization) {
       // Reinitialize visualization with updated parameters
       this.currentVisualization.initialize(this.parameters);
-    } else if (this.currentVisualization) {
+    } 
+    else if (this.currentVisualization) {
       // For other parameters, just update without reinitializing
       this.currentVisualization.update(this.parameters);
     }
@@ -262,7 +330,7 @@ export default class ASEPPlugin extends Plugin {
           this.currentVisualization.update({ isPaused: this.parameters.isPaused });
           
           // Update UI to reflect the new state
-          this.uiManager.updateControls(this.parameters);
+          this.core.uiManager.updateControls(this.parameters);
         }
         return true;
         
