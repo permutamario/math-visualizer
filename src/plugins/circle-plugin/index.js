@@ -4,7 +4,7 @@ import { CircleVisualization } from './CircleVisualization.js';
 
 export default class CirclePlugin extends Plugin {
   static id = "circle-plugin";
-  static name = "Circle Visualization";
+  static name = "Circle Test";
   static description = "A simple circle visualization";
   static renderingType = "2d";
 

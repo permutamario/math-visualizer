@@ -10,9 +10,26 @@ body.mobile-device {
 }
 
 /* === FLOATING HEADER === */
-.mobile-header {
+/* Title header */
+.mobile-header-title {
   position: absolute;
   top: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(26, 36, 51, 1);
+  color: #fff;
+  z-index: 1001;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: center;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Main header with controls */
+.mobile-header {
+  position: absolute;
+  top: 30px; /* Leave room for title */
   left: 0;
   right: 0;
   background-color: rgba(26, 36, 51, 0.95);
@@ -35,6 +52,7 @@ body.mobile-device {
   align-items: center;
   justify-content: space-between; /* adds spacing between label and input */
   gap: 10px;
+  width: 100%;
 }
 
 /* === Label to the left === */
@@ -61,6 +79,13 @@ body.mobile-device {
   background-color: #ffffff;
   color: #1a2433;
   height: 30px;
+  width: 100%; /* Make inputs take full width */
+}
+
+/* Make sliders take up all available space */
+.mobile-header input[type="range"] {
+  width: 100%;
+  max-width: 100%;
 }
 
 .mobile-header input[type="color"] {
@@ -127,12 +152,20 @@ body.mobile-device #viewer-canvas {
 }
 
 /* === BUTTONS === */
-/* Plugin/logo button (bottom center) */
-#mobile-plugin-button {
+/* Bottom control bar */
+.mobile-control-bar {
   position: fixed;
   bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 1000;
+}
+
+/* Plugin/logo button (bottom center) */
+#mobile-plugin-button {
   width: 60px;
   height: 60px;
   border-radius: 50%;
@@ -140,7 +173,6 @@ body.mobile-device #viewer-canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001;
   box-shadow: 0 3px 8px rgba(0,0,0,0.2);
   cursor: pointer;
   transition: background-color 0.2s, transform 0.2s;
@@ -148,7 +180,7 @@ body.mobile-device #viewer-canvas {
 
 #mobile-plugin-button:active {
   background-color: #0d141d;
-  transform: translateX(-50%) scale(0.96);
+  transform: scale(0.96);
 }
 
 #mobile-plugin-button-icon {
@@ -161,11 +193,9 @@ body.mobile-device #viewer-canvas {
   -webkit-mask-size: cover;
 }
 
-/* Options button (bottom left) and export button (bottom right) */
+/* Options button and export button */
 #mobile-options-button,
 #mobile-export-button {
-  position: fixed;
-  bottom: 20px;
   padding: 12px 24px;
   background-color: #1a2433;
   color: #fff;
@@ -174,17 +204,8 @@ body.mobile-device #viewer-canvas {
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  z-index: 1000;
   box-shadow: 0 3px 8px rgba(0,0,0,0.2);
   transition: background-color 0.2s, transform 0.2s;
-}
-
-#mobile-options-button {
-  left: 20px;
-}
-
-#mobile-export-button {
-  right: 20px;
 }
 
 #mobile-options-button:active,
@@ -211,7 +232,7 @@ body.mobile-device #viewer-canvas {
 
 /* Position the visual menu */
 #mobile-visual-menu {
-  left: 12px;
+  left: 20px;
   right: auto;
   width: 280px;
 }
@@ -219,7 +240,7 @@ body.mobile-device #viewer-canvas {
 /* Position the export menu */
 #mobile-export-menu {
   left: auto;
-  right: 12px;
+  right: 20px;
   width: 200px;
 }
 

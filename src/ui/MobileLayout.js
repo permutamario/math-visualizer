@@ -14,7 +14,9 @@ export class MobileLayout extends EventEmitter {
     super();
     this.uiManager = uiManager;
     this.builder = uiManager.uiBuilder;
+    this.headerTitle = null;
     this.header = null;
+    this.controlBar = null;
     this.optionsButton = null;
     this.exportButton = null;
     this.pluginButton = null;
@@ -67,29 +69,25 @@ export class MobileLayout extends EventEmitter {
     // Remove any existing elements
     this.removeUIElements();
     
+    // Create header title
+    this.headerTitle = this.createHeaderTitle();
+    document.body.appendChild(this.headerTitle);
+    
     // Create header with structural controls
     this.header = this.createHeader();
     document.body.appendChild(this.header);
     
-    // Create options button
-    this.optionsButton = this.createOptionsButton();
-    document.body.appendChild(this.optionsButton);
+    // Create control bar
+    this.controlBar = this.createControlBar();
+    document.body.appendChild(this.controlBar);
     
     // Create visual options menu
     this.visualMenu = this.createVisualMenu();
     document.body.appendChild(this.visualMenu);
     
-    // Create export button
-    this.exportButton = this.createExportButton();
-    document.body.appendChild(this.exportButton);
-    
     // Create export menu
     this.exportMenu = this.createExportMenu();
     document.body.appendChild(this.exportMenu);
-    
-    // Create plugin button
-    this.pluginButton = this.createPluginButton();
-    document.body.appendChild(this.pluginButton);
     
     // Create plugin menu
     this.pluginMenu = this.createPluginMenu();
@@ -100,14 +98,19 @@ export class MobileLayout extends EventEmitter {
    * Remove existing UI elements
    */
   removeUIElements() {
+    // Remove header title
+    if (this.headerTitle && this.headerTitle.parentNode) {
+      this.headerTitle.parentNode.removeChild(this.headerTitle);
+    }
+    
     // Remove header
     if (this.header && this.header.parentNode) {
       this.header.parentNode.removeChild(this.header);
     }
     
-    // Remove options button
-    if (this.optionsButton && this.optionsButton.parentNode) {
-      this.optionsButton.parentNode.removeChild(this.optionsButton);
+    // Remove control bar
+    if (this.controlBar && this.controlBar.parentNode) {
+      this.controlBar.parentNode.removeChild(this.controlBar);
     }
     
     // Remove visual menu
@@ -115,25 +118,30 @@ export class MobileLayout extends EventEmitter {
       this.visualMenu.parentNode.removeChild(this.visualMenu);
     }
     
-    // Remove export button
-    if (this.exportButton && this.exportButton.parentNode) {
-      this.exportButton.parentNode.removeChild(this.exportButton);
-    }
-    
     // Remove export menu
     if (this.exportMenu && this.exportMenu.parentNode) {
       this.exportMenu.parentNode.removeChild(this.exportMenu);
-    }
-    
-    // Remove plugin button
-    if (this.pluginButton && this.pluginButton.parentNode) {
-      this.pluginButton.parentNode.removeChild(this.pluginButton);
     }
     
     // Remove plugin menu
     if (this.pluginMenu && this.pluginMenu.parentNode) {
       this.pluginMenu.parentNode.removeChild(this.pluginMenu);
     }
+  }
+  
+  /**
+   * Create the header title
+   * @returns {HTMLElement} Header title element
+   */
+  createHeaderTitle() {
+    const headerTitle = document.createElement('div');
+    headerTitle.className = 'mobile-header-title';
+    
+    // Get active plugin name if available
+    const activePlugin = this.plugins.find(p => p.id === this.activePluginId) || this.plugins[0];
+    headerTitle.textContent = activePlugin ? activePlugin.name : 'Visualization';
+    
+    return headerTitle;
   }
   
   /**
@@ -146,7 +154,7 @@ export class MobileLayout extends EventEmitter {
     
     // Placeholder for structural controls - will be filled when schema is provided
     const placeholder = document.createElement('p');
-    placeholder.textContent = 'No visualization selected.';
+    placeholder.textContent = 'No structural parameters available.';
     placeholder.style.fontStyle = 'italic';
     placeholder.style.color = '#fff';
     placeholder.style.padding = '8px';
@@ -157,17 +165,40 @@ export class MobileLayout extends EventEmitter {
   }
   
   /**
-   * Create the options button
-   * @returns {HTMLElement} Options button
+   * Create the control bar with buttons
+   * @returns {HTMLElement} Control bar element
    */
-  createOptionsButton() {
-    const button = document.createElement('button');
-    button.id = 'mobile-options-button';
-    button.textContent = 'Visual Options';
+  createControlBar() {
+    const controlBar = document.createElement('div');
+    controlBar.className = 'mobile-control-bar';
     
-    button.addEventListener('click', this.toggleVisualMenu);
+    // Create options button
+    this.optionsButton = document.createElement('button');
+    this.optionsButton.id = 'mobile-options-button';
+    this.optionsButton.textContent = 'Options';
+    this.optionsButton.addEventListener('click', this.toggleVisualMenu);
     
-    return button;
+    // Create plugin button
+    this.pluginButton = document.createElement('div');
+    this.pluginButton.id = 'mobile-plugin-button';
+    
+    const pluginIcon = document.createElement('div');
+    pluginIcon.id = 'mobile-plugin-button-icon';
+    this.pluginButton.appendChild(pluginIcon);
+    this.pluginButton.addEventListener('click', this.togglePluginMenu);
+    
+    // Create export button
+    this.exportButton = document.createElement('button');
+    this.exportButton.id = 'mobile-export-button';
+    this.exportButton.textContent = 'Export';
+    this.exportButton.addEventListener('click', this.toggleExportMenu);
+    
+    // Add buttons to control bar
+    controlBar.appendChild(this.optionsButton);
+    controlBar.appendChild(this.pluginButton);
+    controlBar.appendChild(this.exportButton);
+    
+    return controlBar;
   }
   
   /**
@@ -195,20 +226,6 @@ export class MobileLayout extends EventEmitter {
   }
   
   /**
-   * Create the export button
-   * @returns {HTMLElement} Export button
-   */
-  createExportButton() {
-    const button = document.createElement('button');
-    button.id = 'mobile-export-button';
-    button.textContent = 'Export';
-    
-    button.addEventListener('click', this.toggleExportMenu);
-    
-    return button;
-  }
-  
-  /**
    * Create the export menu
    * @returns {HTMLElement} Export menu
    */
@@ -232,23 +249,6 @@ export class MobileLayout extends EventEmitter {
     return menu;
   }
   
-  /**
-   * Create the plugin selector button (center bottom)
-   * @returns {HTMLElement} Plugin button element
-   */
-  createPluginButton() {
-    const button = document.createElement('div');
-    button.id = 'mobile-plugin-button';
-    
-    const icon = document.createElement('div');
-    icon.id = 'mobile-plugin-button-icon';
-    button.appendChild(icon);
-    
-    button.addEventListener('click', this.togglePluginMenu);
-    
-    return button;
-  }
-
   /**
    * Create the plugin menu
    * @returns {HTMLElement} Plugin menu element
@@ -387,20 +387,6 @@ export class MobileLayout extends EventEmitter {
     while (this.header.childNodes.length > 0) {
       this.header.removeChild(this.header.lastChild);
     }
-    
-    // Add title
-    const title = document.createElement('div');
-    title.className = 'header-title';
-    title.style.fontWeight = 'bold';
-    title.style.fontSize = '15px';
-    title.style.marginBottom = '10px';
-    title.style.textAlign = 'center';
-    
-    // Get active plugin name if available
-    const activePlugin = this.plugins.find(p => p.id === values.activePluginId) || this.plugins[0];
-    title.textContent = activePlugin ? activePlugin.name : 'Structural Parameters';
-    
-    this.header.appendChild(title);
     
     // Check if we have structural parameters
     if (!schema.structural || schema.structural.length === 0) {
@@ -579,17 +565,25 @@ export class MobileLayout extends EventEmitter {
    * @param {string} activePluginId - Currently active plugin ID
    */
   updatePlugins(plugins, activePluginId) {
-    // Store plugins
+    // Store plugins and active ID
     this.plugins = [...plugins];
+    this.activePluginId = activePluginId;
     
     // Update plugin menu
     this.updatePluginMenu(plugins, activePluginId);
     
-    // Update header title if we have a schema
-    if (this.controls.schema) {
-      // Update with current active plugin
-      const values = { ...this.controls.values, activePluginId };
-      this.updateHeaderControls(this.controls.schema, values);
+    // Update header title
+    this.updateHeaderTitle(activePluginId);
+  }
+  
+  /**
+   * Update header title with active plugin name
+   * @param {string} activePluginId - Currently active plugin ID
+   */
+  updateHeaderTitle(activePluginId) {
+    const activePlugin = this.plugins.find(p => p.id === activePluginId);
+    if (activePlugin && this.headerTitle) {
+      this.headerTitle.textContent = activePlugin.name;
     }
   }
   
@@ -726,6 +720,8 @@ export class MobileLayout extends EventEmitter {
     // Reset state
     this.controls = {};
     this.actions = [];
+    this.plugins = [];
+    this.activePluginId = null;
     this.initialized = false;
     
     console.log("Mobile layout disposed");
