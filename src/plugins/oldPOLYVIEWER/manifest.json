@@ -2,7 +2,7 @@
   "id": "polytopeViewer",
   "name": "Polytope Viewer",
   "version": "1.0.0",
-  "description": "Interactive 3D polytope visualization plugin",
+  "description": "Interactive viewer for 3D polytopes with parametric controls",
   "author": "Math Visualization Framework",
   "minFrameworkVersion": "1.0.0",
   "environment": {
@@ -14,37 +14,36 @@
   },
   "defaultSettings": {
     "polytopeType": "cube",
-    "scale": 1.0,
-    "rotation": false,
-    "rotationSpeed": 0.5,
     "wireframe": false,
     "showVertices": true,
-    "vertexSize": 0.05,
-    "vertexColor": "#ffffff",
-    "showEdges": true,
+    "vertexSize": 0.1,
     "edgeThickness": 1,
     "edgeColor": "#000000",
-    "showFaces": true,
-    "faceOpacity": 0.85,
-    "faceColorMode": "uniform",
     "faceColor": "#3498db",
-    "backgroundColor": "#f5f5f5"
+    "faceOpacity": 0.85,
+    "showFaces": true,
+    "animation": false,
+    "size": 1
   },
   "uiCategories": [
     {
       "id": "structural",
       "label": "Polytope Parameters",
-      "settings": ["polytopeType", "scale", "rotation", "rotationSpeed"]
+      "settings": ["polytopeType", "size"]
     },
     {
       "id": "visual",
       "label": "Visual Parameters",
       "settings": [
         "wireframe", 
-        "showVertices", "vertexSize", "vertexColor",
-        "showEdges", "edgeThickness", "edgeColor",
-        "showFaces", "faceOpacity", "faceColorMode", "faceColor",
-        "backgroundColor"
+        "showFaces", 
+        "faceColor", 
+        "faceOpacity", 
+        "showVertices", 
+        "vertexSize",
+        "edgeColor",
+        "edgeThickness",
+        "animation"
       ]
     }
   ],
@@ -58,11 +57,6 @@
       "id": "reset-settings",
       "label": "Reset Settings",
       "type": "export"
-    },
-    {
-      "id": "toggle-wireframe",
-      "label": "Toggle Wireframe",
-      "type": "action"
     }
   ]
 }

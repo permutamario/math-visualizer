@@ -135,20 +135,7 @@ export class Camera3DEnvironment extends BaseEnvironment {
             directionalLight.position.set(1, 2, 3);
             this.scene.add(directionalLight);
             
-            // Add a grid helper
-            this.grid = new THREE.GridHelper(10, 10);
-            this.scene.add(this.grid);
-            
-            // Create a simple cube as a default object
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0x00ff00,
-                wireframe: false
-            });
-            
-            this.cube = new THREE.Mesh(geometry, material);
-            this.scene.add(this.cube);
-            
+          
             // Set up camera controls - now with proper initialization
             try {
                 console.log('Creating CameraControls instance...');

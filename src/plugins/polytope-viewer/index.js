@@ -1,363 +1,404 @@
 // src/plugins/polytope-viewer/index.js
-// Main entry point for the Polytope Viewer plugin with async initialization support
+// Main entry point for the polytope viewer plugin
 
-import { loadPolytopeBuilders } from './polytope/polytopeLoader.js';
-import { createPolytopeMesh, disposePolytopeMesh } from './polytope/meshBuilder.js';
-import { getBaseSettingsMetadata, getPolytopeSpecificMetadata } from './settings/settingsManager.js';
+import { PolytopeRenderer } from './PolytopeRenderer.js';
+import { MaterialManager } from './MaterialManager.js';
+import { getPolytopeBuilder } from './build_functions/index.js';
+import { Polytope } from './Polytope.js';
 
 /**
- * Initialize the Polytope Viewer plugin
+ * Polytope Viewer Plugin
  * @param {Object} core - Core APIs provided by the framework
- * @returns {Promise} A promise that resolves when initialization is complete
  */
 export default function initPolytopeViewerPlugin(core) {
-  const { hooks, state, lifecycle } = core;
+  const { hooks, state } = core;
   
-  // Track state within the plugin
+  console.log("Initializing Polytope Viewer Plugin");
+  
+  // Internal state
+  let polytopeRenderer = null;
+  let materialManager = null;
   let currentPolytope = null;
-  let currentMesh = null;
-  let lastPolytopeType = null;
-  let polytopeBuilders = {};
-  let isInitialized = false;
+  let polytopeGroup = null;
+  let scene = null;
   
-  console.log("Initializing Polytope Viewer plugin");
+  // Define settings metadata
+  const polytopeSettingsMetadata = {
+    // Structural settings
+    polytopeType: { 
+      type: 'structural', 
+      label: 'Polytope Type', 
+      control: 'dropdown', 
+      options: ['tetrahedron', 'cube', 'octahedron', 'dodecahedron', 'icosahedron'],
+      default: 'cube'
+    },
+    scale: { 
+      type: 'structural', 
+      label: 'Scale', 
+      control: 'slider', 
+      min: 0.1, 
+      max: 3.0, 
+      step: 0.1, 
+      default: 1.0 
+    },
+    rotation: { 
+      type: 'structural', 
+      label: 'Auto-rotate', 
+      control: 'checkbox', 
+      default: false 
+    },
+    rotationSpeed: { 
+      type: 'structural', 
+      label: 'Rotation Speed', 
+      control: 'slider', 
+      min: 0.1, 
+      max: 5.0, 
+      step: 0.1, 
+      default: 0.5 
+    },
+    
+    // Visual settings - Vertices
+    showVertices: { 
+      type: 'visual', 
+      label: 'Show Vertices', 
+      control: 'checkbox', 
+      default: true 
+    },
+    vertexSize: { 
+      type: 'visual', 
+      label: 'Vertex Size', 
+      control: 'slider', 
+      min: 0.01, 
+      max: 0.2, 
+      step: 0.01, 
+      default: 0.05 
+    },
+    vertexColor: { 
+      type: 'visual', 
+      label: 'Vertex Color', 
+      control: 'color', 
+      default: '#ffffff' 
+    },
+    
+    // Visual settings - Edges
+    showEdges: { 
+      type: 'visual', 
+      label: 'Show Edges', 
+      control: 'checkbox', 
+      default: true 
+    },
+    edgeThickness: { 
+      type: 'visual', 
+      label: 'Edge Thickness', 
+      control: 'slider', 
+      min: 0.5, 
+      max: 5, 
+      step: 0.5, 
+      default: 1 
+    },
+    edgeColor: { 
+      type: 'visual', 
+      label: 'Edge Color', 
+      control: 'color', 
+      default: '#000000' 
+    },
+    
+    // Visual settings - Faces
+    showFaces: { 
+      type: 'visual', 
+      label: 'Show Faces', 
+      control: 'checkbox', 
+      default: true 
+    },
+    wireframe: { 
+      type: 'visual', 
+      label: 'Wireframe Mode', 
+      control: 'checkbox', 
+      default: false 
+    },
+    faceOpacity: { 
+      type: 'visual', 
+      label: 'Face Opacity', 
+      control: 'slider', 
+      min: 0, 
+      max: 1, 
+      step: 0.05, 
+      default: 0.85 
+    },
+    faceColorMode: { 
+      type: 'visual', 
+      label: 'Face Color Mode', 
+      control: 'dropdown', 
+      options: ['uniform', 'by_face', 'by_face_size', 'by_face_angle'],
+      default: 'uniform' 
+    },
+    faceColor: { 
+      type: 'visual', 
+      label: 'Base Face Color', 
+      control: 'color', 
+      default: '#3498db' 
+    },
+    
+    // Visual settings - Environment
+    backgroundColor: { 
+      type: 'visual', 
+      label: 'Background Color', 
+      control: 'color', 
+      default: '#f5f5f5' 
+    }
+  };
   
-  // Register with visualization system immediately
+  // Register with visualization system
   hooks.addFilter('availableVisualizations', 'polytopeViewer', (visualizations) => {
     return [...visualizations, {
       id: 'polytopeViewer',
       name: 'Polytope Viewer',
-      description: 'View and interact with mathematical polytopes'
+      description: 'Interactive 3D polytope visualization'
     }];
   });
   
-  // Register initial bare minimum UI controls - these will be replaced when fully loaded
-  hooks.addFilter('settingsMetadata', 'polytopeViewer', (metadata) => {
-    // Only return metadata for the polytope viewer when it's active
-    if (state.getState().activePluginId !== 'polytopeViewer') {
-      return metadata;
-    }
-    
-    if (!isInitialized) {
-      // Return loading indicator if not fully initialized
-      return {
-        _loading: {
-          type: 'structural',
-          label: 'Loading Polytope Data...',
-          control: 'message',
-          text: 'Please wait while polytope builders are loaded...'
-        }
-      };
-    }
-    
-    // Start with base settings
-    const baseMetadata = getBaseSettingsMetadata(Object.keys(polytopeBuilders));
-    
-    // Get current settings to determine selected polytope type
-    const settings = state.getState().settings || {};
-    const currentPolytopeType = settings.polytopeType || Object.keys(polytopeBuilders)[0];
-    
-    // Add polytope-specific settings if a builder is available
-    if (polytopeBuilders[currentPolytopeType]) {
-      const builder = polytopeBuilders[currentPolytopeType];
-      const specificMetadata = getPolytopeSpecificMetadata(currentPolytopeType, builder);
-      return { ...baseMetadata, ...specificMetadata };
-    }
-    
-    return baseMetadata;
+  // Register environment requirements
+  hooks.addFilter('environmentRequirements', 'polytopeViewer', () => {
+    return {
+      type: '3d-camera',
+      options: {
+        cameraPosition: [0, 0, 5],
+        lookAt: [0, 0, 0]
+      }
+    };
   });
   
-  // Register default settings - simple defaults until fully loaded
-  hooks.addFilter('defaultSettings', 'polytopeViewer', (defaultSettings) => {
-    if (state.getState().activePluginId !== 'polytopeViewer') {
-      return defaultSettings;
-    }
-    
-    // Start with base default settings
-    const baseDefaults = {
-      polytopeType: isInitialized ? Object.keys(polytopeBuilders)[0] || 'cube' : 'cube',
+  // Register settings metadata
+  hooks.addFilter('settingsMetadata', 'polytopeViewer', (metadata) => {
+    return polytopeSettingsMetadata;
+  });
+  
+  // Register default settings
+  hooks.addFilter('defaultSettings', 'polytopeViewer', (settings) => {
+    return {
+      polytopeType: 'cube',
+      scale: 1.0,
+      rotation: false,
+      rotationSpeed: 0.5,
       wireframe: false,
       showVertices: true,
-      vertexSize: 0.1,
+      vertexSize: 0.05,
+      vertexColor: '#ffffff',
+      showEdges: true,
       edgeThickness: 1,
       edgeColor: '#000000',
-      faceColor: '#3498db',
-      faceOpacity: 0.85,
       showFaces: true,
-      animation: false
+      faceOpacity: 0.85,
+      faceColorMode: 'uniform',
+      faceColor: '#3498db',
+      backgroundColor: '#f5f5f5'
     };
-    
-    // If not initialized yet, return just the base defaults
-    if (!isInitialized) {
-      return baseDefaults;
-    }
-    
-    // Get defaults for the current polytope type
-    const currentType = baseDefaults.polytopeType;
-    if (polytopeBuilders[currentType] && polytopeBuilders[currentType].defaults) {
-      const builder = polytopeBuilders[currentType];
-      const paramDefaults = {};
-      
-      // Extract defaults from the builder's parameter schema
-      Object.entries(builder.defaults).forEach(([key, schema]) => {
-        paramDefaults[key] = schema.default;
-      });
-      
-      return { ...baseDefaults, ...paramDefaults };
-    }
-    
-    return baseDefaults;
   });
   
-  // Register render function
+  // Register render function - for 3D, we set up the scene when the plugin is activated
   hooks.addAction('render', 'polytopeViewer', (ctx, canvas, settings) => {
     // Only render if this is the active plugin
     if (state.getState().activePluginId !== 'polytopeViewer') {
       return false;
     }
     
-    // Wait until builders are loaded
-    if (!isInitialized) {
-      // Draw loading message
-      ctx.save();
-      ctx.fillStyle = '#333';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Loading polytope data...', canvas.width / 2, canvas.height / 2);
-      ctx.restore();
-      return true;
-    }
-    
-    // Make sure we have a polytope built
-    if (!currentPolytope || lastPolytopeType !== settings.polytopeType) {
-      rebuildPolytope(settings);
-    }
-    
-    // The actual rendering will be handled by the 3D environment
-    // We just need to ensure the mesh is up to date
+    // Scene is set up in activatePlugin
     return true;
   });
   
-  // Register activation handler
-  hooks.addAction('activatePlugin', 'polytopeViewer', ({ pluginId }) => {
+  // Register activation handler - create the 3D scene
+  hooks.addAction('activatePlugin', 'polytopeViewer', async ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    console.log("Polytope Viewer plugin activated");
+    console.log("Polytope Viewer Plugin activated");
     
-    // Switch to 3D environment
-    if (window.AppInstance && window.AppInstance.canvasManager) {
-      window.AppInstance.canvasManager.setupEnvironment('3d-camera');
+    // Get the current environment
+    const canvasManager = window.AppInstance.canvasManager;
+    
+    // If not using 3D environment, request it
+    if (canvasManager.environmentType !== '3d-camera') {
+      canvasManager.setupEnvironment('3d-camera');
     }
     
-    // If already initialized, update metadata for UI controls
-    if (isInitialized) {
-      hooks.doAction('pluginMetadataUpdated', {
-        pluginId: 'polytopeViewer',
-        metadata: buildCompleteMetadata()
-      });
+    // Get current settings
+    const settings = state.getState().settings;
+    
+    // Access the THREE.js scene
+    if (canvasManager.currentEnvironment && 
+        canvasManager.currentEnvironment.scene) {
+      
+      scene = canvasManager.currentEnvironment.scene;
+      const THREE = window.THREE; // Access the global THREE object
+      
+      // Initialize material manager
+      materialManager = new MaterialManager(THREE);
+      
+      // Initialize renderer
+      polytopeRenderer = new PolytopeRenderer(THREE, materialManager);
+      
+      // Create polytope based on current settings
+      await createPolytope(settings.polytopeType, settings);
+      
+      // Set background color
+      if (canvasManager.currentEnvironment.renderer) {
+        canvasManager.currentEnvironment.renderer.setClearColor(
+          settings.backgroundColor || '#f5f5f5'
+        );
+      }
+    } else {
+      console.error('THREE.js scene not available for Polytope Viewer plugin');
     }
   });
   
-  // Register deactivation handler
+  // Register animation function
+  hooks.addAction('beforeRender', 'polytopeViewer', (ctx, canvas, settings) => {
+    // Only run if plugin is active and rotation is enabled
+    if (state.getState().activePluginId === 'polytopeViewer' && 
+        settings.rotation && 
+        polytopeGroup) {
+      
+      // Rotate the polytope
+      polytopeGroup.rotation.y += 0.01 * settings.rotationSpeed;
+      polytopeGroup.rotation.x += 0.005 * settings.rotationSpeed;
+    }
+  });
+  
+  // Register deactivation handler - clean up the 3D scene
   hooks.addAction('deactivatePlugin', 'polytopeViewer', ({ pluginId }) => {
     if (pluginId !== 'polytopeViewer') return;
     
-    console.log("Polytope Viewer plugin deactivated");
+    console.log("Polytope Viewer Plugin deactivated");
     
-    // Clean up resources
-    if (currentMesh) {
-      disposePolytopeMesh(currentMesh);
-      currentMesh = null;
+    // Clean up the scene
+    if (scene && polytopeGroup) {
+      scene.remove(polytopeGroup);
+      
+      // Clean up resources
+      if (polytopeRenderer) {
+        polytopeRenderer.dispose();
+      }
+      
+      polytopeGroup = null;
+      currentPolytope = null;
+      polytopeRenderer = null;
+      materialManager = null;
     }
-    
-    currentPolytope = null;
   });
   
   // Handle setting changes
-  hooks.addAction('onSettingChanged', 'polytopeViewer', ({ path, value }) => {
+  hooks.addAction('onSettingChanged', 'polytopeViewer', async ({ path, value }) => {
     if (state.getState().activePluginId !== 'polytopeViewer') return;
+    if (!scene || !polytopeRenderer) return;
     
-    // Handle polytope type changes
-    if (path === 'settings.polytopeType') {
-      // This will trigger rebuilding all UI controls for the new polytope type
-      console.log(`Polytope type changed to ${value}`);
-      
-      // Use pluginMetadataUpdated hook instead of direct state manipulation
-      hooks.doAction('pluginMetadataUpdated', {
-        pluginId: 'polytopeViewer',
-        metadata: buildCompleteMetadata()
-      });
-      
-      // Force regenerating the polytope
-      lastPolytopeType = null;
-    }
+    const settings = state.getState().settings;
     
-    // We'll rebuild the polytope on the next render
-    if (currentMesh) {
-      updatePolytopeMesh(state.getState().settings);
-    }
-  });
-  
-  // Create a promise that properly signals plugin state
-  // Create a promise that properly signals plugin state
-const initPromise = new Promise((resolve, reject) => {
-  console.log("Starting polytope viewer async initialization...");
-  
-  // Check lifecycle object more explicitly
-  console.log("Lifecycle object:", lifecycle);
-  console.log("Has setPluginState?", lifecycle && typeof lifecycle.setPluginState === 'function');
-  
-  // Load polytope builders asynchronously
-  console.log("About to call loadPolytopeBuilders()");
-  loadPolytopeBuilders()
-    .then(builders => {
-      console.log("loadPolytopeBuilders() resolved successfully");
-      polytopeBuilders = builders;
-      isInitialized = true;
-      console.log(`Loaded ${Object.keys(builders).length} polytope builders`);
-      
-      try {
-        // Signal that the plugin is now ready - only if lifecycle is valid
-        if (lifecycle && typeof lifecycle.setPluginState === 'function') {
-          console.log("About to call setPluginState('ready')");
-          lifecycle.setPluginState('ready');
-          console.log("I AM READY ----------------------");
-        } else {
-          console.error("Cannot set plugin state - lifecycle object is invalid");
-        }
-      } catch (error) {
-        console.error("Error when setting plugin state:", error);
-      }
-      
-      // Register new hook for plugin ready event
-      try {
-        hooks.addAction('onPluginReady', 'polytopeViewer', ({ pluginId }) => {
-          if (pluginId === 'polytopeViewer') {
-            console.log("onPluginReady hook called for polytopeViewer");
-            // Update settings metadata now that we're fully loaded
-            if (state.getState().activePluginId === 'polytopeViewer') {
-              // Use hooks to notify of metadata updates
-              hooks.doAction('pluginMetadataUpdated', {
-                pluginId: 'polytopeViewer',
-                metadata: buildCompleteMetadata()
-              });
-            }
-          }
-        });
-      } catch (error) {
-        console.error("Error when adding onPluginReady hook:", error);
-      }
-      
-      console.log("About to resolve initPromise");
-      resolve(); // Successfully initialized
-    })
-    .catch(error => {
-      console.error("Failed to load polytope builders:", error);
-      isInitialized = true; // Mark as initialized even though it failed
-      
-      try {
-        if (lifecycle && typeof lifecycle.setPluginState === 'function') {
-          lifecycle.setPluginState('error'); // Signal error state
-        }
-      } catch (error) {
-        console.error("Error when setting plugin state to error:", error);
-      }
-      
-      resolve(); // Resolve the promise to avoid blocking the framework
-    });
-  });
-  /**
-   * Build complete metadata based on current state 
-   * @returns {Object} Complete settings metadata
-   */
-  function buildCompleteMetadata() {
-    // Start with base settings
-    const baseMetadata = getBaseSettingsMetadata(Object.keys(polytopeBuilders));
-    
-    // Get current settings to determine selected polytope type
-    const settings = state.getState().settings || {};
-    const currentPolytopeType = settings.polytopeType || Object.keys(polytopeBuilders)[0];
-    
-    // Add polytope-specific settings if a builder is available
-    if (polytopeBuilders[currentPolytopeType]) {
-      const builder = polytopeBuilders[currentPolytopeType];
-      const specificMetadata = getPolytopeSpecificMetadata(currentPolytopeType, builder);
-      return { ...baseMetadata, ...specificMetadata };
-    }
-    
-    return baseMetadata;
-  }
-  
-  /**
-   * Rebuild the current polytope based on settings
-   * @param {Object} settings - Current settings
-   */
-  function rebuildPolytope(settings) {
-    const polytopeType = settings.polytopeType;
-    
-    if (!polytopeType || !polytopeBuilders[polytopeType]) {
-      console.warn(`Polytope type ${polytopeType} not found`);
+    // Handle polytope type change
+    if (path === 'polytopeType') {
+      await createPolytope(value, settings);
       return;
     }
     
-    console.log(`Building polytope: ${polytopeType}`);
-    
-    // Get the builder
-    const builder = polytopeBuilders[polytopeType];
-    
-    // Extract parameters for this polytope type
-    const params = {};
-    if (builder.defaults) {
-      Object.keys(builder.defaults).forEach(key => {
-        params[key] = settings[key] !== undefined ? settings[key] : builder.defaults[key].default;
-      });
+    // Handle scale change
+    if (path === 'scale' && polytopeGroup) {
+      polytopeGroup.scale.set(value, value, value);
+      return;
     }
+    
+    // Handle visual property changes
+    if (polytopeRenderer && currentPolytope) {
+      if (path.startsWith('vertex') || path.startsWith('edge') || 
+          path.startsWith('face') || path === 'wireframe' || 
+          path.startsWith('show')) {
+        
+        // Update the visual properties
+        polytopeRenderer.updateVisualProperties(polytopeGroup, settings);
+      }
+    }
+    
+    // Handle background color change
+    if (path === 'backgroundColor') {
+      const canvasManager = window.AppInstance.canvasManager;
+      if (canvasManager.currentEnvironment && 
+          canvasManager.currentEnvironment.renderer) {
+        canvasManager.currentEnvironment.renderer.setClearColor(value);
+      }
+    }
+  });
+  
+  // Register export options
+  hooks.addFilter('exportOptions', 'polytopeViewer', (options) => {
+    return [
+      {
+        id: 'export-png',
+        label: 'Export PNG',
+        type: 'export'
+      },
+      {
+        id: 'toggle-wireframe',
+        label: 'Toggle Wireframe',
+        type: 'action'
+      },
+      {
+        id: 'reset-settings',
+        label: 'Reset Settings',
+        type: 'export'
+      }
+    ];
+  });
+  
+  // Handle export actions
+  hooks.addAction('exportAction', 'polytopeViewer', (actionId) => {
+    if (actionId === 'toggle-wireframe') {
+      const currentSettings = state.getState().settings;
+      const newValue = !currentSettings.wireframe;
+      window.changeState('settings.wireframe', newValue);
+      return true;
+    }
+    return false;
+  });
+  
+  /**
+   * Create and display a polytope
+   * @param {string} type - Type of polytope to create
+   * @param {Object} settings - Current settings
+   */
+  async function createPolytope(type, settings) {
+    if (!scene || !polytopeRenderer) return;
     
     try {
-      // Build the polytope with parameters
-      currentPolytope = builder.build(params);
-      lastPolytopeType = polytopeType;
+      // Remove existing polytope if any
+      if (polytopeGroup) {
+        scene.remove(polytopeGroup);
+        polytopeGroup = null;
+      }
       
-      // Update the mesh
-      updatePolytopeMesh(settings);
+      // Get the polytope builder function
+      const builder = getPolytopeBuilder(type);
+      if (!builder) {
+        console.error(`No builder found for polytope type: ${type}`);
+        return;
+      }
+      
+      // Build the polytope
+      const vertices = await builder();
+      
+      // Create Polytope instance
+      currentPolytope = new Polytope(vertices, { name: type });
+      
+      // Render the polytope
+      polytopeGroup = polytopeRenderer.createFromPolytope(currentPolytope, settings);
+      
+      // Set scale
+      const scale = settings.scale || 1.0;
+      polytopeGroup.scale.set(scale, scale, scale);
+      
+      // Add to scene
+      scene.add(polytopeGroup);
+      
     } catch (error) {
-      console.error(`Error building polytope ${polytopeType}:`, error);
+      console.error(`Error creating polytope: ${error.message}`);
     }
   }
   
-  /**
-   * Update the polytope mesh with current settings
-   * @param {Object} settings - Current settings
-   */
-  function updatePolytopeMesh(settings) {
-    if (!currentPolytope || !window.AppInstance) return;
-    
-    // Get the scene from the environment
-    const scene = window.AppInstance.canvasManager.currentEnvironment?.scene;
-    if (!scene) {
-      console.error("Cannot update polytope mesh - no scene available");
-      return;
-    }
-    
-    // Clean up previous mesh
-    if (currentMesh) {
-      scene.remove(currentMesh);
-      disposePolytopeMesh(currentMesh);
-      currentMesh = null;
-    }
-    
-    // Create new mesh
-    currentMesh = createPolytopeMesh(currentPolytope, settings);
-    scene.add(currentMesh);
-    
-    // Request render update
-    if (window.AppInstance.canvasManager) {
-      window.AppInstance.canvasManager.render();
-    }
-  }
-  
-  console.log("Polytope Viewer plugin initialized - waiting for async loading to complete");
-  
-  // Return the initialization promise
-  return initPromise;
+  console.log("Polytope Viewer Plugin initialized");
 }

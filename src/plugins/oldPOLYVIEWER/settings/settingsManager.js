@@ -33,13 +33,15 @@ export function getBaseSettingsMetadata(availablePolytopes = []) {
     }
   });
   
-  // Format options for dropdown based on categories
+  // For dropdown options, we need to provide simple strings instead of objects
   let polytopeOptions = [];
+  
+  // Convert to simple strings for dropdown options
   Object.entries(categorizedPolytopes).forEach(([category, items]) => {
-    // Add category header
-    polytopeOptions.push({ value: '', label: `--- ${category} ---`, disabled: true });
-    // Add items in category
-    polytopeOptions = polytopeOptions.concat(items);
+    // Add items as simple strings
+    polytopeOptions = polytopeOptions.concat(
+      items.map(item => item.value)
+    );
   });
   
   if (polytopeOptions.length === 0) {
@@ -151,8 +153,23 @@ export function getPolytopeSpecificMetadata(polytopeType, builder) {
       min: schema.min,
       max: schema.max,
       step: schema.step,
-      options: schema.options
     };
+    
+    // If this is a dropdown, make sure we're providing string options instead of objects
+    if (schema.type === 'dropdown' && Array.isArray(schema.options)) {
+      // Check if options are objects or strings
+      const firstOption = schema.options[0];
+      if (firstOption && typeof firstOption === 'object' && firstOption.value !== undefined) {
+        // Convert object options to simple strings
+        metadata[key].options = schema.options.map(opt => opt.value);
+      } else {
+        // Already strings, just copy
+        metadata[key].options = schema.options;
+      }
+    } else if (schema.options) {
+      // Copy any non-dropdown options directly
+      metadata[key].options = schema.options;
+    }
     
     // Add description if available
     if (schema.description) {
