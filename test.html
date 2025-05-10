@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Math Visualization Framework - Component Tests</title>
+  
+  <!-- Load styles -->
+  <link rel="stylesheet" href="src/ui/styles/base.css">
+  <link rel="stylesheet" href="src/ui/styles/desktop.css" media="(min-width: 600px)">
+  <link rel="stylesheet" href="src/ui/styles/mobile.css" media="(max-width: 599px)">
+  <link rel="stylesheet" href="src/ui/styles/loading.css">
+  
+  <style>
+    /* Test page specific styles */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      padding: 20px;
+      background-color: #f8f9fa;
+    }
+    
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .test-section {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      color: #1a2433;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    h2 {
+      color: #1a2433;
+      margin-top: 0;
+    }
+    
+    .btn {
+      padding: 8px 16px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .btn:hover {
+      background-color: #3367d6;
+    }
+    
+    .canvas-container {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ccc;
+      margin: 10px 0;
+      position: relative;
+    }
+
+    /* Add keyframes for spinner animation */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Results display */
+    .result-display {
+      background-color: #f0f0f0;
+      border-radius: 4px;
+      padding: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    
+    /* Column layout for some tests */
+    .flex-container {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .flex-column {
+      flex: 1;
+    }
+    
+    /* For console output */
+    #console-output {
+      background-color: #1a2433;
+      color: #fff;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>Math Visualization Framework - Component Tests</h1>
+    
+    <!-- Core Classes Tests -->
+    <div class="test-section">
+      <h2>Core Classes Tests</h2>
+      
+      <button class="btn" id="test-event-emitter">Test EventEmitter</button>
+      <button class="btn" id="test-state-manager">Test StateManager</button>
+      <button class="btn" id="test-parameter-schema">Test ParameterSchema</button>
+      <button class="btn" id="test-parameter-manager">Test ParameterManager</button>
+      
+      <div id="core-result" class="result-display">Results will appear here...</div>
+    </div>
+    
+    <!-- UI Components Tests -->
+    <div class="test-section">
+      <h2>UI Components Tests</h2>
+      
+      <div class="flex-container">
+        <div class="flex-column">
+          <h3>UI Builder</h3>
+          <button class="btn" id="test-create-slider">Create Slider</button>
+          <button class="btn" id="test-create-checkbox">Create Checkbox</button>
+          <button class="btn" id="test-create-color">Create Color Picker</button>
+          <button class="btn" id="test-create-dropdown">Create Dropdown</button>
+          <button class="btn" id="test-create-button">Create Button</button>
+          <button class="btn" id="test-create-notification">Show Notification</button>
+          
+          <div id="ui-builder-container"></div>
+        </div>
+        
+        <div class="flex-column">
+          <h3>Layout Tests</h3>
+          <button class="btn" id="test-desktop-layout">Preview Desktop Layout</button>
+          <button class="btn" id="test-mobile-layout">Preview Mobile Layout</button>
+          <button class="btn" id="clear-layouts">Clear Layouts</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Rendering Tests -->
+    <div class="test-section">
+      <h2>Rendering Tests</h2>
+      
+      <div class="flex-container">
+        <div class="flex-column">
+          <h3>2D Environment</h3>
+          <button class="btn" id="test-2d-environment">Initialize 2D Environment</button>
+          <button class="btn" id="draw-2d-shape">Draw Shape</button>
+          <button class="btn" id="test-2d-camera">Test Camera Controls</button>
+          
+          <div class="canvas-container" id="canvas-2d-container">
+            <canvas id="canvas-2d"></canvas>
+          </div>
+        </div>
+        
+        <div class="flex-column">
+          <h3>3D Environment</h3>
+          <button class="btn" id="test-3d-environment">Initialize 3D Environment</button>
+          <button class="btn" id="draw-3d-shape">Draw Cube</button>
+          <button class="btn" id="test-3d-camera">Test Camera Controls</button>
+          
+          <div class="canvas-container" id="canvas-3d-container">
+            <canvas id="canvas-3d"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Integration Tests -->
+    <div class="test-section">
+      <h2>Integration Tests</h2>
+      
+      <button class="btn" id="test-parameter-ui">Parameters to UI Controls</button>
+      <button class="btn" id="test-plugin-registry">Plugin Discovery</button>
+      <button class="btn" id="test-plugin-activation">Plugin Activation Flow</button>
+      <button class="btn" id="test-full-integration">Full Integration Test</button>
+      
+      <div id="integration-result" class="result-display">Results will appear here...</div>
+    </div>
+    
+    <!-- Console Output -->
+    <div class="test-section">
+      <h2>Console Output</h2>
+      <button class="btn" id="clear-console">Clear Console</button>
+      <div id="console-output"></div>
+    </div>
+  </div>
+  
+  <!-- Load THREE.js for 3D tests -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendors/three.module.js",
+        "camera-controls": "/vendors/cameraControls3d/camera-controls.module.js"
+      }
+    }
+  </script>
+  
+  <script type="module">
+    // Capture console output
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+    
+    const consoleOutput = document.getElementById('console-output');
+    
+    console.log = function(...args) {
+      originalConsoleLog.apply(console, args);
+      
+      const message = args.map(arg => {
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch (e) {
+            return String(arg);
+          }
+        } else {
+          return String(arg);
+        }
+      }).join(' ');
+      
+      const logElement = document.createElement('div');
+      logElement.textContent = `[LOG] ${message}`;
+      consoleOutput.appendChild(logElement);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    };
+    
+    console.error = function(...args) {
+      originalConsoleError.apply(console, args);
+      
+      const message = args.map(arg => String(arg)).join(' ');
+      
+      const errorElement = document.createElement('div');
+      errorElement.textContent = `[ERROR] ${message}`;
+      errorElement.style.color = '#ff5252';
+      consoleOutput.appendChild(errorElement);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    };
+    
+    console.warn = function(...args) {
+      originalConsoleWarn.apply(console, args);
+      
+      const message = args.map(arg => String(arg)).join(' ');
+      
+      const warnElement = document.createElement('div');
+      warnElement.textContent = `[WARN] ${message}`;
+      warnElement.style.color = '#ffab40';
+      consoleOutput.appendChild(warnElement);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    };
+    
+    // Clear console
+    document.getElementById('clear-console').addEventListener('click', () => {
+      consoleOutput.innerHTML = '';
+    });
+    
+    // Import necessary classes
+    import { EventEmitter } from './src/core/EventEmitter.js';
+    import { StateManager } from './src/core/StateManager.js';
+    import { validateParameterSchema, ParameterType } from './src/core/ParameterSchema.js';
+    import { ParameterManager } from './src/core/ParameterManager.js';
+    import { UIBuilder } from './src/ui/UIBuilder.js';
+    import { DesktopLayout } from './src/ui/DesktopLayout.js';
+    import { MobileLayout } from './src/ui/MobileLayout.js';
+    import { Canvas2DEnvironment } from './src/rendering/Canvas2DEnvironment.js';
+    import { ThreeJSEnvironment } from './src/rendering/ThreeJSEnvironment.js';
+    import { PluginRegistry } from './src/core/PluginRegistry.js';
+    import { Plugin } from './src/core/Plugin.js';
+    import { Visualization } from './src/core/Visualization.js';
+
+    // Setup for 3D tests
+    import * as THREE from 'three';
+    import CameraControls from 'camera-controls';
+    
+    // Make THREE globally available for testing
+    window.THREE = THREE;
+    CameraControls.install({ THREE });
+    
+    // Core Classes Tests
+    
+    // EventEmitter Test
+    document.getElementById('test-event-emitter').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('core-result');
+      resultDisplay.innerHTML = 'Testing EventEmitter...\n';
+      
+      const emitter = new EventEmitter();
+      
+      // Create test events
+      const events = [];
+      emitter.on('test', (data) => {
+        events.push(`Event received: ${data}`);
+      });
+      
+      emitter.once('once', (data) => {
+        events.push(`Once event: ${data}`);
+      });
+      
+      // Emit events
+      emitter.emit('test', 'Hello World');
+      emitter.emit('test', 'Second event');
+      emitter.emit('once', 'Should happen once');
+      emitter.emit('once', 'Should not be received');
+      
+      // Show results
+      resultDisplay.innerHTML += events.join('\n');
+      resultDisplay.innerHTML += '\n\nEventEmitter test complete!';
+    });
+    
+    // StateManager Test
+    document.getElementById('test-state-manager').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('core-result');
+      resultDisplay.innerHTML = 'Testing StateManager...\n';
+      
+      const stateManager = new StateManager({
+        test: 'initial value',
+        nested: {
+          value: 123
+        }
+      });
+      
+      // Listen for changes
+      const changes = [];
+      stateManager.addListener((key, newValue, oldValue) => {
+        changes.push(`Change: ${key} = ${JSON.stringify(newValue)} (was ${JSON.stringify(oldValue)})`);
+      });
+      
+      // Make state changes
+      stateManager.set('test', 'updated value');
+      stateManager.set('new', 'new value');
+      stateManager.set('nested.value', 456);
+      stateManager.set('nested.added', 'nested value');
+      
+      // Get values
+      const values = [
+        `test = ${stateManager.get('test')}`,
+        `new = ${stateManager.get('new')}`,
+        `nested.value = ${stateManager.get('nested.value')}`,
+        `nested.added = ${stateManager.get('nested.added')}`,
+        `missing (with default) = ${stateManager.get('missing', 'default value')}`
+      ];
+      
+      // Show results
+      resultDisplay.innerHTML += 'State changes:\n';
+      resultDisplay.innerHTML += changes.join('\n');
+      resultDisplay.innerHTML += '\n\nFinal values:\n';
+      resultDisplay.innerHTML += values.join('\n');
+      resultDisplay.innerHTML += '\n\nFull state: ' + JSON.stringify(stateManager.getAll(), null, 2);
+      resultDisplay.innerHTML += '\n\nStateManager test complete!';
+    });
+    
+    // ParameterSchema Test
+    document.getElementById('test-parameter-schema').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('core-result');
+      resultDisplay.innerHTML = 'Testing ParameterSchema validation...\n';
+      
+      const testResults = [];
+      
+      // Valid schema
+      try {
+        const validSchema = {
+          structural: [
+            {
+              id: 'sides',
+              type: 'slider',
+              label: 'Number of Sides',
+              min: 3,
+              max: 20,
+              step: 1,
+              default: 5
+            }
+          ],
+          visual: [
+            {
+              id: 'color',
+              type: 'color',
+              label: 'Fill Color',
+              default: '#3498db'
+            },
+            {
+              id: 'showBorder',
+              type: 'checkbox',
+              label: 'Show Border',
+              default: true
+            }
+          ]
+        };
+        
+        validateParameterSchema(validSchema);
+        testResults.push('✅ Valid schema passed validation');
+      } catch (error) {
+        testResults.push(`❌ Valid schema failed: ${error.message}`);
+      }
+      
+      // Invalid schema - missing required field
+      try {
+        const invalidSchema = {
+          structural: [
+            {
+              id: 'sides',
+              type: 'slider',
+              label: 'Number of Sides',
+              // Missing default value
+              min: 3,
+              max: 20
+            }
+          ]
+        };
+        
+        validateParameterSchema(invalidSchema);
+        testResults.push('❌ Invalid schema passed validation but should have failed');
+      } catch (error) {
+        testResults.push(`✅ Caught error: ${error.message}`);
+      }
+      
+      // Invalid schema - incorrect structure
+      try {
+        const invalidSchema = {
+          structural: 'not an array' // Should be an array
+        };
+        
+        validateParameterSchema(invalidSchema);
+        testResults.push('❌ Invalid structure passed validation but should have failed');
+      } catch (error) {
+        testResults.push(`✅ Caught error: ${error.message}`);
+      }
+      
+      // Show results
+      resultDisplay.innerHTML += testResults.join('\n');
+      resultDisplay.innerHTML += '\n\nParameterSchema test complete!';
+    });
+    
+    // ParameterManager Test
+    document.getElementById('test-parameter-manager').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('core-result');
+      resultDisplay.innerHTML = 'Testing ParameterManager...\n';
+      
+      // Create parameter manager
+      const paramManager = new ParameterManager({ core: {} });
+      
+      // Define test schema
+      const schema = {
+        structural: [
+          {
+            id: 'slider',
+            type: 'slider',
+            label: 'Slider Parameter',
+            min: 0,
+            max: 100,
+            step: 5,
+            default: 50
+          }
+        ],
+        visual: [
+          {
+            id: 'color',
+            type: 'color',
+            label: 'Color Parameter',
+            default: '#ff0000'
+          },
+          {
+            id: 'checkbox',
+            type: 'checkbox',
+            label: 'Checkbox Parameter',
+            default: true
+          },
+          {
+            id: 'dropdown',
+            type: 'dropdown',
+            label: 'Dropdown Parameter',
+            options: ['Option 1', 'Option 2', 'Option 3'],
+            default: 'Option 2'
+          }
+        ]
+      };
+      
+      // Test parameter validation
+      const testValues = [
+        { parameterId: 'slider', value: 120, note: 'Out of range (max: 100)' },
+        { parameterId: 'slider', value: -10, note: 'Out of range (min: 0)' },
+        { parameterId: 'slider', value: 72, note: 'Should be rounded to nearest step (70)' },
+        { parameterId: 'color', value: 'invalid', note: 'Invalid color' },
+        { parameterId: 'color', value: '#00ff00', note: 'Valid color' },
+        { parameterId: 'checkbox', value: 1, note: 'Non-boolean converted to true' },
+        { parameterId: 'checkbox', value: 0, note: 'Non-boolean converted to false' },
+        { parameterId: 'dropdown', value: 'Option 4', note: 'Not in options list' },
+        { parameterId: 'dropdown', value: 'Option 1', note: 'Valid option' }
+      ];
+      
+      // Validate each test value
+      const results = testValues.map(test => {
+        const validatedValue = paramManager.validateParameterValue(test.parameterId, test.value, schema);
+        return `Parameter: ${test.parameterId}, Input: ${test.value}, Output: ${validatedValue} - ${test.note}`;
+      });
+      
+      // Test default parameter extraction
+      const defaults = paramManager.getDefaultParameters(schema);
+      
+      // Show results
+      resultDisplay.innerHTML += 'Parameter validation:\n';
+      resultDisplay.innerHTML += results.join('\n');
+      resultDisplay.innerHTML += '\n\nDefault parameters:\n';
+      resultDisplay.innerHTML += JSON.stringify(defaults, null, 2);
+      resultDisplay.innerHTML += '\n\nParameterManager test complete!';
+    });
+    
+    // UI Builder Tests
+    
+    const uiBuilder = new UIBuilder();
+    const builderContainer = document.getElementById('ui-builder-container');
+    
+    // Test creating a slider
+    document.getElementById('test-create-slider').addEventListener('click', () => {
+      // Clear previous controls
+      builderContainer.innerHTML = '';
+      
+      // Create slider parameter
+      const sliderParam = {
+        id: 'test-slider',
+        type: 'slider',
+        label: 'Test Slider',
+        min: 0,
+        max: 100,
+        step: 5,
+        default: 50
+      };
+      
+      // Create slider control
+      const slider = uiBuilder.createControl(sliderParam, 50, (value) => {
+        console.log(`Slider changed to ${value}`);
+      });
+      
+      builderContainer.appendChild(slider);
+    });
+    
+    // Test creating a checkbox
+    document.getElementById('test-create-checkbox').addEventListener('click', () => {
+      // Clear previous controls
+      builderContainer.innerHTML = '';
+      
+      // Create checkbox parameter
+      const checkboxParam = {
+        id: 'test-checkbox',
+        type: 'checkbox',
+        label: 'Test Checkbox',
+        default: true
+      };
+      
+      // Create checkbox control
+      const checkbox = uiBuilder.createControl(checkboxParam, true, (value) => {
+        console.log(`Checkbox changed to ${value}`);
+      });
+      
+      builderContainer.appendChild(checkbox);
+    });
+    
+    // Test creating a color picker
+    document.getElementById('test-create-color').addEventListener('click', () => {
+      // Clear previous controls
+      builderContainer.innerHTML = '';
+      
+      // Create color parameter
+      const colorParam = {
+        id: 'test-color',
+        type: 'color',
+        label: 'Test Color',
+        default: '#3498db'
+      };
+      
+      // Create color control
+      const colorPicker = uiBuilder.createControl(colorParam, '#3498db', (value) => {
+        console.log(`Color changed to ${value}`);
+      });
+      
+      builderContainer.appendChild(colorPicker);
+    });
+    
+    // Test creating a dropdown
+    document.getElementById('test-create-dropdown').addEventListener('click', () => {
+      // Clear previous controls
+      builderContainer.innerHTML = '';
+      
+      // Create dropdown parameter
+      const dropdownParam = {
+        id: 'test-dropdown',
+        type: 'dropdown',
+        label: 'Test Dropdown',
+        options: ['Option 1', 'Option 2', 'Option 3'],
+        default: 'Option 2'
+      };
+      
+      // Create dropdown control
+      const dropdown = uiBuilder.createControl(dropdownParam, 'Option 2', (value) => {
+        console.log(`Dropdown changed to ${value}`);
+      });
+      
+      builderContainer.appendChild(dropdown);
+    });
+    
+    // Test creating a button
+    document.getElementById('test-create-button').addEventListener('click', () => {
+      // Clear previous controls
+      builderContainer.innerHTML = '';
+      
+      // Create button
+      const button = uiBuilder.createButton('test-button', 'Test Button', () => {
+        console.log('Button clicked');
+      });
+      
+      button.className = 'btn';
+      builderContainer.appendChild(button);
+    });
+    
+    // Test creating a notification
+    document.getElementById('test-create-notification').addEventListener('click', () => {
+      uiBuilder.createNotification('This is a test notification', 3000);
+    });
+    
+    // Layout Tests
+    
+    // Test Desktop Layout
+    document.getElementById('test-desktop-layout').addEventListener('click', () => {
+      // Clear any existing layouts
+      document.getElementById('clear-layouts').click();
+      
+      // Create fake UI manager
+      const uiManager = {
+        uiBuilder: new UIBuilder()
+      };
+      
+      // Create desktop layout
+      const desktopLayout = new DesktopLayout(uiManager);
+      desktopLayout.initialize();
+      
+      // Add some test data
+      desktopLayout.updatePlugins([
+        { id: 'plugin1', name: 'Test Plugin 1' },
+        { id: 'plugin2', name: 'Test Plugin 2' },
+        { id: 'plugin3', name: 'Test Plugin 3' }
+      ], 'plugin1');
+      
+      // Add some test schema
+      const testSchema = {
+        structural: [
+          {
+            id: 'sides',
+            type: 'slider',
+            label: 'Number of Sides',
+            min: 3,
+            max: 20,
+            step: 1,
+            default: 5
+          },
+          {
+            id: 'radius',
+            type: 'slider',
+            label: 'Radius',
+            min: 10,
+            max: 200,
+            step: 10,
+            default: 100
+          }
+        ],
+        visual: [
+          {
+            id: 'color',
+            type: 'color',
+            label: 'Fill Color',
+            default: '#3498db'
+          },
+          {
+            id: 'showBorder',
+            type: 'checkbox',
+            label: 'Show Border',
+            default: true
+          },
+          {
+            id: 'borderColor',
+            type: 'color',
+            label: 'Border Color',
+            default: '#000000'
+          }
+        ]
+      };
+      
+      // Set values
+      const testValues = {
+        sides: 6,
+        radius: 120,
+        color: '#3498db',
+        showBorder: true,
+        borderColor: '#000000'
+      };
+      
+      desktopLayout.buildControls(testSchema, testValues);
+      
+      // Add some test actions
+      desktopLayout.updateActions([
+        { id: 'export-png', label: 'Export PNG' },
+        { id: 'reset', label: 'Reset Settings' }
+      ]);
+      
+      console.log('Desktop layout created');
+    });
+    
+    // Test Mobile Layout
+    document.getElementById('test-mobile-layout').addEventListener('click', () => {
+      // Clear any existing layouts
+      document.getElementById('clear-layouts').click();
+      
+      // Add mobile class to body
+      document.body.classList.add('mobile-device');
+      
+      // Create fake UI manager
+      const uiManager = {
+        uiBuilder: new UIBuilder()
+      };
+      
+      // Create mobile layout
+      const mobileLayout = new MobileLayout(uiManager);
+      mobileLayout.initialize();
+      
+      // Add some test data
+      mobileLayout.updatePlugins([
+        { id: 'plugin1', name: 'Test Plugin 1' },
+        { id: 'plugin2', name: 'Test Plugin 2' },
+        { id: 'plugin3', name: 'Test Plugin 3' }
+      ], 'plugin1');
+      
+      // Add some test schema
+      const testSchema = {
+        structural: [
+          {
+            id: 'sides',
+            type: 'slider',
+            label: 'Number of Sides',
+            min: 3,
+            max: 20,
+            step: 1,
+            default: 5
+          },
+          {
+            id: 'radius',
+            type: 'slider',
+            label: 'Radius',
+            min: 10,
+            max: 200,
+            step: 10,
+            default: 100
+          }
+        ],
+        visual: [
+          {
+            id: 'color',
+            type: 'color',
+            label: 'Fill Color',
+            default: '#3498db'
+          },
+          {
+            id: 'showBorder',
+            type: 'checkbox',
+            label: 'Show Border',
+            default: true
+          },
+          {
+            id: 'borderColor',
+            type: 'color',
+            label: 'Border Color',
+            default: '#000000'
+          }
+        ]
+      };
+      
+      // Set values
+      const testValues = {
+        sides: 6,
+        radius: 120,
+        color: '#3498db',
+        showBorder: true,
+        borderColor: '#000000'
+      };
+      
+      mobileLayout.buildControls(testSchema, testValues);
+      
+      // Add some test actions
+      mobileLayout.updateActions([
+        { id: 'export-png', label: 'Export PNG' },
+        { id: 'reset', label: 'Reset Settings' }
+      ]);
+      
+      console.log('Mobile layout created');
+    });
+    
+    // Clear Layouts
+    document.getElementById('clear-layouts').addEventListener('click', () => {
+      // Remove desktop panels
+      const desktopPanels = [
+        'plugin-selector-panel',
+        'structural-panel',
+        'visual-panel',
+        'export-panel'
+      ];
+      
+      desktopPanels.forEach(id => {
+        const panel = document.getElementById(id);
+        if (panel) panel.remove();
+      });
+      
+      // Remove mobile elements
+      const mobileElements = [
+        '.mobile-header',
+        '#mobile-options-button',
+        '#mobile-export-button',
+        '#mobile-visual-menu',
+        '#mobile-export-menu'
+      ];
+      
+      mobileElements.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => el.remove());
+      });
+      
+      // Remove mobile class from body
+      document.body.classList.remove('mobile-device');
+      
+      console.log('Layouts cleared');
+    });
+    
+    // Rendering Tests
+    
+    // 2D Environment Test
+    let canvas2d = document.getElementById('canvas-2d');
+    let ctx2d = null;
+    let environment2d = null;
+    
+    document.getElementById('test-2d-environment').addEventListener('click', () => {
+      // Create mock core
+      const mockCore = {
+        renderingManager: {
+          requestRender: () => {
+            // Render something simple
+            if (environment2d) {
+              environment2d.ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+              environment2d.ctx.fillStyle = '#f0f0f0';
+              environment2d.ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
+              
+              // Draw grid for reference
+              environment2d.ctx.save();
+              environment2d.ctx.strokeStyle = '#ccc';
+              environment2d.ctx.beginPath();
+              
+              // Apply camera transformation
+              const ctx = environment2d.prepareRender(environment2d.ctx);
+              
+              // Draw grid lines
+              for (let i = -500; i <= 500; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, -500);
+                ctx.lineTo(i, 500);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(-500, i);
+                ctx.lineTo(500, i);
+                ctx.stroke();
+              }
+              
+              // Origin marker
+              ctx.fillStyle = 'red';
+              ctx.beginPath();
+              ctx.arc(0, 0, 5, 0, Math.PI * 2);
+              ctx.fill();
+              
+              environment2d.completeRender(environment2d.ctx);
+            }
+          }
+        }
+      };
+      
+      // Size canvas to fit container
+      const container = document.getElementById('canvas-2d-container');
+      canvas2d.width = container.clientWidth;
+      canvas2d.height = container.clientHeight;
+      
+      // Create 2D environment
+      environment2d = new Canvas2DEnvironment(canvas2d, mockCore);
+      environment2d.initialize();
+      environment2d.activate();
+      
+      ctx2d = environment2d.ctx;
+      
+      console.log('2D environment initialized');
+      mockCore.renderingManager.requestRender();
+    });
+    
+    // Draw 2D Shape
+    document.getElementById('draw-2d-shape').addEventListener('click', () => {
+      if (!environment2d || !ctx2d) {
+        console.error('2D environment not initialized');
+        return;
+      }
+      
+      // Draw a polygon
+      const sides = 5;
+      const radius = 100;
+      
+      // Clear canvas and prepare
+      environment2d.ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+      environment2d.ctx.fillStyle = '#f0f0f0';
+      environment2d.ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
+      
+      // Apply camera transformation
+      const ctx = environment2d.prepareRender(environment2d.ctx);
+      
+      // Draw polygon
+      ctx.fillStyle = '#3498db';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      
+      ctx.beginPath();
+      for (let i = 0; i < sides; i++) {
+        const angle = (Math.PI * 2 * i) / sides;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      // Restore context
+      environment2d.completeRender(environment2d.ctx);
+      
+      console.log('Drew 2D polygon');
+    });
+    
+    // Test 2D Camera
+    document.getElementById('test-2d-camera').addEventListener('click', () => {
+      if (!environment2d) {
+        console.error('2D environment not initialized');
+        return;
+      }
+      
+      // Reset camera
+      environment2d.camera = {
+        x: 0,
+        y: 0,
+        scale: 1,
+        rotation: 0
+      };
+      
+      // Show instructions
+      const instructions = [
+        'Camera Controls:',
+        '- Click and drag to pan',
+        '- Scroll to zoom',
+        '- ESC to reset view'
+      ];
+      
+      environment2d.ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+      environment2d.ctx.fillStyle = '#f0f0f0';
+      environment2d.ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
+      
+      // Apply camera transformation
+      const ctx = environment2d.prepareRender(environment2d.ctx);
+      
+      // Draw grid lines
+      ctx.strokeStyle = '#ccc';
+      for (let i = -500; i <= 500; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(i, -500);
+        ctx.lineTo(i, 500);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(-500, i);
+        ctx.lineTo(500, i);
+        ctx.stroke();
+      }
+      
+      // Origin marker
+      ctx.fillStyle = 'red';
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw a shape to manipulate
+      ctx.fillStyle = '#3498db';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI * 2 * i) / 5;
+        const x = 100 * Math.cos(angle);
+        const y = 100 * Math.sin(angle);
+        
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      // Complete transformation
+      environment2d.completeRender(environment2d.ctx);
+      
+      // Draw instructions
+      ctx2d.fillStyle = '#000';
+      ctx2d.font = '14px sans-serif';
+      ctx2d.textAlign = 'left';
+      
+      instructions.forEach((text, i) => {
+        ctx2d.fillText(text, 10, 20 + i * 20);
+      });
+      
+      console.log('2D camera test ready');
+    });
+    
+    // 3D Environment Test
+    let canvas3d = document.getElementById('canvas-3d');
+    let environment3d = null;
+    
+    document.getElementById('test-3d-environment').addEventListener('click', () => {
+      // Create mock core
+      const mockCore = {
+        renderingManager: {
+          requestRender: () => {
+            if (environment3d) {
+              // Render the scene
+              environment3d.renderer.render(environment3d.scene, environment3d.camera);
+            }
+          }
+        }
+      };
+      
+      // Size canvas to fit container
+      const container = document.getElementById('canvas-3d-container');
+      canvas3d.width = container.clientWidth;
+      canvas3d.height = container.clientHeight;
+      
+      // Create 3D environment
+      environment3d = new ThreeJSEnvironment(canvas3d, mockCore);
+      environment3d.initialize().then(() => {
+        environment3d.activate();
+        
+        // Add grid for reference
+        const grid = new THREE.GridHelper(10, 10);
+        environment3d.scene.add(grid);
+        
+        // Add axes helper
+        const axes = new THREE.AxesHelper(5);
+        environment3d.scene.add(axes);
+        
+        // Request render
+        mockCore.renderingManager.requestRender();
+        
+        console.log('3D environment initialized');
+      });
+    });
+    
+    // Draw 3D Shape
+    document.getElementById('draw-3d-shape').addEventListener('click', () => {
+      if (!environment3d) {
+        console.error('3D environment not initialized');
+        return;
+      }
+      
+      // Clear any existing mesh
+      environment3d.clearScene();
+      
+      // Add grid for reference
+      const grid = new THREE.GridHelper(10, 10);
+      environment3d.scene.add(grid);
+      
+      // Add axes helper
+      const axes = new THREE.AxesHelper(5);
+      environment3d.scene.add(axes);
+      
+      // Create a cube
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshPhongMaterial({ 
+        color: 0x3498db,
+        flatShading: true
+      });
+      
+      const cube = new THREE.Mesh(geometry, material);
+      environment3d.scene.add(cube);
+      
+      // Render
+      environment3d.renderer.render(environment3d.scene, environment3d.camera);
+      
+      console.log('Drew 3D cube');
+    });
+    
+    // Test 3D Camera
+    document.getElementById('test-3d-camera').addEventListener('click', () => {
+      if (!environment3d) {
+        console.error('3D environment not initialized');
+        return;
+      }
+      
+      // Clear any existing mesh
+      environment3d.clearScene();
+      
+      // Add grid for reference
+      const grid = new THREE.GridHelper(10, 10);
+      environment3d.scene.add(grid);
+      
+      // Add axes helper
+      const axes = new THREE.AxesHelper(5);
+      environment3d.scene.add(axes);
+      
+      // Create a simple scene with multiple objects
+      // Create a cube
+      const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+      const cubeMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x3498db
+      });
+      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube.position.set(0, 0.5, 0);
+      environment3d.scene.add(cube);
+      
+      // Create a sphere
+      const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+      const sphereMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0xe74c3c
+      });
+      const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+      sphere.position.set(2, 0.5, 0);
+      environment3d.scene.add(sphere);
+      
+      // Create a cone
+      const coneGeometry = new THREE.ConeGeometry(0.5, 1, 32);
+      const coneMaterial = new THREE.MeshPhongMaterial({ 
+        color: 0x2ecc71
+      });
+      const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+      cone.position.set(0, 0.5, 2);
+      environment3d.scene.add(cone);
+      
+      // Render
+      environment3d.renderer.render(environment3d.scene, environment3d.camera);
+      
+      console.log('3D camera test ready - use mouse to orbit, zoom');
+    });
+    
+    // Integration Tests
+    
+    // Test Parameter to UI Flow
+    document.getElementById('test-parameter-ui').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('integration-result');
+      resultDisplay.innerHTML = 'Testing Parameter to UI Flow...\n';
+      
+      // Create test schema
+      const schema = {
+        structural: [
+          {
+            id: 'sides',
+            type: 'slider',
+            label: 'Number of Sides',
+            min: 3,
+            max: 20,
+            step: 1,
+            default: 5
+          }
+        ],
+        visual: [
+          {
+            id: 'color',
+            type: 'color',
+            label: 'Color',
+            default: '#3498db'
+          }
+        ]
+      };
+      
+      // Create test values
+      const values = {
+        sides: 6,
+        color: '#e74c3c'
+      };
+      
+      // Create parameter manager
+      const paramManager = new ParameterManager({ core: {} });
+      
+      // Validate values
+      const validatedValues = {};
+      Object.entries(values).forEach(([key, value]) => {
+        validatedValues[key] = paramManager.validateParameterValue(key, value, schema);
+      });
+      
+      // Create UI builder
+      const uiBuilder = new UIBuilder();
+      
+      // Create UI controls
+      const controls = [];
+      
+      // Build controls for structural parameters
+      schema.structural.forEach(param => {
+        controls.push(uiBuilder.createControl(
+          param,
+          validatedValues[param.id],
+          (value) => console.log(`${param.id} changed to ${value}`)
+        ));
+      });
+      
+      // Build controls for visual parameters
+      schema.visual.forEach(param => {
+        controls.push(uiBuilder.createControl(
+          param,
+          validatedValues[param.id],
+          (value) => console.log(`${param.id} changed to ${value}`)
+        ));
+      });
+      
+      // Display results
+      resultDisplay.innerHTML += 'Validated values:\n';
+      resultDisplay.innerHTML += JSON.stringify(validatedValues, null, 2);
+      resultDisplay.innerHTML += '\n\nCreated controls: ' + controls.length;
+      resultDisplay.innerHTML += '\n\nParameter to UI Flow test complete!';
+      
+      // Create a temporary container to show the controls
+      resultDisplay.innerHTML += '\n\nDemo controls:';
+      
+      const demoContainer = document.createElement('div');
+      demoContainer.style.backgroundColor = 'white';
+      demoContainer.style.padding = '10px';
+      demoContainer.style.marginTop = '10px';
+      demoContainer.style.borderRadius = '4px';
+      
+      controls.forEach(control => {
+        demoContainer.appendChild(control);
+      });
+      
+      resultDisplay.appendChild(demoContainer);
+    });
+    
+    // Test Plugin Registry
+    document.getElementById('test-plugin-registry').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('integration-result');
+      resultDisplay.innerHTML = 'Testing Plugin Registry...\n';
+      
+      resultDisplay.innerHTML += 'This test would normally scan directories for plugins.\n';
+      resultDisplay.innerHTML += 'For this demo, we\'ll create mock plugin classes manually.\n\n';
+      
+      // Create mock core
+      const mockCore = {};
+      
+      // Create plugin registry
+      const registry = new PluginRegistry(mockCore);
+      
+      // Create mock plugin classes
+      class MockPlugin1 extends Plugin {
+        static id = 'mock-plugin-1';
+        static name = 'Mock Plugin 1';
+        static description = 'First mock plugin';
+        static renderingType = '2d';
+      }
+      
+      class MockPlugin2 extends Plugin {
+        static id = 'mock-plugin-2';
+        static name = 'Mock Plugin 2';
+        static description = 'Second mock plugin';
+        static renderingType = '3d';
+      }
+      
+      // Register plugin classes
+      registry.registerPluginClass(MockPlugin1);
+      registry.registerPluginClass(MockPlugin2);
+      
+      // Get plugin metadata
+      const metadata = registry.getPluginMetadata();
+      
+      // Display results
+      resultDisplay.innerHTML += 'Registered plugins:\n';
+      resultDisplay.innerHTML += JSON.stringify(metadata, null, 2);
+      resultDisplay.innerHTML += '\n\nPlugin Registry test complete!';
+    });
+    
+    // Test Plugin Activation Flow
+    document.getElementById('test-plugin-activation').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('integration-result');
+      resultDisplay.innerHTML = 'Testing Plugin Activation Flow...\n';
+      
+      resultDisplay.innerHTML += 'Creating a mock plugin and testing activation...\n\n';
+      
+      // Create mock core
+      const mockCore = {
+        renderingManager: {
+          setEnvironment: (type) => console.log(`Setting environment to ${type}`),
+          requestRender: () => console.log('Render requested')
+        },
+        uiManager: {
+          buildControlsFromSchema: (schema, values) => console.log('Building UI controls'),
+          updateActions: (actions) => console.log('Updating actions')
+        }
+      };
+      
+      // Create a basic plugin that will log activation steps
+      class TestPlugin extends Plugin {
+        static id = 'test-plugin';
+        static name = 'Test Plugin';
+        static description = 'A test plugin';
+        static renderingType = '2d';
+        
+        // Override initialize
+        async initialize() {
+          console.log('Plugin initialize called');
+          await super.initialize();
+          return true;
+        }
+        
+        // Override activate
+        async activate() {
+          console.log('Plugin activate called');
+          await super.activate();
+          console.log('Plugin activated successfully');
+          return true;
+        }
+        
+        // Override deactivate
+        async deactivate() {
+          console.log('Plugin deactivate called');
+          await super.deactivate();
+          console.log('Plugin deactivated successfully');
+          return true;
+        }
+        
+        // Override getParameterSchema
+        getParameterSchema() {
+          return {
+            structural: [
+              {
+                id: 'testParam',
+                type: 'slider',
+                label: 'Test Parameter',
+                min: 0,
+                max: 100,
+                step: 1,
+                default: 50
+              }
+            ],
+            visual: []
+          };
+        }
+        
+        // Override _initializeDefaultVisualization
+        async _initializeDefaultVisualization() {
+          console.log('Creating default visualization');
+          
+          class TestVis extends Visualization {
+            constructor(plugin) {
+              super(plugin);
+              console.log('Visualization constructor');
+            }
+            
+            async initialize(parameters) {
+              console.log('Visualization initialize with params:', parameters);
+              return true;
+            }
+            
+            update(parameters) {
+              console.log('Visualization update with params:', parameters);
+            }
+            
+            render2D(ctx, parameters) {
+              console.log('Visualization render2D called');
+            }
+            
+            handleInteraction(type, event) {
+              console.log(`Visualization interaction: ${type}`);
+              return true;
+            }
+            
+            dispose() {
+              console.log('Visualization dispose called');
+            }
+          }
+          
+          // Create and register the visualization
+          const vis = new TestVis(this);
+          this.registerVisualization('default', vis);
+          this.currentVisualization = vis;
+          
+          // Initialize with current parameters
+          await vis.initialize(this.parameters);
+        }
+      }
+      
+      // Create plugin instance
+      const plugin = new TestPlugin(mockCore);
+      
+      // Test activation flow
+      (async () => {
+        // Initialize first
+        await plugin.initialize();
+        
+        // Activate
+        const activateResult = await plugin.activate();
+        
+        // Update a parameter
+        plugin.onParameterChanged('testParam', 75);
+        
+        // Deactivate
+        const deactivateResult = await plugin.deactivate();
+        
+        // Show final results
+        resultDisplay.innerHTML += 'Activation success: ' + activateResult;
+        resultDisplay.innerHTML += '\nDeactivation success: ' + deactivateResult;
+        resultDisplay.innerHTML += '\n\nParameter schema: ' + JSON.stringify(plugin.getParameterSchema(), null, 2);
+        resultDisplay.innerHTML += '\n\nPlugin Activation flow test complete!';
+        resultDisplay.innerHTML += '\n\nCheck console for detailed logs.';
+      })();
+    });
+    
+    // Full Integration Test
+    document.getElementById('test-full-integration').addEventListener('click', () => {
+      const resultDisplay = document.getElementById('integration-result');
+      resultDisplay.innerHTML = 'Testing Full Integration...\n\n';
+      
+      resultDisplay.innerHTML += 'This would test the entire system flow from app initialization to plugin activation and rendering.\n\n';
+      resultDisplay.innerHTML += 'For a complete test, the system would:\n';
+      resultDisplay.innerHTML += '1. Initialize the AppCore\n';
+      resultDisplay.innerHTML += '2. Discover plugins\n';
+      resultDisplay.innerHTML += '3. Set up UI based on device type\n';
+      resultDisplay.innerHTML += '4. Initialize appropriate rendering environment\n';
+      resultDisplay.innerHTML += '5. Activate a plugin\n';
+      resultDisplay.innerHTML += '6. Render visualization\n';
+      resultDisplay.innerHTML += '7. Handle user interactions\n\n';
+      
+      resultDisplay.innerHTML += 'For a complete test, please run the actual application.';
+    });
+  </script>
+</body>
+</html>
