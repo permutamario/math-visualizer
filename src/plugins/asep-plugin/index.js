@@ -53,6 +53,21 @@ export default class ASEPPlugin extends Plugin {
           max: 5,
           step: 0.1,
           default: 0.5
+        },
+        {
+          id: 'animationSpeed',
+          type: 'slider',
+          label: 'Animation Speed',
+          min: 0.1,
+          max: 5,
+          step: 0.1,
+          default: 1.0
+        },
+        {
+          id: 'isPaused',
+          type: 'checkbox',
+          label: 'Pause Simulation',
+          default: false
         }
       ],
       visual: [
@@ -114,13 +129,18 @@ export default class ASEPPlugin extends Plugin {
     // Update parameter value
     this.parameters[parameterId] = value;
     
+    // Handle pause toggle
+    if (parameterId === 'isPaused' && this.currentVisualization) {
+      this.currentVisualization.update({ isPaused: value });
+    }
+    
     // Handle structural parameter changes that require reinitializing
-    const structuralParams = ['numBoxes', 'numParticles', 'rightJumpRate', 'leftJumpRate'];
+    const structuralParams = ['numBoxes', 'numParticles'];
     if (structuralParams.includes(parameterId) && this.currentVisualization) {
       // Reinitialize visualization with updated parameters
       this.currentVisualization.initialize(this.parameters);
     } else if (this.currentVisualization) {
-      // For visual parameters, just update without reinitializing
+      // For other parameters, just update without reinitializing
       this.currentVisualization.update(this.parameters);
     }
   }
@@ -133,7 +153,7 @@ export default class ASEPPlugin extends Plugin {
       ...super.getActions(),
       {
         id: 'toggle-simulation',
-        label: 'Toggle Simulation'
+        label: 'Play/Pause Simulation'
       },
       {
         id: 'restart-simulation',
@@ -150,7 +170,12 @@ export default class ASEPPlugin extends Plugin {
     switch (actionId) {
       case 'toggle-simulation':
         if (this.currentVisualization) {
-          this.currentVisualization.toggleSimulation();
+          // Toggle the isPaused parameter which will update the visualization
+          this.parameters.isPaused = !this.parameters.isPaused;
+          this.currentVisualization.update({ isPaused: this.parameters.isPaused });
+          
+          // Update UI to reflect the new state
+          this.uiManager.updateControls(this.parameters);
         }
         return true;
         

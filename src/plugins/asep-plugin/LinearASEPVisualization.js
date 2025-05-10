@@ -5,8 +5,10 @@ export class LinearASEPVisualization extends Visualization {
   constructor(plugin) {
     super(plugin);
     
+    // Set the direct isAnimating property for the rendering manager
+    this.isAnimating = true;
+    
     // Store simulation state
-    this.isAnimating = true;  // Add this line to mirror the state.isAnimating flag
     this.state = {
       isAnimating: true,       // Flag to ensure continuous rendering
       isPaused: false,         // Flag to control simulation pausing
@@ -36,7 +38,11 @@ export class LinearASEPVisualization extends Visualization {
     
     // Set animation flag
     this.state.isAnimating = true;
-    this.state.isPaused = false;
+    this.isAnimating = true;  // Direct property for RenderingManager
+    this.state.isPaused = parameters.isPaused || false;
+    
+    // Set timeScale from parameters
+    this.state.timeScale = parameters.animationSpeed || 1.0;
     
     return true;
   }
@@ -120,9 +126,25 @@ export class LinearASEPVisualization extends Visualization {
    * Schedule initial jumps for particles
    */
   scheduleInitialJumps() {
-    this.state.particles.forEach(particle => {
-      this.scheduleNextJump(particle);
-    });
+    if (!this.state.isPaused) {
+      this.state.particles.forEach(particle => {
+        this.scheduleNextJump(particle);
+      });
+    }
+  }
+  
+  /**
+   * Check if a position is already occupied
+   * @param {number} position - Position to check
+   * @param {Object} excludeParticle - Particle to exclude from check
+   * @returns {boolean} True if position is occupied
+   */
+  isPositionOccupied(position, excludeParticle = null) {
+    return this.state.particles.some(p => 
+      p !== excludeParticle && 
+      ((p.position === position && !p.isJumping) || 
+       (p.isJumping && p.targetPosition === position))
+    );
   }
   
   /**
@@ -154,15 +176,7 @@ export class LinearASEPVisualization extends Visualization {
         // Check if target position is valid
         if (targetPos >= 0 && targetPos < this.state.boxes.length) {
           // Check if target position is empty
-          const targetIsEmpty = !this.state.particles.some(p => 
-            p !== particle && 
-            p.position === targetPos && 
-            !p.isJumping && 
-            // Also check if there's no particle jumping to the same position
-            !(p.isJumping && p.targetPosition === targetPos)
-          );
-          
-          if (targetIsEmpty) {
+          if (!this.isPositionOccupied(targetPos, particle)) {
             // Start jump animation
             particle.isJumping = true;
             particle.jumpProgress = 0;
@@ -218,15 +232,19 @@ export class LinearASEPVisualization extends Visualization {
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   animate(deltaTime) {
-    // Always request continuous rendering
-    let needsUpdate = false;
+    // Update speed from parameters
+    this.state.timeScale = this.plugin.parameters.animationSpeed;
+    
+    // Always request continuous rendering by setting direct property
+    this.isAnimating = true;
     
     // Update particle jump animations
+    let needsUpdate = false;
     this.state.particles.forEach(particle => {
       if (particle.isJumping) {
         needsUpdate = true;
         // Update jump progress
-        particle.jumpProgress += deltaTime * particle.jumpSpeed;
+        particle.jumpProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
         
         if (particle.jumpProgress >= 1) {
           // Jump complete
@@ -258,9 +276,6 @@ export class LinearASEPVisualization extends Visualization {
     
     // Draw particles
     this.drawParticles(ctx, parameters);
-    
-    // Draw status indicators
-    this.drawStatusIndicators(ctx, parameters);
   }
   
   /**
@@ -363,53 +378,6 @@ export class LinearASEPVisualization extends Visualization {
   }
   
   /**
-   * Draw status indicators (pause/play, rates)
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
-   */
-  drawStatusIndicators(ctx, parameters) {
-    ctx.save();
-    
-    // Move to top-left corner of the view
-    const viewCenter = this.state.boxes[Math.floor(this.state.boxes.length / 2)];
-    const viewWidth = (this.state.boxes.length * parameters.boxWidth) + 200;
-    const x = viewCenter.x - viewWidth/2 + 20;
-    const y = viewCenter.y - 200;
-    
-    // Draw simulation status
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#2c3e50';
-    ctx.textAlign = 'left';
-    ctx.fillText(
-      `Simulation: ${this.state.isPaused ? 'Paused' : 'Running'}`, 
-      x, 
-      y
-    );
-    
-    // Draw rates
-    ctx.fillText(
-      `Right Rate: ${parameters.rightJumpRate.toFixed(1)}`, 
-      x, 
-      y + 25
-    );
-    
-    ctx.fillText(
-      `Left Rate: ${parameters.leftJumpRate.toFixed(1)}`, 
-      x, 
-      y + 50
-    );
-    
-    // Draw particle count
-    ctx.fillText(
-      `Particles: ${this.state.particles.length}`, 
-      x, 
-      y + 75
-    );
-    
-    ctx.restore();
-  }
-  
-  /**
    * Interpolate between two colors
    * @param {string} startColor - Starting color (hex or rgb)
    * @param {string} endColor - Ending color (hex or rgb)
@@ -462,8 +430,32 @@ export class LinearASEPVisualization extends Visualization {
    * @param {Object} parameters - New parameter values
    */
   update(parameters) {
-    // For visual parameters, we don't need to reinitialize
-    // They will be used in the next render cycle
+    // Update animation state based on isPaused parameter
+    if (parameters.isPaused !== undefined && parameters.isPaused !== this.state.isPaused) {
+      this.state.isPaused = parameters.isPaused;
+      
+      if (!this.state.isPaused) {
+        // Resume simulation
+        this.state.particles.forEach(particle => {
+          if (!particle.isJumping) {
+            this.scheduleNextJump(particle);
+          }
+        });
+      } else {
+        // Pause simulation
+        this.state.jumpEvents.forEach(event => {
+          if (event.timeoutId) {
+            clearTimeout(event.timeoutId);
+          }
+        });
+        this.state.jumpEvents = [];
+      }
+    }
+    
+    // Update timeScale
+    if (parameters.animationSpeed !== undefined) {
+      this.state.timeScale = parameters.animationSpeed;
+    }
   }
   
   /**
@@ -482,5 +474,6 @@ export class LinearASEPVisualization extends Visualization {
     this.state.particles = [];
     this.state.boxes = [];
     this.state.isAnimating = false;
+    this.isAnimating = false;
   }
 }
