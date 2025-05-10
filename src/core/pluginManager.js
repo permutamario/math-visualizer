@@ -9,77 +9,167 @@ import initCubePlugin from '../plugins/cube/index.js';
 import initInteractivePlugin from '../plugins/interactive/index.js';
 import initPolytopeViewerPlugin from '../plugins/polytope-viewer/index.js';
 
+// Cache for loaded plugin manifests
+const manifestCache = new Map();
+
 /**
  * Load and register all available plugins without initializing them
  * @returns {Promise<Array>} Array of registered plugins
  */
 export async function loadPlugins() {
   try {
-    console.log("Registering plugins with Plugin Controller Registry");
+    console.log("Discovering and registering plugins");
     
     // 1. Get app instance
     const app = window.AppInstance;
     if (!app) {
       throw new Error('App instance not found');
     }
-    
-    // Make sure app is initialized
-    if (!app.initialized) {
-      await app.initialize();
-    }
 
     // 2. Use our predefined list of plugins
     const plugins = getPluginsList();
-
+    
+    // 3. Try to load manifests for each plugin
+    const manifestPromises = plugins.map(plugin => loadPluginManifest(plugin.id));
+    const manifests = await Promise.allSettled(manifestPromises);
+    
     const registeredPlugins = [];
 
-    for (const plugin of plugins) {
-      // Set lifecycle state to 'registered' but not initialized
-      plugin.lifecycleState = 'registered';
+    // 4. Register each plugin with its manifest if available
+    for (let i = 0; i < plugins.length; i++) {
+      const plugin = plugins[i];
       
-      // Register the plugin with the app (now uses Plugin Controller Registry)
+      // If manifest was loaded successfully, use it
+      if (manifests[i].status === 'fulfilled' && manifests[i].value) {
+        plugin.manifest = manifests[i].value;
+      }
+      
+      // Register the plugin with the app
       app.registerPlugin(plugin);
-      
       registeredPlugins.push(plugin);
     }
 
+    console.log(`Registered ${registeredPlugins.length} plugins`);
     return registeredPlugins;
     
   } catch (error) {
-    console.error('Failed to register plugins with registry:', error);
-    showNotification('Failed to register plugins', 3000);
+    console.error('Failed to load plugins:', error);
+    showNotification('Failed to load plugins', 3000);
     return [];
   }
 }
 
 /**
- * Initialize a specific plugin using the Plugin Controller Registry
- * @param {string} pluginId - ID of the plugin to initialize
+ * Load a plugin's manifest file
+ * @param {string} pluginId - Plugin ID
+ * @returns {Promise<Object|null>} Manifest object or null if not found
+ */
+async function loadPluginManifest(pluginId) {
+  // Check cache first
+  if (manifestCache.has(pluginId)) {
+    return manifestCache.get(pluginId);
+  }
+  
+  // Try to load manifest
+  try {
+    const manifestUrl = `src/plugins/${pluginId}/manifest.json`;
+    const response = await fetch(manifestUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load manifest: ${response.statusText}`);
+    }
+    
+    const manifest = await response.json();
+    
+    // Cache the result
+    manifestCache.set(pluginId, manifest);
+    
+    console.log(`Loaded manifest for plugin: ${pluginId}`);
+    return manifest;
+  } catch (error) {
+    console.warn(`Could not load manifest for ${pluginId}:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Discover plugin implementations and manifests from a directory
+ * @param {string} pluginId - Plugin ID and directory name
+ * @returns {Promise<Object>} Plugin implementation functions and manifest
+ */
+export async function discoverPlugin(pluginId) {
+  try {
+    // Load the plugin's manifest
+    const manifest = await loadPluginManifest(pluginId);
+    
+    if (!manifest) {
+      throw new Error(`No manifest found for plugin: ${pluginId}`);
+    }
+    
+    // Helper function to load implementation files
+    const loadImplementation = async (fileName) => {
+      try {
+        const module = await import(`../plugins/${pluginId}/${fileName}.js`);
+        return module;
+      } catch (error) {
+        console.warn(`Could not load ${fileName}.js for ${pluginId}:`, error);
+        return {};
+      }
+    };
+    
+    // Load implementation files
+    const [requiredFunctions, exportActions, interactionHandlers] = await Promise.all([
+      loadImplementation('requiredFunctions'),
+      loadImplementation('exportActions'),
+      loadImplementation('interactionHandlers')
+    ]);
+    
+    // Combine all implementation functions
+    const implementation = {
+      ...requiredFunctions,
+      ...exportActions,
+      ...interactionHandlers
+    };
+    
+    return {
+      manifest,
+      implementation
+    };
+  } catch (error) {
+    console.error(`Error discovering plugin ${pluginId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Register a plugin from its manifest file
+ * @param {string} pluginId - Plugin ID
  * @returns {Promise<boolean>} Success status
  */
-export async function initializePlugin(pluginId) {
+export async function registerPluginFromManifest(pluginId) {
   try {
-    console.log(`Initializing plugin through registry: ${pluginId}`);
-    
-    // Get app instance
     const app = window.AppInstance;
     if (!app) {
       throw new Error('App instance not found');
     }
     
-    // Use the registry to initialize the plugin
-    const controller = await app.pluginRegistry.initializePlugin(pluginId);
+    // Discover the plugin
+    const plugin = await discoverPlugin(pluginId);
     
-    if (controller) {
-      return true;
-    } else {
-      console.error(`Failed to initialize plugin ${pluginId} through registry`);
-      return false;
+    if (!plugin) {
+      throw new Error(`Failed to discover plugin: ${pluginId}`);
     }
     
+    // Register with the app
+    app.pluginRegistry.registerPluginFromManifest(
+      plugin.manifest,
+      plugin.implementation
+    );
+    
+    console.log(`Registered plugin ${pluginId} from manifest`);
+    return true;
   } catch (error) {
-    console.error(`Error initializing plugin ${pluginId} through registry:`, error);
-    showNotification(`Failed to initialize plugin: ${pluginId}`, 3000);
+    console.error(`Error registering plugin ${pluginId} from manifest:`, error);
     return false;
   }
 }
@@ -94,23 +184,7 @@ function getPluginsList() {
       id: 'square',
       name: 'Square Visualization',
       description: 'A simple square visualization',
-      init: initSquarePlugin,
-      manifest: {
-        defaultSettings: {
-          squareSize: 100,
-          squareColor: '#156289',
-          squareOpacity: 1.0,
-          squareRotation: 0,
-          backgroundColor: '#f5f5f5',
-          showBorder: true,
-          borderColor: '#000000',
-          borderWidth: 2,
-        },
-        environment: {
-          type: '2d-camera',
-          options: {}
-        }
-      }
+      init: initSquarePlugin
     },
     
     // Circle Plugin
@@ -118,25 +192,7 @@ function getPluginsList() {
       id: 'circle',
       name: 'Circle Visualization',
       description: 'A sectioned circle visualization with interaction',
-      init: initCirclePlugin,
-      manifest: {
-        defaultSettings: {
-          circleRadius: 100,
-          circleColor: '#4285f4',
-          circleOpacity: 1.0,
-          circleSections: 4,
-          backgroundColor: '#f5f5f5',
-          showBorder: true,
-          borderColor: '#000000',
-          borderWidth: 2,
-          highlightColor: '#ff5722',
-          animation: false
-        },
-        environment: {
-          type: '2d-event',
-          options: {}
-        }
-      }
+      init: initCirclePlugin
     },
     
     // 3D Cube Plugin
@@ -144,25 +200,7 @@ function getPluginsList() {
       id: 'cube',
       name: '3D Cube Visualization',
       description: 'A 3D cube visualization with camera controls',
-      init: initCubePlugin,
-      manifest: {
-        defaultSettings: {
-          cubeSize: 100,
-          cubeColor: '#3498db',
-          opacity: 1.0,
-          wireframe: true,
-          wireframeColor: '#000000',
-          rotation: true,
-          backgroundColor: '#f5f5f5'
-        },
-        environment: {
-          type: '3d-camera',
-          options: {
-            cameraPosition: [0, 0, 5],
-            lookAt: [0, 0, 0]
-          }
-        }
-      }
+      init: initCubePlugin
     },
     
     // Interactive Shapes Plugin
@@ -170,20 +208,7 @@ function getPluginsList() {
       id: 'interactive',
       name: 'Interactive Shapes',
       description: 'Interactive shapes that can be clicked and dragged',
-      init: initInteractivePlugin,
-      manifest: {
-        defaultSettings: {
-          defaultColor: '#3498db',
-          selectedColor: '#e74c3c',
-          snapToGrid: false,
-          gridSize: 20,
-          backgroundColor: '#f5f5f5'
-        },
-        environment: {
-          type: '2d-event',
-          options: {}
-        }
-      }
+      init: initInteractivePlugin
     },
     
     // Polytope Viewer Plugin
@@ -191,29 +216,7 @@ function getPluginsList() {
       id: 'polytopeViewer',
       name: 'Polytope Viewer',
       description: 'Interactive viewer for 3D polytopes with parametric controls',
-      init: initPolytopeViewerPlugin,
-      manifest: {
-        defaultSettings: {
-          polytopeType: "cube",
-          wireframe: false,
-          showVertices: true,
-          vertexSize: 0.1,
-          edgeThickness: 1,
-          edgeColor: "#000000",
-          faceColor: "#3498db",
-          faceOpacity: 0.85,
-          showFaces: true,
-          animation: false,
-          size: 1
-        },
-        environment: {
-          type: '3d-camera',
-          options: {
-            cameraPosition: [0, 0, 5],
-            lookAt: [0, 0, 0]
-          }
-        }
-      }
+      init: initPolytopeViewerPlugin
     }
   ];
 }

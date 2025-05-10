@@ -42,25 +42,39 @@ export class PluginControllerRegistry {
   }
   
   /**
-   * Initialize a specific plugin
-   * @param {string} pluginId - ID of the plugin to initialize
-   * @returns {Promise<PluginController>} Plugin controller
+   * Register a plugin from a manifest and implementation
+   * @param {Object} manifest - Plugin manifest
+   * @param {Object} implementation - Plugin implementation functions
+   * @returns {PluginController} Plugin controller
    */
-  async initializePlugin(pluginId) {
-    const controller = this.controllers.get(pluginId);
-    if (!controller) {
-      console.error(`Plugin ${pluginId} not found in registry`);
+  registerPluginFromManifest(manifest, implementation) {
+    if (!manifest.id) {
+      console.error('Cannot register plugin without an ID in manifest');
       return null;
     }
     
-    // Initialize the controller
-    try {
-      await controller.initialize();
-      return controller;
-    } catch (error) {
-      console.error(`Failed to initialize plugin ${pluginId}:`, error);
-      return null;
+    // Check if controller already exists
+    if (this.controllers.has(manifest.id)) {
+      console.log(`Controller for plugin ${manifest.id} already exists`);
+      return this.controllers.get(manifest.id);
     }
+    
+    // Create a plugin object from manifest
+    const plugin = {
+      id: manifest.id,
+      name: manifest.name || manifest.id,
+      description: manifest.description || '',
+      manifest: manifest,
+      init: () => implementation
+    };
+    
+    // Create a new controller
+    const controller = new PluginController(plugin, this.core);
+    controller.implementation = implementation;
+    this.controllers.set(manifest.id, controller);
+    
+    console.log(`Registered plugin ${manifest.id} from manifest`);
+    return controller;
   }
   
   /**
@@ -159,6 +173,34 @@ export class PluginControllerRegistry {
     
     this.activeController.updateSetting(path, value);
     return true;
+  }
+  
+  /**
+   * Executes an export action for the active plugin
+   * @param {string} actionId - Export action ID
+   * @returns {boolean} Success status
+   */
+  executeExportAction(actionId) {
+    if (!this.activeController) {
+      console.warn('No active plugin to execute export action for');
+      return false;
+    }
+    
+    const manifest = this.activeController.manifest;
+    const implementation = this.activeController.implementation;
+    
+    // Try to find the export action in the manifest
+    if (manifest && manifest.exportOptions) {
+      const exportOption = manifest.exportOptions.find(option => option.id === actionId);
+      
+      if (exportOption && exportOption.handler && implementation[exportOption.handler]) {
+        // Execute the handler function
+        return implementation[exportOption.handler]() || true;
+      }
+    }
+    
+    // If not found in manifest, try the hooks system for backwards compatibility
+    return this.core.hooks.doAction('exportAction', actionId);
   }
   
   /**

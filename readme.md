@@ -12,7 +12,7 @@ This framework allows for creating and managing different mathematical visualiza
 - [Core Components](#core-components)
 - [Plugin System](#plugin-system)
 - [Plugin Lifecycle](#plugin-lifecycle)
-- [Manifest-Based Plugin Registration](#manifest-based-plugin-registration)
+- [Manifest-Based Plugin Architecture](#manifest-based-plugin-architecture)
 - [UI System](#ui-system)
 - [State Management](#state-management)
 - [Rendering Environments](#rendering-environments)
@@ -53,8 +53,11 @@ This framework allows for creating and managing different mathematical visualiza
     │   └── mobileUI.js       # Mobile interface
     └── plugins/              # Plugin directory
         ├── square/           # Example square plugin (2D camera)
-        │   ├── index.js      # Plugin implementation
-        │   └── manifest.json # Plugin metadata
+        │   ├── index.js      # Plugin implementation or entry point
+        │   ├── manifest.json # Plugin metadata and configuration
+        │   ├── requiredFunctions.js  # Core visualization functions
+        │   ├── exportActions.js      # Export-related functionality
+        │   └── interactionHandlers.js # User interaction handlers
         ├── circle/           # Example circle plugin (2D event)
         │   ├── index.js      # Plugin implementation
         │   └── manifest.json # Plugin metadata
@@ -98,16 +101,17 @@ The central controller for the application:
 ### src/core/pluginManager.js
 
 Responsible for discovering and managing plugins:
-- Scans for available plugins
+- Scans for available plugins and their manifests
 - Registers plugins with the Plugin Controller Registry
-- Only initializes plugins when actually needed
-- Manages plugin initialization
+- Discovers plugin implementation files based on manifest
+- Manages plugin activation
 - Provides information about available plugins
 
 ### src/core/PluginController.js
 
 Manages the complete lifecycle of individual plugins:
-- Controls the plugin states (registered, ready, active, error)
+- Controls the plugin states (registered, active, inactive)
+- Handles plugin activation from manifest definitions
 - Ensures metadata and settings are properly loaded
 - Manages plugin resources
 - Centralizes plugin activation/deactivation logic
@@ -121,6 +125,7 @@ Maintains a registry of all plugin controllers:
 - Ensures only one plugin is active at a time
 - Handles plugin activation/deactivation sequences
 - Provides access to plugin controllers
+- Supports registering plugins from manifests
 
 ### src/core/stateManager.js
 
@@ -175,7 +180,7 @@ The framework implements a clean plugin lifecycle that ensures complete separati
 ### 1. Registration
 - Plugin is registered with the framework
 - Manifest is loaded
-- No initialization occurs yet
+- No activation occurs yet
 
 ### 2. Activation
 - Plugin is activated when selected by the user
@@ -199,15 +204,9 @@ The framework implements a clean plugin lifecycle that ensures complete separati
 - No information persists for next activation
 - Complete cleanup ensures no memory leaks
 
-### 5. Re-Activation
-- If the plugin is selected again, it starts fresh
-- Treated as if it's the first activation
-- Previous state is not restored
-- All initialization happens again
-
 This approach ensures a clean separation between visualizations, prevents state leakage between activations, and makes each visualization truly independent.
 
-## Manifest-Based Plugin Registration
+## Manifest-Based Plugin Architecture
 
 The framework uses a declarative, manifest-based approach for plugin registration:
 
@@ -220,14 +219,137 @@ The framework uses a declarative, manifest-based approach for plugin registratio
    - Default settings
    - UI controls metadata
    - Export options
+   
+   Example manifest.json:
+   ```json
+   {
+     "id": "myPlugin",
+     "name": "My Visualization",
+     "version": "1.0.0",
+     "description": "A custom visualization plugin",
+     "author": "Your Name",
+     
+     "environment": {
+       "type": "2d-camera",
+       "options": {
+         "initialZoom": 1.0
+       }
+     },
+     
+     "hooks": {
+       "render": "renderVisualization",
+       "beforeRender": "animate",
+       "afterRender": "postProcess",
+       "activate": "onActivate",
+       "deactivate": "onDeactivate",
+       "settingChanged": "handleSettingChanged",
+       "mouseEvents": {
+         "click": "handleClick",
+         "mousemove": "handleMouseMove"
+       }
+     },
+     
+     "defaultSettings": {
+       "size": 100,
+       "color": "#3498db",
+       "opacity": 1.0,
+       "showBorder": true
+     },
+     
+     "settingsMetadata": {
+       "visual": [
+         {
+           "key": "color",
+           "label": "Color",
+           "control": "color",
+           "default": "#3498db"
+         },
+         {
+           "key": "opacity",
+           "label": "Opacity",
+           "control": "slider", 
+           "min": 0,
+           "max": 1,
+           "step": 0.01,
+           "default": 1.0
+         }
+       ],
+       "structural": [
+         {
+           "key": "size",
+           "label": "Size",
+           "control": "slider",
+           "min": 10,
+           "max": 300,
+           "step": 1,
+           "default": 100
+         }
+       ]
+     },
+     
+     "exportOptions": [
+       {
+         "id": "export-png",
+         "label": "Export PNG",
+         "type": "export",
+         "handler": "exportPNG"
+       },
+       {
+         "id": "reset-settings",
+         "label": "Reset Settings",
+         "type": "export",
+         "handler": "resetSettings"
+       }
+     ]
+   }
+   ```
 
 2. **Implementation Files**:
    - `requiredFunctions.js`: Core visualization functions (render, activate, deactivate, etc.)
    - `exportActions.js`: Export-related functionality
    - `interactionHandlers.js`: User interaction handlers
+   - These files export the functions referenced in the manifest's hooks
 
-3. **Plugin Entry Point**:
-   - `index.js`: Imports the manifest and implementation files and registers the plugin
+3. **Legacy Entry Point**:
+   - For backward compatibility, plugins can also have an `index.js` that registers hooks manually
+
+### Plugin Implementation
+
+For a manifest-based plugin, implementation files export the functions that are referenced in the manifest:
+
+```javascript
+// requiredFunctions.js
+export function renderVisualization(ctx, canvas, settings) {
+  // Render logic here
+  return true;
+}
+
+export function onActivate() {
+  console.log("Plugin activated");
+  // Initialize resources
+}
+
+export function onDeactivate() {
+  console.log("Plugin deactivated");
+  // Clean up resources
+}
+```
+
+```javascript
+// exportActions.js
+export function exportPNG() {
+  // Export logic here
+  return true;
+}
+```
+
+```javascript
+// interactionHandlers.js
+export function handleClick(event) {
+  // Handle click event
+  return true;
+}
+```
 
 This approach simplifies plugin development by handling boilerplate code, providing clear separation of concerns, and making plugins self-documenting.
 
@@ -373,18 +495,14 @@ Plugins specify their environment requirements in the manifest:
 
 ## Creating Plugins
 
-To create a new plugin:
+To create a new plugin using the manifest-based approach:
 
 1. Create a directory in `src/plugins/` with your plugin name
 2. Create the plugin files:
-   - `manifest.json`: Plugin configuration
+   - `manifest.json`: Plugin configuration and metadata
    - `requiredFunctions.js`: Core visualization functions
    - `exportActions.js`: Export-related functionality
    - `interactionHandlers.js`: User interaction handlers
-   - `index.js`: Plugin entry point
-3. Register your plugin in `pluginManager.js`
-
-This modular, declarative approach simplifies plugin development by handling boilerplate code while you focus on creating outstanding visualizations.
 
 ### Recommended File Structure
 
@@ -393,9 +511,10 @@ src/plugins/myPlugin/
 ├── manifest.json           # Plugin configuration
 ├── requiredFunctions.js    # Core visualization functions
 ├── exportActions.js        # Export-related functionality
-├── interactionHandlers.js  # User interaction handlers
-└── index.js                # Main entry point
+└── interactionHandlers.js  # User interaction handlers
 ```
+
+This modular, declarative approach simplifies plugin development by handling boilerplate code while you focus on creating outstanding visualizations.
 
 ## Dependencies for 3D Visualization
 

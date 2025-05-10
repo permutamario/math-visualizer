@@ -7,6 +7,7 @@ import { setupDesktopUI } from '../ui/desktopUI.js';
 import { setupMobileUI } from '../ui/mobileUI.js';
 import { detectPlatform } from './utils.js';
 import { PluginControllerRegistry } from './PluginControllerRegistry.js';
+import { registerPluginFromManifest } from './pluginManager.js';
 
 // App instance for singleton access
 let appInstance = null;
@@ -126,6 +127,14 @@ class App {
         // Reset the flag
         changeState('rebuildUI', false);
       }
+    });
+    
+    // Handle export actions
+    this.hooks.addAction('exportAction', 'app', (actionId) => {
+      if (this.pluginRegistry && this.pluginRegistry.activeController) {
+        return this.pluginRegistry.executeExportAction(actionId);
+      }
+      return false;
     });
   }
   
@@ -279,11 +288,6 @@ class App {
       return;
     }
     
-    // Ensure plugin has a manifest
-    if (!plugin.manifest) {
-      plugin.manifest = {};
-    }
-    
     // Store plugin in state for backwards compatibility
     changeState(`plugins.${plugin.id}`, plugin);
     
@@ -294,11 +298,21 @@ class App {
       name: plugin.name || plugin.id,
       description: plugin.description || ''
     });
+    
     changeState('availablePlugins', availablePlugins);
   }
   
   /**
-   * Activate a plugin by ID (with lazy initialization)
+   * Register a plugin from a manifest file
+   * @param {string} pluginId - Plugin ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async registerPluginFromManifest(pluginId) {
+    return registerPluginFromManifest(pluginId);
+  }
+  
+  /**
+   * Activate a plugin by ID
    * @param {string} pluginId - ID of the plugin to activate
    * @returns {Promise<boolean>} Success status
    */

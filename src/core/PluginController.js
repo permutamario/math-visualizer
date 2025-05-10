@@ -1,7 +1,7 @@
 // src/core/PluginController.js
 
 /**
- * Class that manages the complete lifecycle of a plugin
+ * Class that manages the complete lifecycle of a plugin using the manifest-based approach
  */
 export class PluginController {
   /**
@@ -13,68 +13,24 @@ export class PluginController {
     this.plugin = plugin;
     this.core = core;
     this.id = plugin.id;
-    this.state = plugin.lifecycleState || 'registered'; // registered, initializing, ready, active, error
+    this.state = 'registered'; // registered, active, inactive
     this.settings = null;
     this.metadata = null;
     this.exportOptions = null;
     this.environmentType = null;
     this.resources = new Map(); // Resources created by the plugin
-    this.isInitialized = false;
+    this.implementation = {};
+    
+    // Load manifest if available
+    this.manifest = plugin.manifest || {};
+    
+    // Initialize with default settings from manifest
+    this.loadDefaultSettings();
     
     // Log creation
     console.log(`Created PluginController for plugin: ${this.id}`);
   }
 
-  /**
-   * Initialize the plugin if not already initialized
-   * @returns {Promise<PluginController>} This controller after initialization
-   */
-  async initialize() {
-    if (this.isInitialized) {
-      console.log(`Plugin ${this.id} already initialized`);
-      return this;
-    }
-    
-    try {
-      console.log(`Initializing plugin: ${this.id}`);
-      this.setState('initializing');
-      
-      // Create initialization context
-      const core = {
-        hooks: this.core.hooks,
-        state: {
-          getState: window.getState
-        },
-        lifecycle: {
-          setPluginState: (state) => this.setState(state)
-        }
-      };
-      
-      // Call the plugin's init function
-      const initResult = this.plugin.init(core);
-      
-      // If init returns a promise, wait for it
-      if (initResult instanceof Promise) {
-        await initResult;
-      }
-      
-      // Wait for hooks to be registered
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Load default settings from manifest
-      this.loadDefaultSettings();
-      
-      this.isInitialized = true;
-      this.setState('ready');
-      console.log(`Plugin ${this.id} initialized successfully`);
-      return this;
-    } catch (error) {
-      console.error(`Error initializing plugin ${this.id}:`, error);
-      this.setState('error');
-      throw error;
-    }
-  }
-  
   /**
    * Set the plugin state
    * @param {string} state - New state
@@ -91,8 +47,8 @@ export class PluginController {
    * Load default settings from plugin manifest
    */
   loadDefaultSettings() {
-    if (this.plugin.manifest && this.plugin.manifest.defaultSettings) {
-      this.settings = { ...this.plugin.manifest.defaultSettings };
+    if (this.manifest && this.manifest.defaultSettings) {
+      this.settings = { ...this.manifest.defaultSettings };
       console.log(`Loaded default settings for plugin ${this.id}`);
     } else {
       this.settings = {};
@@ -101,58 +57,47 @@ export class PluginController {
   }
   
   /**
-   * Fetch metadata from the plugin's hooks
+   * Fetch metadata from the plugin's manifest or hooks
    * @returns {Promise<Object>} Settings metadata
    */
   async fetchMetadata() {
-    if (!this.isInitialized) {
-      await this.initialize();
+    // First try to get metadata from the manifest
+    if (this.manifest && this.manifest.settingsMetadata) {
+      console.log(`Using metadata from manifest for plugin ${this.id}`);
+      this.metadata = this.manifest.settingsMetadata;
+      return this.metadata;
     }
     
+    // If not in manifest, try to get from hooks
     return new Promise((resolve) => {
-      // First attempt to get metadata
       let metadata = this.core.hooks.applyFilters('settingsMetadata', {}, this.id);
       
       if (metadata && Object.keys(metadata).length > 0) {
-        console.log(`Got metadata for plugin ${this.id} on first attempt`);
+        console.log(`Got metadata for plugin ${this.id} via hooks`);
         this.metadata = metadata;
         resolve(metadata);
         return;
       }
       
-      console.log(`Polling for metadata for plugin ${this.id}`);
-      
-      // If no metadata yet, poll a few times
-      let attempts = 0;
-      const maxAttempts = 5;
-      const interval = setInterval(() => {
-        attempts++;
-        metadata = this.core.hooks.applyFilters('settingsMetadata', {}, this.id);
-        
-        if (metadata && Object.keys(metadata).length > 0) {
-          clearInterval(interval);
-          console.log(`Got metadata for plugin ${this.id} after ${attempts} attempts`);
-          this.metadata = metadata;
-          resolve(metadata);
-        } else if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          console.warn(`No metadata found for plugin ${this.id} after ${maxAttempts} attempts`);
-          this.metadata = {};
-          resolve({});
-        }
-      }, 100);
+      console.log(`No metadata found for plugin ${this.id}`);
+      this.metadata = {};
+      resolve({});
     });
   }
   
   /**
-   * Fetch export options from the plugin's hooks
+   * Fetch export options from the plugin's manifest or hooks
    * @returns {Promise<Array>} Export options
    */
   async fetchExportOptions() {
-    if (!this.isInitialized) {
-      await this.initialize();
+    // First try to get export options from manifest
+    if (this.manifest && this.manifest.exportOptions) {
+      console.log(`Using export options from manifest for plugin ${this.id}`);
+      this.exportOptions = this.manifest.exportOptions;
+      return this.exportOptions;
     }
     
+    // If not in manifest, try to get from hooks
     const exportOptions = this.core.hooks.applyFilters('exportOptions', [], this.id);
     this.exportOptions = exportOptions;
     console.log(`Fetched ${exportOptions.length} export options for plugin ${this.id}`);
@@ -165,8 +110,8 @@ export class PluginController {
    */
   async setupEnvironment() {
     // Get environment requirements from plugin manifest
-    this.environmentType = this.plugin.manifest?.environment?.type || '2d-camera';
-    const environmentOptions = this.plugin.manifest?.environment?.options || {};
+    this.environmentType = this.manifest?.environment?.type || '2d-camera';
+    const environmentOptions = this.manifest?.environment?.options || {};
     
     console.log(`Setting up ${this.environmentType} environment for plugin ${this.id}`);
     
@@ -179,6 +124,64 @@ export class PluginController {
   }
   
   /**
+   * Register hooks from manifest
+   */
+  registerHooksFromManifest() {
+    if (!this.manifest.hooks) return;
+    
+    // Register render hook
+    if (this.manifest.hooks.render && this.implementation[this.manifest.hooks.render]) {
+      this.core.hooks.addAction('render', this.id, this.implementation[this.manifest.hooks.render], 10);
+    }
+    
+    // Register beforeRender hook
+    if (this.manifest.hooks.beforeRender && this.implementation[this.manifest.hooks.beforeRender]) {
+      this.core.hooks.addAction('beforeRender', this.id, this.implementation[this.manifest.hooks.beforeRender], 10);
+    }
+    
+    // Register afterRender hook
+    if (this.manifest.hooks.afterRender && this.implementation[this.manifest.hooks.afterRender]) {
+      this.core.hooks.addAction('afterRender', this.id, this.implementation[this.manifest.hooks.afterRender], 10);
+    }
+    
+    // Register settingChanged hook
+    if (this.manifest.hooks.settingChanged && this.implementation[this.manifest.hooks.settingChanged]) {
+      this.core.hooks.addAction('onSettingChanged', this.id, this.implementation[this.manifest.hooks.settingChanged], 10);
+    }
+    
+    // Register mouse events if provided
+    if (this.manifest.hooks.mouseEvents) {
+      const mouseEvents = this.manifest.hooks.mouseEvents;
+      
+      if (mouseEvents.click && this.implementation[mouseEvents.click]) {
+        this.core.hooks.addAction('onClick', this.id, this.implementation[mouseEvents.click], 10);
+      }
+      
+      if (mouseEvents.mousemove && this.implementation[mouseEvents.mousemove]) {
+        this.core.hooks.addAction('onMouseMove', this.id, this.implementation[mouseEvents.mousemove], 10);
+      }
+      
+      if (mouseEvents.mousedown && this.implementation[mouseEvents.mousedown]) {
+        this.core.hooks.addAction('onMouseDown', this.id, this.implementation[mouseEvents.mousedown], 10);
+      }
+      
+      if (mouseEvents.mouseup && this.implementation[mouseEvents.mouseup]) {
+        this.core.hooks.addAction('onMouseUp', this.id, this.implementation[mouseEvents.mouseup], 10);
+      }
+    }
+    
+    // Register any other hooks defined in the manifest
+    const otherHooks = Object.entries(this.manifest.hooks).filter(([key]) => 
+      !['render', 'beforeRender', 'afterRender', 'settingChanged', 'mouseEvents'].includes(key));
+    
+    otherHooks.forEach(([hookName, functionName]) => {
+      if (this.implementation[functionName]) {
+        this.core.hooks.addAction(hookName, this.id, this.implementation[functionName], 10);
+      }
+    });
+  }
+  
+  /**
    * Activate the plugin
    * @returns {Promise<boolean>} Success status
    */
@@ -186,10 +189,28 @@ export class PluginController {
     try {
       console.log(`Activating plugin: ${this.id}`);
       
-      // Ensure plugin is initialized
-      if (!this.isInitialized) {
-        await this.initialize();
+      // Set activation state
+      this.setState('active');
+      
+      // Create implementation from plugin.init if needed
+      if (typeof this.plugin.init === 'function' && Object.keys(this.implementation).length === 0) {
+        const core = {
+          hooks: this.core.hooks,
+          state: {
+            getState: window.getState
+          }
+        };
+        
+        // Call the plugin's init function to get implementation
+        const implementation = this.plugin.init(core);
+        
+        if (implementation) {
+          this.implementation = implementation;
+        }
       }
+      
+      // Register hooks from manifest if available
+      this.registerHooksFromManifest();
       
       // Fetch metadata and export options in parallel
       const [metadata, exportOptions] = await Promise.all([
@@ -207,11 +228,13 @@ export class PluginController {
       window.changeState('exportOptions', exportOptions);
       window.changeState('activePluginId', this.id);
       
-      // Notify the plugin it's being activated
-      this.core.hooks.doAction('activatePlugin', { pluginId: this.id });
+      // Call onActivate from manifest if available
+      if (this.manifest.hooks?.activate && this.implementation[this.manifest.hooks.activate]) {
+        this.implementation[this.manifest.hooks.activate]();
+      }
       
-      // Update state
-      this.setState('active');
+      // Notify the plugin it's being activated through hooks for backwards compatibility
+      this.core.hooks.doAction('activatePlugin', { pluginId: this.id });
       
       // Trigger plugin activation event
       window.changeState('pluginActivated', { pluginId: this.id });
@@ -227,7 +250,7 @@ export class PluginController {
       return true;
     } catch (error) {
       console.error(`Error activating plugin ${this.id}:`, error);
-      this.setState('error');
+      this.setState('inactive');
       return false;
     }
   }
@@ -240,14 +263,19 @@ export class PluginController {
     try {
       console.log(`Deactivating plugin: ${this.id}`);
       
-      // Notify the plugin it's being deactivated
+      // Call onDeactivate from manifest if available
+      if (this.manifest.hooks?.deactivate && this.implementation[this.manifest.hooks.deactivate]) {
+        this.implementation[this.manifest.hooks.deactivate]();
+      }
+      
+      // Notify the plugin it's being deactivated through hooks for backwards compatibility
       this.core.hooks.doAction('deactivatePlugin', { pluginId: this.id });
       
       // Clean up resources
       this.cleanupResources();
       
       // Update state
-      this.setState('ready');
+      this.setState('inactive');
       
       console.log(`Plugin ${this.id} deactivated successfully`);
       return true;
@@ -291,7 +319,12 @@ export class PluginController {
     
     current[keys[keys.length - 1]] = value;
     
-    // Notify the plugin about the setting change
+    // Notify using the manifest hook if available
+    if (this.manifest.hooks?.settingChanged && this.implementation[this.manifest.hooks.settingChanged]) {
+      this.implementation[this.manifest.hooks.settingChanged](path, value);
+    }
+    
+    // Notify the plugin about the setting change through hooks for backwards compatibility
     this.core.hooks.doAction('onSettingChanged', { 
       path, 
       value, 
@@ -303,8 +336,8 @@ export class PluginController {
    * Reset plugin settings to defaults
    */
   resetSettings() {
-    if (this.plugin.manifest && this.plugin.manifest.defaultSettings) {
-      this.settings = { ...this.plugin.manifest.defaultSettings };
+    if (this.manifest && this.manifest.defaultSettings) {
+      this.settings = { ...this.manifest.defaultSettings };
       window.changeState('settings', this.settings);
       window.changeState('settingsReset', { pluginId: this.id });
     }
