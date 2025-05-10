@@ -577,6 +577,7 @@ toggleFullscreenMode() {
      // Remove fullscreen button
   if (this.fullscreenButton && this.fullscreenButton.parentNode) {
     this.fullscreenButton.parentNode.removeChild(this.fullscreenButton);
+  }
   
     // Remove document click listener
     document.removeEventListener('click', this.handleDocumentClick);
