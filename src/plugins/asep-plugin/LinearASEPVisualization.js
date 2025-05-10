@@ -6,6 +6,7 @@ export class LinearASEPVisualization extends Visualization {
     super(plugin);
     
     // Store simulation state
+    this.isAnimating = true;  // Add this line to mirror the state.isAnimating flag
     this.state = {
       isAnimating: true,       // Flag to ensure continuous rendering
       isPaused: false,         // Flag to control simulation pausing
