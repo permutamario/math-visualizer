@@ -43,6 +43,10 @@ export class DesktopLayout extends EventEmitter {
       
       // Create plugin selector button and list
       this.createPluginSelector();
+
+      // Create fullscreen button
+    this.createFullscreenButton();
+    
       
       // Add document click listener for closing plugin list
       document.addEventListener('click', this.handleDocumentClick);
@@ -273,6 +277,26 @@ export class DesktopLayout extends EventEmitter {
     return panel;
   }
   
+  /**
+ * Toggle fullscreen mode
+ * @returns {boolean} New fullscreen state
+ */
+toggleFullscreenMode() {
+  const isFullscreen = !this.state.get('isFullscreen', false);
+  this.state.set('isFullscreen', isFullscreen);
+  
+  // Update body class - actual UI changes are handled by CSS
+  if (isFullscreen) {
+    document.body.classList.add('fullscreen-mode');
+  } else {
+    document.body.classList.remove('fullscreen-mode');
+  }
+  
+  // Emit event for any listeners
+  this.events.emit('fullscreenToggled', isFullscreen);
+  
+  return isFullscreen;
+}
   /**
    * Build UI controls from schema
    * @param {ParameterSchema} schema - Parameter schema
@@ -550,6 +574,10 @@ export class DesktopLayout extends EventEmitter {
       this.pluginList.parentNode.removeChild(this.pluginList);
     }
     
+     // Remove fullscreen button
+  if (this.fullscreenButton && this.fullscreenButton.parentNode) {
+    this.fullscreenButton.parentNode.removeChild(this.fullscreenButton);
+  
     // Remove document click listener
     document.removeEventListener('click', this.handleDocumentClick);
     
@@ -560,7 +588,9 @@ export class DesktopLayout extends EventEmitter {
     this.controls = {};
     this.actions = [];
     this.initialized = false;
-    
+    // Remove fullscreen mode if active
+  document.body.classList.remove('fullscreen-mode');
+  
     console.log("Desktop layout disposed");
   }
 }

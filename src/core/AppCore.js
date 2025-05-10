@@ -128,7 +128,29 @@ export class AppCore {
       return false;
     }
   }
+  /**
+   * Toggles Fullscreen mode
+   */
+/**
+ * Toggle fullscreen mode
+ * @returns {boolean} New fullscreen state
+ */
+toggleFullscreenMode() {
+  const isFullscreen = !this.state.get('isFullscreen', false);
+  this.state.set('isFullscreen', isFullscreen);
   
+  // Update body class - actual UI changes are handled by CSS
+  if (isFullscreen) {
+    document.body.classList.add('fullscreen-mode');
+  } else {
+    document.body.classList.remove('fullscreen-mode');
+  }
+  
+  // Emit event for any listeners
+  this.events.emit('fullscreenToggled', isFullscreen);
+  
+  return isFullscreen;
+}
   /**
    * Handle parameter changes from UI
    * @param {string} parameterId - ID of the changed parameter

@@ -49,6 +49,9 @@ export class MobileLayout extends EventEmitter {
       
       // Create UI elements
       this.createUIElements();
+
+      // Create fullscreen button
+    this.createFullscreenButton();
       
       // Add document click listener for closing menus
       document.addEventListener('click', this.handleOutsideClick);
@@ -163,6 +166,39 @@ export class MobileLayout extends EventEmitter {
     
     return header;
   }
+
+  /**
+ * Create the fullscreen button
+ */
+createFullscreenButton() {
+  const button = document.createElement('button');
+  button.id = 'mobile-fullscreen-button';
+  button.className = 'mobile-fullscreen-button';
+  button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+  button.title = 'Toggle Fullscreen Mode';
+  
+  // Handle click
+  button.addEventListener('click', () => {
+    document.body.classList.toggle('fullscreen-mode');
+    
+    // Update button position and appearance based on state
+    if (document.body.classList.contains('fullscreen-mode')) {
+      button.classList.add('fullscreen-active');
+      button.innerHTML = '<span class="fullscreen-icon">⤢</span>';
+      button.title = 'Exit Fullscreen Mode';
+    } else {
+      button.classList.remove('fullscreen-active');
+      button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+      button.title = 'Enter Fullscreen Mode';
+    }
+    
+    // Emit action event
+    this.emit('action', 'toggle-fullscreen');
+  });
+  
+  document.body.appendChild(button);
+  this.fullscreenButton = button;
+}
   
   /**
    * Create the control bar with buttons
@@ -710,6 +746,14 @@ export class MobileLayout extends EventEmitter {
     
     // Remove any loading indicator
     this.hideLoading();
+
+    // Remove fullscreen button
+  if (this.fullscreenButton && this.fullscreenButton.parentNode) {
+    this.fullscreenButton.parentNode.removeChild(this.fullscreenButton);
+  }
+
+  // Remove fullscreen mode if active
+  document.body.classList.remove('fullscreen-mode');
     
     // Remove document click listener
     document.removeEventListener('click', this.handleOutsideClick);

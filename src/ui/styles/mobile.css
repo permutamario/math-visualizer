@@ -387,3 +387,49 @@ body.mobile-device #viewer-canvas {
   color: #555;
   margin: 0;
 }
+
+
+/* Mobile fullscreen button */
+.mobile-fullscreen-button {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background-color: rgba(26, 36, 51, 0.7);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  transition: all 0.3s ease;
+}
+
+.mobile-fullscreen-button.fullscreen-active {
+  top: 10px;
+  right: 10px;
+  background-color: rgba(26, 36, 51, 0.5);
+}
+
+.mobile-fullscreen-button:active {
+  transform: scale(0.95);
+}
+
+/* Fullscreen mode for mobile */
+body.mobile-device.fullscreen-mode .mobile-header,
+body.mobile-device.fullscreen-mode .mobile-header-title,
+body.mobile-device.fullscreen-mode .mobile-control-bar {
+  display: none;
+}
+
+body.mobile-device.fullscreen-mode #mobile-plugin-button {
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+
+body.mobile-device.fullscreen-mode #mobile-plugin-button:hover {
+  opacity: 1;
+}
