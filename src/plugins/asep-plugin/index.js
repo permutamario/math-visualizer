@@ -15,9 +15,9 @@ export default class ASEPPlugin extends Plugin {
     
     // Create visualization instances map (will be populated in initialize)
     this.visualizations = {
-      'closed': null
-      //'open': null,
-      //'circular': null
+      'closed': null,
+      'open': null,
+      'circular': null
     };
   }
 
