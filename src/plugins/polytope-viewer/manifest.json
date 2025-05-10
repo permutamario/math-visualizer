@@ -12,6 +12,13 @@
       "lookAt": [0, 0, 0]
     }
   },
+  "hooks": {
+    "render": "renderVisualization",
+    "beforeRender": "handleAnimation",
+    "activate": "onActivate",
+    "deactivate": "onDeactivate",
+    "settingChanged": "handleSettingChanged"
+  },
   "defaultSettings": {
     "polytopeType": "cube",
     "scale": 1.0,
@@ -30,39 +37,143 @@
     "faceColor": "#3498db",
     "backgroundColor": "#f5f5f5"
   },
-  "uiCategories": [
-    {
-      "id": "structural",
-      "label": "Polytope Parameters",
-      "settings": ["polytopeType", "scale", "rotation", "rotationSpeed"]
-    },
-    {
-      "id": "visual",
-      "label": "Visual Parameters",
-      "settings": [
-        "wireframe", 
-        "showVertices", "vertexSize", "vertexColor",
-        "showEdges", "edgeThickness", "edgeColor",
-        "showFaces", "faceOpacity", "faceColorMode", "faceColor",
-        "backgroundColor"
-      ]
-    }
-  ],
+  "settingsMetadata": {
+    "structural": [
+      {
+        "key": "polytopeType",
+        "label": "Polytope Type",
+        "control": "dropdown",
+        "options": ["tetrahedron", "cube", "octahedron", "dodecahedron", "icosahedron"],
+        "default": "cube"
+      },
+      {
+        "key": "scale",
+        "label": "Scale",
+        "control": "slider",
+        "min": 0.1,
+        "max": 3.0,
+        "step": 0.1,
+        "default": 1.0
+      },
+      {
+        "key": "rotation",
+        "label": "Auto-rotate",
+        "control": "checkbox",
+        "default": false
+      },
+      {
+        "key": "rotationSpeed",
+        "label": "Rotation Speed",
+        "control": "slider",
+        "min": 0.1,
+        "max": 5.0, 
+        "step": 0.1,
+        "default": 0.5
+      }
+    ],
+    "visual": [
+      {
+        "key": "wireframe",
+        "label": "Wireframe Mode",
+        "control": "checkbox",
+        "default": false
+      },
+      {
+        "key": "showVertices",
+        "label": "Show Vertices",
+        "control": "checkbox",
+        "default": true
+      },
+      {
+        "key": "vertexSize",
+        "label": "Vertex Size",
+        "control": "slider",
+        "min": 0.01,
+        "max": 0.2,
+        "step": 0.01,
+        "default": 0.05
+      },
+      {
+        "key": "vertexColor",
+        "label": "Vertex Color",
+        "control": "color",
+        "default": "#ffffff"
+      },
+      {
+        "key": "showEdges",
+        "label": "Show Edges",
+        "control": "checkbox",
+        "default": true
+      },
+      {
+        "key": "edgeThickness",
+        "label": "Edge Thickness",
+        "control": "slider",
+        "min": 0.5,
+        "max": 5,
+        "step": 0.5,
+        "default": 1
+      },
+      {
+        "key": "edgeColor",
+        "label": "Edge Color",
+        "control": "color",
+        "default": "#000000"
+      },
+      {
+        "key": "showFaces",
+        "label": "Show Faces",
+        "control": "checkbox",
+        "default": true
+      },
+      {
+        "key": "faceOpacity",
+        "label": "Face Opacity",
+        "control": "slider",
+        "min": 0,
+        "max": 1,
+        "step": 0.05,
+        "default": 0.85
+      },
+      {
+        "key": "faceColorMode",
+        "label": "Face Color Mode",
+        "control": "dropdown",
+        "options": ["uniform", "by_face", "by_face_size", "by_face_angle"],
+        "default": "uniform"
+      },
+      {
+        "key": "faceColor",
+        "label": "Base Face Color",
+        "control": "color",
+        "default": "#3498db"
+      },
+      {
+        "key": "backgroundColor",
+        "label": "Background Color",
+        "control": "color",
+        "default": "#f5f5f5"
+      }
+    ]
+  },
   "exportOptions": [
     {
       "id": "export-png",
       "label": "Export PNG",
-      "type": "export"
-    },
-    {
-      "id": "reset-settings",
-      "label": "Reset Settings",
-      "type": "export"
+      "type": "export",
+      "handler": "exportPNG"
     },
     {
       "id": "toggle-wireframe",
       "label": "Toggle Wireframe",
-      "type": "action"
+      "type": "action",
+      "handler": "toggleWireframe"
+    },
+    {
+      "id": "reset-settings",
+      "label": "Reset Settings",
+      "type": "export",
+      "handler": "resetSettings"
     }
   ]
 }

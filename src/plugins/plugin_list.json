@@ -1,7 +1,5 @@
 [
-  "square",
-  "circle",
   "cube",
-  "interactive",
-  "polygon"
+  "polygon",
+"polytope-viewer"
 ]
