@@ -1,3 +1,4 @@
+```
 src/
 ├── core/
 │   ├── AppCore.js             # Application controller
