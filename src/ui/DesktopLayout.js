@@ -450,6 +450,37 @@ toggleFullscreenMode() {
     // Update export panel
     this.updateExportPanel(actions);
   }
+
+/**
+ * Create the fullscreen button
+ */
+createFullscreenButton() {
+  const button = document.createElement('button');
+  button.id = 'desktop-fullscreen-button';
+  button.className = 'fullscreen-button';
+  button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+  button.title = 'Toggle Fullscreen Mode';
+  
+  // Handle click
+  button.addEventListener('click', () => {
+    document.body.classList.toggle('fullscreen-mode');
+    
+    // Update button text based on state
+    if (document.body.classList.contains('fullscreen-mode')) {
+      button.innerHTML = '<span class="fullscreen-icon">⤢</span>';
+      button.title = 'Exit Fullscreen Mode';
+    } else {
+      button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+      button.title = 'Enter Fullscreen Mode';
+    }
+    
+    // Emit action event
+    this.emit('action', 'toggle-fullscreen');
+  });
+  
+  document.body.appendChild(button);
+  this.fullscreenButton = button;
+}
   
   /**
    * Update export panel with actions

@@ -100,24 +100,24 @@ export class Canvas2DEnvironment {
    * Deactivate the 2D environment
    * @returns {boolean} Whether deactivation was successful
    */
-  deactivate() {
-    if (!this.active) return true;
-    
-    // Remove event listeners
-    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
-    window.removeEventListener('mousemove', this.handleMouseMove);
-    window.removeEventListener('mouseup', this.handleMouseUp);
-    this.canvas.removeEventListener('wheel', this.handleWheel);
-    window.removeEventListener('keydown', this.handleKeyDown);
-    window.removeEventListener('keyup', this.handleKeyUp);
-    
-    // Reset cursor style
-    this.canvas.style.cursor = '';
-    
-    this.active = false;
-    console.log("2D canvas environment deactivated");
-    return true;
-  }
+deactivate() {
+  if (!this.active) return true;
+  
+  // Remove event listeners
+  this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+  window.removeEventListener('mousemove', this.handleMouseMove);
+  window.removeEventListener('mouseup', this.handleMouseUp);
+  this.canvas.removeEventListener('wheel', this.handleWheel);
+  window.removeEventListener('keydown', this.handleKeyDown);
+  window.removeEventListener('keyup', this.handleKeyUp);
+  
+  // Reset cursor style
+  this.canvas.style.cursor = '';
+  
+  this.active = false;
+  console.log("2D canvas environment deactivated");
+  return true;
+}
   
   /**
    * Handle window resize

@@ -25,9 +25,23 @@ export class RenderingManager {
     this.renderRequested = false;
     
     // Bind methods
-    this.animate = this.animate.bind(this);
-    this.render = this.render.bind(this);
+   this.animate = this.animate.bind(this);
+  this.render = this.render.bind(this);
+  this.handleResize = this.handleResize.bind(this);
   }
+
+/*
+* Handle Resize
+*/
+	handleResize() {
+	  // Let the current environment handle the resize
+	  if (this.currentEnvironment) {
+	    this.currentEnvironment.handleResize();
+	    
+	    // Request a render
+	    this.requestRender();
+	  }
+	}
   
   /**
    * Initialize the rendering manager
@@ -58,17 +72,14 @@ export class RenderingManager {
       await this.environments['3d'].initialize();
       
       // Listen for window resize
-      window.addEventListener('resize', () => {
-        this.resizeCanvas();
-        this.render();
-      });
-      
-      console.log("Rendering manager initialized");
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize rendering manager:", error);
-      return false;
-    }
+    window.addEventListener('resize', this.handleResize);
+    
+    console.log("Rendering manager initialized");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize rendering manager:", error);
+    return false;
+  }
   }
   
   /**
@@ -76,25 +87,28 @@ export class RenderingManager {
    * @param {string} type - Environment type ('2d' or '3d')
    * @returns {boolean} Whether environment change was successful
    */
-  setEnvironment(type) {
-    // Validate environment type
-    if (!this.environments[type]) {
-      console.error(`Invalid environment type: ${type}`);
-      return false;
-    }
-    
-    // Deactivate current environment if different
-    if (this.currentEnvironment && this.currentEnvironment !== this.environments[type]) {
-      this.currentEnvironment.deactivate();
-    }
-    
-    // Set and activate new environment
-    this.currentEnvironment = this.environments[type];
-    this.currentEnvironment.activate();
-    
-    console.log(`Set rendering environment to ${type}`);
-    return true;
-  }
+	setEnvironment(type) {
+	  // Validate environment type
+	  if (!this.environments[type]) {
+	    console.error(`Invalid environment type: ${type}`);
+	    return false;
+	  }
+	  
+	  // Deactivate current environment if different
+	  if (this.currentEnvironment && this.currentEnvironment !== this.environments[type]) {
+	    this.currentEnvironment.deactivate();
+	  }
+	  
+	  // Set and activate new environment
+	  this.currentEnvironment = this.environments[type];
+	  this.currentEnvironment.activate();
+	  
+	  // Trigger a resize to ensure the new environment is properly sized
+	  this.currentEnvironment.handleResize();
+	  
+	  console.log(`Set rendering environment to ${type}`);
+	  return true;
+}
   
   /**
    * Resize the canvas to fill its container

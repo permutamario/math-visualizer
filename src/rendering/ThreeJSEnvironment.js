@@ -155,26 +155,22 @@ export class ThreeJSEnvironment {
     return true;
   }
   
-  /**
-   * Handle window resize
-   */
-  handleResize() {
-    if (!this.initialized) return;
-    
-    // Update canvas dimensions
-    const width = this.threeCanvas.clientWidth;
-    const height = this.threeCanvas.clientHeight;
-    
-    // Update camera aspect ratio
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    
-    // Update renderer size
-    this.renderer.setSize(width, height);
-    
-    console.log("3D environment resized");
-  }
+handleResize() {
+  if (!this.initialized) return;
   
+  // Update canvas dimensions
+  const width = this.threeCanvas.clientWidth;
+  const height = this.threeCanvas.clientHeight;
+  
+  // Update camera aspect ratio
+  this.camera.aspect = width / height;
+  this.camera.updateProjectionMatrix();
+  
+  // Update renderer size
+  this.renderer.setSize(width, height);
+  
+  console.log("3D environment resized");
+}
  /**
  * Render a visualization
  * @param {Visualization} visualization - Visualization to render
