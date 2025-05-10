@@ -44,7 +44,7 @@ export class PluginRegistry {
   async discoverPlugins() {
     try {
       // Load the plugin list from plugin_list.json
-      const response = await fetch('/src/plugins/plugin_list.json');
+      const response = await fetch('../plugins/plugin_list.json');
       
       if (!response.ok) {
         throw new Error(`Failed to load plugin list: ${response.statusText}`);
