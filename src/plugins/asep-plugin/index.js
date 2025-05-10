@@ -1,94 +1,88 @@
 // src/plugins/asep-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
-import { ASEPOpenVisualization } from './ASEPOpenVisualization.js';
-import { ASEPCircularVisualization } from './ASEPCircularVisualization.js';
+import { LinearASEPVisualization } from './LinearASEPVisualization.js';
 
 export default class ASEPPlugin extends Plugin {
   static id = "asep-plugin";
-  static name = "Asymmetric Simple Exclusion Process";
-  static description = "Simulate and visualize the ASEP model with open or circular boundary conditions";
+  static name = "ASEP Simulation";
+  static description = "Asymmetric Simple Exclusion Process simulation";
   static renderingType = "2d";
 
   async _initializeDefaultVisualization() {
-    // Create both visualizations
-    const openVisualization = new ASEPOpenVisualization(this);
-    const circularVisualization = new ASEPCircularVisualization(this);
-    
-    // Register visualizations
-    this.registerVisualization('open', openVisualization);
-    this.registerVisualization('circular', circularVisualization);
-    
-    // Set default visualization based on parameters
-    if (this.parameters.boundaryType === 'circular') {
-      this.currentVisualization = circularVisualization;
-    } else {
-      this.currentVisualization = openVisualization;
-    }
-    
-    // Initialize the current visualization
-    await this.currentVisualization.initialize(this.parameters);
+    const visualization = new LinearASEPVisualization(this);
+    this.registerVisualization('linear', visualization);
+    this.currentVisualization = visualization;
+    await visualization.initialize(this.parameters);
   }
 
   getParameterSchema() {
     return {
       structural: [
         {
-          id: 'boundaryType',
-          type: 'dropdown',
-          label: 'Boundary Type',
-          options: [
-            { value: 'open', label: 'Open (with reservoirs)' },
-            { value: 'circular', label: 'Circular (periodic)' }
-          ],
-          default: 'open'
+          id: 'numBoxes',
+          type: 'slider',
+          label: 'Number of Sites',
+          min: 5,
+          max: 50,
+          step: 1,
+          default: 20
         },
         {
-          id: 'latticeSize',
+          id: 'numParticles',
           type: 'slider',
-          label: 'Lattice Size',
-          min: 10,
-          max: 200,
+          label: 'Number of Particles',
+          min: 1,
+          max: 40,
+          step: 1,
+          default: 10
+        },
+        {
+          id: 'rightJumpRate',
+          type: 'slider',
+          label: 'Right Jump Rate',
+          min: 0.1,
+          max: 5,
+          step: 0.1,
+          default: 1.0
+        },
+        {
+          id: 'leftJumpRate',
+          type: 'slider',
+          label: 'Left Jump Rate',
+          min: 0,
+          max: 5,
+          step: 0.1,
+          default: 0.5
+        }
+      ],
+      visual: [
+        {
+          id: 'boxWidth',
+          type: 'slider',
+          label: 'Box Width',
+          min: 20,
+          max: 100,
           step: 5,
           default: 50
         },
         {
-          id: 'particleDensity',
+          id: 'boxHeight',
           type: 'slider',
-          label: 'Initial Particle Density',
-          min: 0.1,
-          max: 0.9,
-          step: 0.05,
-          default: 0.5
+          label: 'Box Height',
+          min: 20,
+          max: 100,
+          step: 5,
+          default: 40
         },
         {
-          id: 'rightHopRate',
+          id: 'particleRadius',
           type: 'slider',
-          label: 'Right Hop Rate',
-          min: 0,
-          max: 1,
-          step: 0.05,
-          default: 0.75
+          label: 'Particle Size',
+          min: 5,
+          max: 25,
+          step: 1,
+          default: 15
         },
-        {
-          id: 'leftHopRate',
-          type: 'slider',
-          label: 'Left Hop Rate',
-          min: 0,
-          max: 1,
-          step: 0.05,
-          default: 0.25
-        },
-        {
-          id: 'simulationSpeed',
-          type: 'slider',
-          label: 'Simulation Speed',
-          min: 0.1,
-          max: 5,
-          step: 0.1,
-          default: 1
-        }
-      ],
-      visual: [
         {
           id: 'particleColor',
           type: 'color',
@@ -96,80 +90,78 @@ export default class ASEPPlugin extends Plugin {
           default: '#3498db'
         },
         {
-          id: 'emptyColor',
+          id: 'jumpColor',
           type: 'color',
-          label: 'Empty Site Color',
-          default: '#f5f5f5'
+          label: 'Jump Color',
+          default: '#ff5722'
         },
         {
-          id: 'showDensityProfile',
-          type: 'checkbox',
-          label: 'Show Density Profile',
-          default: true
-        },
-        {
-          id: 'showCurrentProfile',
-          type: 'checkbox',
-          label: 'Show Current Profile',
-          default: true
-        },
-        {
-          id: 'siteSize',
-          type: 'slider',
-          label: 'Site Size',
-          min: 5,
-          max: 30,
-          step: 1,
-          default: 12
+          id: 'boxColor',
+          type: 'color',
+          label: 'Box Color',
+          default: '#2c3e50'
         }
       ]
     };
   }
-
+  
+  /**
+   * Handle parameter changes
+   * @param {string} parameterId - ID of the changed parameter
+   * @param {any} value - New parameter value
+   */
   onParameterChanged(parameterId, value) {
-    // Update parameter
+    // Update parameter value
     this.parameters[parameterId] = value;
     
-    // Switch visualization if boundary type changes
-    if (parameterId === 'boundaryType' && this.isActive) {
-      const visType = value === 'circular' ? 'circular' : 'open';
-      this.setVisualization(visType);
+    // Handle structural parameter changes that require reinitializing
+    const structuralParams = ['numBoxes', 'numParticles', 'rightJumpRate', 'leftJumpRate'];
+    if (structuralParams.includes(parameterId) && this.currentVisualization) {
+      // Reinitialize visualization with updated parameters
+      this.currentVisualization.initialize(this.parameters);
     } else if (this.currentVisualization) {
-      // Update current visualization with new parameters
+      // For visual parameters, just update without reinitializing
       this.currentVisualization.update(this.parameters);
     }
   }
-
+  
+  /**
+   * Get available actions for this plugin
+   */
   getActions() {
     return [
       ...super.getActions(),
       {
-        id: 'reset-simulation',
-        label: 'Reset Simulation'
+        id: 'toggle-simulation',
+        label: 'Toggle Simulation'
       },
       {
-        id: 'toggle-pause',
-        label: 'Play/Pause Simulation'
+        id: 'restart-simulation',
+        label: 'Restart Simulation'
       }
     ];
   }
-
+  
+  /**
+   * Execute an action
+   * @param {string} actionId - ID of the action to execute
+   */
   executeAction(actionId, ...args) {
     switch (actionId) {
-      case 'reset-simulation':
+      case 'toggle-simulation':
         if (this.currentVisualization) {
-          this.currentVisualization.resetSimulation();
+          this.currentVisualization.toggleSimulation();
         }
         return true;
         
-      case 'toggle-pause':
+      case 'restart-simulation':
         if (this.currentVisualization) {
-          this.currentVisualization.togglePause();
+          this.currentVisualization.initialize(this.parameters);
         }
         return true;
+        
+      default:
+        return super.executeAction(actionId, ...args);
     }
-    
-    // Let parent handle other actions
-    return super.executeAction(actionId, ...args);
   }
 }
