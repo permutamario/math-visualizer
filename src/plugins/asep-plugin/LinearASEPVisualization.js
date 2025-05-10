@@ -10,12 +10,16 @@ export class LinearASEPVisualization extends Visualization {
     
     // Store simulation state
     this.state = {
-      isAnimating: true,       // Flag to ensure continuous rendering
-      isPaused: false,         // Flag to control simulation pausing
-      boxes: [],               // Array of box positions
-      particles: [],           // Array of particle objects
-      jumpEvents: [],          // Array to track scheduled jump events
-      timeScale: 1.0           // Time scaling factor for simulation speed
+      isAnimating: true,        // Flag to ensure continuous rendering
+      isPaused: false,          // Flag to control simulation pausing
+      boxes: [],                // Array of box positions
+      particles: [],            // Array of particle objects
+      jumpEvents: [],           // Array to track scheduled jump events
+      timeScale: 1.0,           // Time scaling factor for simulation speed
+      leftPortal: null,         // Left entrance/exit portal
+      rightPortal: null,        // Right entrance/exit portal
+      boxSize: 40,              // Fixed box size (pixels)
+      particleRadius: 14        // Fixed particle radius (pixels)
     };
   }
 
@@ -29,6 +33,9 @@ export class LinearASEPVisualization extends Visualization {
     
     // Create boxes
     this.createBoxes(parameters);
+    
+    // Create portals
+    this.createPortals();
     
     // Create initial particles with random positions
     this.createParticles(parameters);
@@ -62,6 +69,8 @@ export class LinearASEPVisualization extends Visualization {
     this.state.boxes = [];
     this.state.particles = [];
     this.state.jumpEvents = [];
+    this.state.leftPortal = null;
+    this.state.rightPortal = null;
   }
   
   /**
@@ -70,23 +79,46 @@ export class LinearASEPVisualization extends Visualization {
    */
   createBoxes(parameters) {
     const numBoxes = parameters.numBoxes;
-    const boxWidth = parameters.boxWidth;
-    const boxHeight = parameters.boxHeight;
+    const boxSize = this.state.boxSize;
     
     // Calculate total width to center the boxes
-    const totalWidth = numBoxes * boxWidth;
+    const totalWidth = numBoxes * boxSize;
     const startX = -totalWidth / 2;
     
     // Create boxes
     for (let i = 0; i < numBoxes; i++) {
       this.state.boxes.push({
         index: i,
-        x: startX + (i * boxWidth) + boxWidth / 2, // center x position
+        x: startX + (i * boxSize) + boxSize / 2, // center x position
         y: 0,  // center y position
-        width: boxWidth,
-        height: boxHeight
+        size: boxSize
       });
     }
+  }
+  
+  /**
+   * Create entrance/exit portals
+   */
+  createPortals() {
+    const boxSize = this.state.boxSize;
+    const firstBox = this.state.boxes[0];
+    const lastBox = this.state.boxes[this.state.boxes.length - 1];
+    
+    // Create left portal (entry)
+    this.state.leftPortal = {
+      x: firstBox.x - boxSize,
+      y: firstBox.y,
+      size: boxSize * 0.8,
+      color: '#9C27B0' // Purple portal
+    };
+    
+    // Create right portal (exit)
+    this.state.rightPortal = {
+      x: lastBox.x + boxSize,
+      y: lastBox.y,
+      size: boxSize * 0.8,
+      color: '#FF9800' // Orange portal
+    };
   }
   
   /**
@@ -117,7 +149,10 @@ export class LinearASEPVisualization extends Visualization {
         targetPosition: positions[i],
         color: parameters.particleColor,
         originalColor: parameters.particleColor,
-        jumpSpeed: 2.0
+        radius: this.state.particleRadius,
+        jumpSpeed: 2.0,
+        jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
+        insideProgress: 0
       });
     }
   }
@@ -142,7 +177,7 @@ export class LinearASEPVisualization extends Visualization {
   isPositionOccupied(position, excludeParticle = null) {
     return this.state.particles.some(p => 
       p !== excludeParticle && 
-      ((p.position === position && !p.isJumping) || 
+      ((p.position === position && (p.jumpState === 'none' || p.jumpState === 'inside')) || 
        (p.isJumping && p.targetPosition === position))
     );
   }
@@ -183,6 +218,7 @@ export class LinearASEPVisualization extends Visualization {
             particle.startPosition = particle.position;
             particle.targetPosition = targetPos;
             particle.originalColor = particle.color;
+            particle.jumpState = 'entering'; // Start the jump animation sequence
             
             // Remove event from tracking array
             this.state.jumpEvents = this.state.jumpEvents.filter(
@@ -192,6 +228,32 @@ export class LinearASEPVisualization extends Visualization {
             // Target is occupied, try again
             this.scheduleNextJump(particle);
           }
+        } else if (targetPos === -1) {
+          // Exit left through portal
+          particle.isJumping = true;
+          particle.jumpProgress = 0;
+          particle.startPosition = particle.position;
+          particle.targetPosition = -1; // Special value for portal
+          particle.originalColor = particle.color;
+          particle.jumpState = 'exiting'; // Exiting the system
+          
+          // Remove event from tracking array
+          this.state.jumpEvents = this.state.jumpEvents.filter(
+            e => e.timeoutId !== jumpEvent.timeoutId
+          );
+        } else if (targetPos === this.state.boxes.length) {
+          // Exit right through portal
+          particle.isJumping = true;
+          particle.jumpProgress = 0;
+          particle.startPosition = particle.position;
+          particle.targetPosition = this.state.boxes.length; // Special value for portal
+          particle.originalColor = particle.color;
+          particle.jumpState = 'exiting'; // Exiting the system
+          
+          // Remove event from tracking array
+          this.state.jumpEvents = this.state.jumpEvents.filter(
+            e => e.timeoutId !== jumpEvent.timeoutId
+          );
         } else {
           // Position out of bounds, try again
           this.scheduleNextJump(particle);
@@ -201,6 +263,36 @@ export class LinearASEPVisualization extends Visualization {
     
     // Add to jump events array for tracking
     this.state.jumpEvents.push(jumpEvent);
+  }
+  
+  /**
+   * Generate a new particle from a portal
+   * @param {boolean} fromLeft - Whether particle enters from left portal
+   */
+  generateNewParticle(fromLeft) {
+    // Find the highest ID to create a new unique ID
+    const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
+    
+    // Create the new particle
+    const newParticle = {
+      id: maxId + 1,
+      position: fromLeft ? 0 : this.state.boxes.length - 1,
+      isJumping: true,
+      jumpProgress: 0,
+      startPosition: fromLeft ? -1 : this.state.boxes.length,
+      targetPosition: fromLeft ? 0 : this.state.boxes.length - 1,
+      color: this.plugin.parameters.particleColor,
+      originalColor: this.plugin.parameters.particleColor,
+      radius: this.state.particleRadius,
+      jumpSpeed: 2.0,
+      jumpState: 'entering',
+      insideProgress: 0
+    };
+    
+    // Check if the target position is occupied
+    if (!this.isPositionOccupied(newParticle.targetPosition)) {
+      this.state.particles.push(newParticle);
+    }
   }
   
   /**
@@ -238,28 +330,76 @@ export class LinearASEPVisualization extends Visualization {
     // Always request continuous rendering by setting direct property
     this.isAnimating = true;
     
+    // Check for random particle generation from portals
+    if (!this.state.isPaused) {
+      const rightRate = this.plugin.parameters.rightJumpRate;
+      const leftRate = this.plugin.parameters.leftJumpRate;
+      
+      // Chance of generating a particle from the left (right-moving)
+      if (Math.random() < rightRate * 0.01 * deltaTime) {
+        this.generateNewParticle(true); // From left
+      }
+      
+      // Chance of generating a particle from the right (left-moving)
+      if (Math.random() < leftRate * 0.01 * deltaTime) {
+        this.generateNewParticle(false); // From right
+      }
+    }
+    
     // Update particle jump animations
     let needsUpdate = false;
+    
+    // Update each particle
+    const particlesToRemove = [];
     this.state.particles.forEach(particle => {
       if (particle.isJumping) {
         needsUpdate = true;
         // Update jump progress
         particle.jumpProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
         
+        // Check for entering a box
+        if (particle.jumpState === 'entering' && particle.jumpProgress >= 0.5) {
+          particle.jumpState = 'inside';
+          particle.insideProgress = 0;
+        }
+        // Check for exiting a box
+        else if (particle.jumpState === 'inside' && particle.insideProgress >= 1.0) {
+          particle.jumpState = 'exiting';
+        }
+        
+        // Update inside progress if particle is inside a box
+        if (particle.jumpState === 'inside') {
+          particle.insideProgress += deltaTime * particle.jumpSpeed * this.state.timeScale * 2;
+        }
+        
+        // Check if jump is complete
         if (particle.jumpProgress >= 1) {
-          // Jump complete
-          particle.isJumping = false;
-          particle.jumpProgress = 0;
-          particle.position = particle.targetPosition;
-          particle.color = particle.originalColor;
-          
-          // Schedule next jump if not paused
-          if (!this.state.isPaused) {
-            this.scheduleNextJump(particle);
+          // Check if particle is exiting the system
+          if ((particle.targetPosition === -1 || particle.targetPosition === this.state.boxes.length)) {
+            // Mark for removal
+            particlesToRemove.push(particle);
+          } else {
+            // Normal jump completion
+            particle.isJumping = false;
+            particle.jumpProgress = 0;
+            particle.position = particle.targetPosition;
+            particle.color = particle.originalColor;
+            particle.jumpState = 'none';
+            particle.insideProgress = 0;
+            
+            // Schedule next jump if not paused
+            if (!this.state.isPaused) {
+              this.scheduleNextJump(particle);
+            }
           }
         }
       }
     });
+    
+    // Remove particles that exited the system
+    if (particlesToRemove.length > 0) {
+      this.state.particles = this.state.particles.filter(p => !particlesToRemove.includes(p));
+    }
     
     // Return true to ensure continuous rendering
     return true;
@@ -271,11 +411,90 @@ export class LinearASEPVisualization extends Visualization {
    * @param {Object} parameters - Visualization parameters
    */
   render2D(ctx, parameters) {
+    // Draw portals first
+    this.drawPortals(ctx, parameters);
+    
     // Draw boxes
     this.drawBoxes(ctx, parameters);
     
     // Draw particles
     this.drawParticles(ctx, parameters);
+  }
+  
+  /**
+   * Draw the entrance/exit portals
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
+   */
+  drawPortals(ctx, parameters) {
+    if (this.state.leftPortal && this.state.rightPortal) {
+      // Draw left portal
+      ctx.beginPath();
+      ctx.arc(this.state.leftPortal.x, this.state.leftPortal.y, this.state.leftPortal.size/2, 0, Math.PI * 2);
+      ctx.fillStyle = this.state.leftPortal.color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Draw swirl in left portal
+      this.drawPortalSwirl(ctx, this.state.leftPortal, Date.now() / 1000);
+      
+      // Draw right portal
+      ctx.beginPath();
+      ctx.arc(this.state.rightPortal.x, this.state.rightPortal.y, this.state.rightPortal.size/2, 0, Math.PI * 2);
+      ctx.fillStyle = this.state.rightPortal.color;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Draw swirl in right portal
+      this.drawPortalSwirl(ctx, this.state.rightPortal, Date.now() / 1000 + Math.PI);
+    }
+  }
+  
+  /**
+   * Draw a swirl pattern in the portal
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} portal - Portal object
+   * @param {number} time - Current time for animation
+   */
+  drawPortalSwirl(ctx, portal, time) {
+    ctx.save();
+    
+    // Clip to portal circle
+    ctx.beginPath();
+    ctx.arc(portal.x, portal.y, portal.size/2 - 2, 0, Math.PI * 2);
+    ctx.clip();
+    
+    // Draw spiral
+    const spiralArms = 3;
+    const rotationSpeed = 1;
+    
+    ctx.beginPath();
+    for (let i = 0; i < spiralArms; i++) {
+      const angle = (i / spiralArms) * Math.PI * 2;
+      const rotation = time * rotationSpeed;
+      
+      for (let r = 0; r < portal.size/2; r += 1) {
+        const theta = angle + rotation + (r / portal.size) * Math.PI * 4;
+        const x = portal.x + r * Math.cos(theta);
+        const y = portal.y + r * Math.sin(theta);
+        
+        if (r === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+    }
+    
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    ctx.restore();
   }
   
   /**
@@ -285,35 +504,51 @@ export class LinearASEPVisualization extends Visualization {
    */
   drawBoxes(ctx, parameters) {
     const boxColor = parameters.boxColor;
-    const boxWidth = parameters.boxWidth;
-    const boxHeight = parameters.boxHeight;
+    const boxSize = this.state.boxSize;
     
+    ctx.save();
     ctx.strokeStyle = boxColor;
     ctx.lineWidth = 2;
     
     // Draw each box
-    this.state.boxes.forEach(box => {
-      // Draw a box with open top
+    this.state.boxes.forEach((box, index) => {
+      // Draw a box
+      const x1 = box.x - boxSize / 2;
+      const y1 = box.y - boxSize / 2;
+      
+      // Draw the box
       ctx.beginPath();
-      
-      // Start from top left corner
-      const x1 = box.x - boxWidth / 2;
-      const y1 = box.y - boxHeight / 2;
-      
-      // Draw three sides (leaving top open)
-      ctx.moveTo(x1, y1);             // Top left
-      ctx.lineTo(x1, y1 + boxHeight); // Down to bottom left
-      ctx.lineTo(x1 + boxWidth, y1 + boxHeight); // Across to bottom right
-      ctx.lineTo(x1 + boxWidth, y1);  // Up to top right
-      
+      ctx.rect(x1, y1, boxSize, boxSize);
       ctx.stroke();
       
       // Add site index below box
       ctx.fillStyle = boxColor;
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(box.index.toString(), box.x, box.y + boxHeight/2 + 20);
+      ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
     });
+    
+    // Draw connection to portals
+    const firstBox = this.state.boxes[0];
+    const lastBox = this.state.boxes[this.state.boxes.length - 1];
+    
+    // Left connection (dashed)
+    ctx.beginPath();
+    ctx.setLineDash([5, 3]);
+    ctx.moveTo(this.state.leftPortal.x + this.state.leftPortal.size/2, this.state.leftPortal.y);
+    ctx.lineTo(firstBox.x - boxSize/2, firstBox.y);
+    ctx.stroke();
+    
+    // Right connection (dashed)
+    ctx.beginPath();
+    ctx.moveTo(lastBox.x + boxSize/2, lastBox.y);
+    ctx.lineTo(this.state.rightPortal.x - this.state.rightPortal.size/2, this.state.rightPortal.y);
+    ctx.stroke();
+    
+    // Reset dash
+    ctx.setLineDash([]);
+    
+    ctx.restore();
   }
   
   /**
@@ -322,48 +557,133 @@ export class LinearASEPVisualization extends Visualization {
    * @param {Object} parameters - Visualization parameters
    */
   drawParticles(ctx, parameters) {
-    const particleRadius = parameters.particleRadius;
-    const particleColor = parameters.particleColor;
+    const boxSize = this.state.boxSize;
     const jumpColor = parameters.jumpColor;
-    const boxHeight = parameters.boxHeight;
     
     // Draw each particle
     this.state.particles.forEach(particle => {
       ctx.save();
       
-      let x, y;
+      let x, y, scale;
       
       if (particle.isJumping) {
-        // Calculate position for jumping particle
         const t = particle.jumpProgress;
-        const startBox = this.state.boxes[particle.startPosition];
-        const endBox = this.state.boxes[particle.targetPosition];
         
-        // Linear interpolation for x position
-        x = startBox.x + (endBox.x - startBox.x) * t;
+        // Handle particles entering or exiting through portals
+        if (particle.startPosition === -1) {
+          // Entering from left portal
+          const portalX = this.state.leftPortal.x;
+          const portalY = this.state.leftPortal.y;
+          const targetBox = this.state.boxes[particle.targetPosition];
+          
+          if (particle.jumpState === 'entering') {
+            // Moving from portal to box edge
+            const progress = t * 2; // Scale to [0,1] for the first half
+            x = portalX + (targetBox.x - boxSize/2 - portalX) * progress;
+            y = portalY;
+            scale = 1.0;
+          } else if (particle.jumpState === 'inside') {
+            // Inside the box
+            x = targetBox.x;
+            y = targetBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink a bit when inside
+          } else {
+            // Exiting the box
+            const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
+            x = targetBox.x;
+            y = targetBox.y;
+            scale = 1.0;
+          }
+        } else if (particle.targetPosition === -1) {
+          // Exiting to left portal
+          const startBox = this.state.boxes[particle.startPosition];
+          const portalX = this.state.leftPortal.x;
+          const portalY = this.state.leftPortal.y;
+          
+          if (particle.jumpState === 'entering') {
+            // Entering the box
+            x = startBox.x;
+            y = startBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * 0.5); // Shrink at start
+          } else if (particle.jumpState === 'inside') {
+            // Inside the box
+            x = startBox.x;
+            y = startBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink inside
+          } else {
+            // Moving from box edge to portal
+            const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
+            x = (startBox.x - boxSize/2) + (portalX - (startBox.x - boxSize/2)) * progress;
+            y = portalY;
+            scale = 1.0;
+          }
+        } else if (particle.targetPosition === this.state.boxes.length) {
+          // Exiting to right portal
+          const startBox = this.state.boxes[particle.startPosition];
+          const portalX = this.state.rightPortal.x;
+          const portalY = this.state.rightPortal.y;
+          
+          if (particle.jumpState === 'entering') {
+            // Entering the box
+            x = startBox.x;
+            y = startBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * 0.5); // Shrink at start
+          } else if (particle.jumpState === 'inside') {
+            // Inside the box
+            x = startBox.x;
+            y = startBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink inside
+          } else {
+            // Moving from box edge to portal
+            const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
+            x = (startBox.x + boxSize/2) + (portalX - (startBox.x + boxSize/2)) * progress;
+            y = portalY;
+            scale = 1.0;
+          }
+        } else {
+          // Normal jump between boxes
+          const startBox = this.state.boxes[particle.startPosition];
+          const endBox = this.state.boxes[particle.targetPosition];
+          
+          if (particle.jumpState === 'entering') {
+            // Entering the box
+            const progress = t * 2; // Scale to [0,1] for the first half
+            x = startBox.x;
+            y = startBox.y;
+            scale = 1.0 - 0.3 * Math.sin(Math.PI * progress); // Shrink when entering
+          } else if (particle.jumpState === 'inside') {
+            // Moving from startBox to endBox while inside
+            const progress = particle.insideProgress;
+            x = startBox.x + (endBox.x - startBox.x) * progress;
+            y = startBox.y;
+            scale = 0.7; // Consistently smaller while inside
+          } else {
+            // Exiting the box
+            const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
+            x = endBox.x;
+            y = endBox.y;
+            scale = 0.7 + 0.3 * progress; // Grow when exiting
+          }
+        }
         
-        // Arc motion for y position (higher in middle of jump)
-        const baseY = startBox.y - boxHeight/2 - particleRadius;
-        const jumpHeight = boxHeight * 0.8;
-        y = baseY - jumpHeight * Math.sin(Math.PI * t);
-        
-        // Interpolate color during jump
-        ctx.fillStyle = this.lerpColor(
-          particle.originalColor, 
-          jumpColor, 
-          Math.sin(Math.PI * t)
-        );
+        // Set particle color based on state
+        if (particle.jumpState === 'inside') {
+          ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
+        } else {
+          ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
+        }
       } else {
         // Static particle
         const box = this.state.boxes[particle.position];
         x = box.x;
-        y = box.y - boxHeight/2 - particleRadius;
+        y = box.y;
+        scale = 1.0;
         ctx.fillStyle = particle.color;
       }
       
       // Draw particle
       ctx.beginPath();
-      ctx.arc(x, y, particleRadius, 0, Math.PI * 2);
+      ctx.arc(x, y, particle.radius * scale, 0, Math.PI * 2);
       ctx.fill();
       
       // Draw particle ID
@@ -456,6 +776,67 @@ export class LinearASEPVisualization extends Visualization {
     if (parameters.animationSpeed !== undefined) {
       this.state.timeScale = parameters.animationSpeed;
     }
+  }
+  
+  /**
+   * Handle user interaction
+   * @param {string} type - Interaction type (e.g., "click", "mousemove")
+   * @param {Object} event - Event data
+   * @returns {boolean} Whether the interaction was handled
+   */
+  handleInteraction(type, event) {
+    // Check if clicking on a box to add/remove particles
+    if (type === 'click') {
+      const boxSize = this.state.boxSize;
+      
+      // Check each box
+      for (let i = 0; i < this.state.boxes.length; i++) {
+        const box = this.state.boxes[i];
+        const dx = event.x - box.x;
+        const dy = event.y - box.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // If clicked inside box
+        if (distance <= boxSize / 2) {
+          // Check if box already has a particle
+          const particleIndex = this.state.particles.findIndex(p => 
+            p.position === i && !p.isJumping
+          );
+          
+          if (particleIndex >= 0) {
+            // Remove particle
+            this.state.particles.splice(particleIndex, 1);
+          } else if (!this.isPositionOccupied(i)) {
+            // Add particle if box is empty
+            const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
+            
+            this.state.particles.push({
+              id: maxId + 1,
+              position: i,
+              isJumping: false,
+              jumpProgress: 0,
+              startPosition: i,
+              targetPosition: i,
+              color: this.plugin.parameters.particleColor,
+              originalColor: this.plugin.parameters.particleColor,
+              radius: this.state.particleRadius,
+              jumpSpeed: 2.0,
+              jumpState: 'none',
+              insideProgress: 0
+            });
+            
+            // Schedule a jump if not paused
+            if (!this.state.isPaused) {
+              this.scheduleNextJump(this.state.particles[this.state.particles.length - 1]);
+            }
+          }
+          
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
   
   /**

@@ -72,33 +72,6 @@ export default class ASEPPlugin extends Plugin {
       ],
       visual: [
         {
-          id: 'boxWidth',
-          type: 'slider',
-          label: 'Box Width',
-          min: 20,
-          max: 100,
-          step: 5,
-          default: 50
-        },
-        {
-          id: 'boxHeight',
-          type: 'slider',
-          label: 'Box Height',
-          min: 20,
-          max: 100,
-          step: 5,
-          default: 40
-        },
-        {
-          id: 'particleRadius',
-          type: 'slider',
-          label: 'Particle Size',
-          min: 5,
-          max: 25,
-          step: 1,
-          default: 15
-        },
-        {
           id: 'particleColor',
           type: 'color',
           label: 'Particle Color',
