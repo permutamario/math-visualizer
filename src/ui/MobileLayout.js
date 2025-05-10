@@ -17,8 +17,10 @@ export class MobileLayout extends EventEmitter {
     this.header = null;
     this.optionsButton = null;
     this.exportButton = null;
+    this.pluginButton = null;
     this.visualMenu = null;
     this.exportMenu = null;
+    this.pluginMenu = null;
     this.controls = {};
     this.actions = [];
     this.plugins = [];
@@ -28,6 +30,7 @@ export class MobileLayout extends EventEmitter {
     this.handleParameterChange = this.handleParameterChange.bind(this);
     this.toggleVisualMenu = this.toggleVisualMenu.bind(this);
     this.toggleExportMenu = this.toggleExportMenu.bind(this);
+    this.togglePluginMenu = this.togglePluginMenu.bind(this);
     this.handleOutsideClick = this.handleOutsideClick.bind(this);
   }
   
@@ -83,6 +86,14 @@ export class MobileLayout extends EventEmitter {
     // Create export menu
     this.exportMenu = this.createExportMenu();
     document.body.appendChild(this.exportMenu);
+    
+    // Create plugin button
+    this.pluginButton = this.createPluginButton();
+    document.body.appendChild(this.pluginButton);
+    
+    // Create plugin menu
+    this.pluginMenu = this.createPluginMenu();
+    document.body.appendChild(this.pluginMenu);
   }
   
   /**
@@ -113,6 +124,16 @@ export class MobileLayout extends EventEmitter {
     if (this.exportMenu && this.exportMenu.parentNode) {
       this.exportMenu.parentNode.removeChild(this.exportMenu);
     }
+    
+    // Remove plugin button
+    if (this.pluginButton && this.pluginButton.parentNode) {
+      this.pluginButton.parentNode.removeChild(this.pluginButton);
+    }
+    
+    // Remove plugin menu
+    if (this.pluginMenu && this.pluginMenu.parentNode) {
+      this.pluginMenu.parentNode.removeChild(this.pluginMenu);
+    }
   }
   
   /**
@@ -122,37 +143,6 @@ export class MobileLayout extends EventEmitter {
   createHeader() {
     const header = document.createElement('div');
     header.className = 'mobile-header';
-    
-    // Add plugin selector if we have plugins
-    if (this.plugins.length > 0) {
-      const selectContainer = document.createElement('div');
-      selectContainer.className = 'control';
-      
-      const label = document.createElement('label');
-      label.htmlFor = 'plugin-selector-mobile';
-      label.textContent = 'Visualization:';
-      
-      const select = document.createElement('select');
-      select.id = 'plugin-selector-mobile';
-      
-      // Add plugin options
-      this.plugins.forEach(plugin => {
-        const option = document.createElement('option');
-        option.value = plugin.id;
-        option.textContent = plugin.name;
-        select.appendChild(option);
-      });
-      
-      // Handle change events
-      select.addEventListener('change', (e) => {
-        const pluginId = e.target.value;
-        this.emit('pluginSelect', pluginId);
-      });
-      
-      selectContainer.appendChild(label);
-      selectContainer.appendChild(select);
-      header.appendChild(selectContainer);
-    }
     
     // Placeholder for structural controls - will be filled when schema is provided
     const placeholder = document.createElement('p');
@@ -243,6 +233,45 @@ export class MobileLayout extends EventEmitter {
   }
   
   /**
+   * Create the plugin selector button (center bottom)
+   * @returns {HTMLElement} Plugin button element
+   */
+  createPluginButton() {
+    const button = document.createElement('div');
+    button.id = 'mobile-plugin-button';
+    
+    const icon = document.createElement('div');
+    icon.id = 'mobile-plugin-button-icon';
+    button.appendChild(icon);
+    
+    button.addEventListener('click', this.togglePluginMenu);
+    
+    return button;
+  }
+
+  /**
+   * Create the plugin menu
+   * @returns {HTMLElement} Plugin menu element
+   */
+  createPluginMenu() {
+    const menu = document.createElement('div');
+    menu.id = 'mobile-plugin-menu';
+    menu.className = 'mobile-options-menu hidden';
+    
+    // Add title
+    const title = document.createElement('h3');
+    title.textContent = 'Visualization Types';
+    menu.appendChild(title);
+    
+    // Container for plugin items
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'plugin-items-container';
+    menu.appendChild(itemsContainer);
+    
+    return menu;
+  }
+  
+  /**
    * Toggle the visual menu
    * @param {Event} event - Click event
    */
@@ -252,9 +281,13 @@ export class MobileLayout extends EventEmitter {
     // Toggle visual menu
     this.visualMenu.classList.toggle('hidden');
     
-    // Hide export menu if open
+    // Hide other menus if open
     if (!this.exportMenu.classList.contains('hidden')) {
       this.exportMenu.classList.add('hidden');
+    }
+    
+    if (!this.pluginMenu.classList.contains('hidden')) {
+      this.pluginMenu.classList.add('hidden');
     }
   }
   
@@ -268,9 +301,33 @@ export class MobileLayout extends EventEmitter {
     // Toggle export menu
     this.exportMenu.classList.toggle('hidden');
     
-    // Hide visual menu if open
+    // Hide other menus if open
     if (!this.visualMenu.classList.contains('hidden')) {
       this.visualMenu.classList.add('hidden');
+    }
+    
+    if (!this.pluginMenu.classList.contains('hidden')) {
+      this.pluginMenu.classList.add('hidden');
+    }
+  }
+  
+  /**
+   * Toggle the plugin menu
+   * @param {Event} event - Click event
+   */
+  togglePluginMenu(event) {
+    event.stopPropagation();
+    
+    // Toggle plugin menu
+    this.pluginMenu.classList.toggle('hidden');
+    
+    // Hide other menus if open
+    if (!this.visualMenu.classList.contains('hidden')) {
+      this.visualMenu.classList.add('hidden');
+    }
+    
+    if (!this.exportMenu.classList.contains('hidden')) {
+      this.exportMenu.classList.add('hidden');
     }
   }
   
@@ -291,6 +348,13 @@ export class MobileLayout extends EventEmitter {
         !this.exportMenu.contains(event.target) &&
         !this.exportButton.contains(event.target)) {
       this.exportMenu.classList.add('hidden');
+    }
+    
+    // Check if clicking outside plugin menu
+    if (!this.pluginMenu.classList.contains('hidden') &&
+        !this.pluginMenu.contains(event.target) &&
+        !this.pluginButton.contains(event.target)) {
+      this.pluginMenu.classList.add('hidden');
     }
   }
   
@@ -319,17 +383,24 @@ export class MobileLayout extends EventEmitter {
    * @param {Object} values - Current parameter values
    */
   updateHeaderControls(schema, values) {
-    // Clear existing controls (except the plugin selector)
-    const pluginSelector = this.header.querySelector('.control');
-    
+    // Clear existing controls
     while (this.header.childNodes.length > 0) {
       this.header.removeChild(this.header.lastChild);
     }
     
-    // Add back plugin selector if it exists
-    if (pluginSelector) {
-      this.header.appendChild(pluginSelector);
-    }
+    // Add title
+    const title = document.createElement('div');
+    title.className = 'header-title';
+    title.style.fontWeight = 'bold';
+    title.style.fontSize = '15px';
+    title.style.marginBottom = '10px';
+    title.style.textAlign = 'center';
+    
+    // Get active plugin name if available
+    const activePlugin = this.plugins.find(p => p.id === values.activePluginId) || this.plugins[0];
+    title.textContent = activePlugin ? activePlugin.name : 'Structural Parameters';
+    
+    this.header.appendChild(title);
     
     // Check if we have structural parameters
     if (!schema.structural || schema.structural.length === 0) {
@@ -511,26 +582,69 @@ export class MobileLayout extends EventEmitter {
     // Store plugins
     this.plugins = [...plugins];
     
-    // Recreate header with updated plugin list
-    if (this.header && this.header.parentNode) {
-      this.header.parentNode.removeChild(this.header);
-    }
+    // Update plugin menu
+    this.updatePluginMenu(plugins, activePluginId);
     
-    this.header = this.createHeader();
-    document.body.appendChild(this.header);
-    
-    // Update structural controls if we have a schema
+    // Update header title if we have a schema
     if (this.controls.schema) {
-      this.updateHeaderControls(this.controls.schema, this.controls.values);
+      // Update with current active plugin
+      const values = { ...this.controls.values, activePluginId };
+      this.updateHeaderControls(this.controls.schema, values);
+    }
+  }
+  
+  /**
+   * Update plugin menu with available plugins
+   * @param {Array<Object>} plugins - Available plugin metadata
+   * @param {string} activePluginId - Currently active plugin ID
+   */
+  updatePluginMenu(plugins, activePluginId) {
+    // Get items container
+    const itemsContainer = this.pluginMenu.querySelector('.plugin-items-container');
+    
+    // Clear existing items
+    while (itemsContainer.childNodes.length > 0) {
+      itemsContainer.removeChild(itemsContainer.lastChild);
     }
     
-    // Select the active plugin
-    if (activePluginId) {
-      const select = document.getElementById('plugin-selector-mobile');
-      if (select) {
-        select.value = activePluginId;
-      }
+    // Check if we have plugins
+    if (!plugins || plugins.length === 0) {
+      const message = document.createElement('p');
+      message.textContent = 'No visualizations available.';
+      message.style.fontStyle = 'italic';
+      message.style.color = '#666';
+      message.style.padding = '10px 16px';
+      itemsContainer.appendChild(message);
+      return;
     }
+    
+    // Create items for each plugin
+    plugins.forEach(plugin => {
+      const item = document.createElement('div');
+      item.className = 'plugin-list-item';
+      if (plugin.id === activePluginId) {
+        item.classList.add('active');
+      }
+      
+      const title = document.createElement('div');
+      title.className = 'plugin-list-item-title';
+      title.textContent = plugin.name;
+      
+      const description = document.createElement('div');
+      description.className = 'plugin-list-item-description';
+      description.textContent = plugin.description;
+      
+      item.appendChild(title);
+      item.appendChild(description);
+      
+      // Add click handler
+      item.addEventListener('click', () => {
+        this.emit('pluginSelect', plugin.id);
+        this.pluginMenu.classList.add('hidden');
+      });
+      
+      itemsContainer.appendChild(item);
+    });
   }
   
   /**
