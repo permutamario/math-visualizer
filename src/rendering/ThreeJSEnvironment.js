@@ -175,21 +175,26 @@ export class ThreeJSEnvironment {
     console.log("3D environment resized");
   }
   
-  /**
-   * Render a visualization
-   * @param {Visualization} visualization - Visualization to render
-   * @param {Object} parameters - Current parameters
-   */
-  render(visualization, parameters) {
-    if (!this.active || !this.renderer || !this.scene || !this.camera) return;
-    
-    // Call visualization's 3D render method
-    visualization.render3D(THREE, this.scene, parameters);
-    
-    // Render the scene
-    this.renderer.render(this.scene, this.camera);
+ /**
+ * Render a visualization
+ * @param {Visualization} visualization - Visualization to render
+ * @param {Object} parameters - Current parameters
+ */
+render(visualization, parameters) {
+  if (!this.active || !this.renderer || !this.scene || !this.camera) return;
+  
+  // Update controls if using animation
+  if (this.clock) {
+    const delta = this.clock.getDelta();
+    this.updateControls(delta);
   }
   
+  // Call visualization's 3D render method
+  visualization.render3D(THREE, this.scene, parameters);
+  
+  // Render the scene
+  this.renderer.render(this.scene, this.camera);
+}
   /**
    * Check if WebGL is available
    * @returns {boolean} Whether WebGL is supported
@@ -206,42 +211,49 @@ export class ThreeJSEnvironment {
     }
   }
   
-  /**
-   * Set up camera controls
-   * @private
-   */
-  _setupCameraControls() {
-    // Check if CameraControls is available
+/**
+ * Set up camera controls
+ * @private
+ */
+_setupCameraControls() {
+  try {
+    // Check if camera-controls module is available
     if (typeof CameraControls === 'undefined') {
       console.warn("CameraControls not available. Using fallback controls.");
       this._setupFallbackControls();
       return;
     }
     
-    try {
-      // Initialize CameraControls
-      this.controls = new CameraControls(this.camera, this.renderer.domElement);
-      
-      // Configure controls
-      this.controls.dampingFactor = 0.05;
-      this.controls.draggingDampingFactor = 0.25;
-      
-      // Set initial position
-      this.controls.setLookAt(
-        this.camera.position.x,
-        this.camera.position.y,
-        this.camera.position.z,
-        0, 0, 0,
-        true // Animate to position
-      );
-      
-      console.log("Camera controls initialized");
-    } catch (error) {
-      console.error("Error setting up camera controls:", error);
-      this._setupFallbackControls();
-    }
+    // Initialize CameraControls with THREE.js dependency injection already done
+    this.controls = new CameraControls(this.camera, this.renderer.domElement);
+    
+    // Configure controls
+    this.controls.dampingFactor = 0.05;
+    this.controls.draggingDampingFactor = 0.25;
+    
+    // Set initial position
+    this.controls.setLookAt(0, 1, 5, 0, 0, 0);
+    
+    // Update will be called in animation loop
+    console.log("Camera controls initialized with camera-controls library");
+  } catch (error) {
+    console.error("Error setting up camera controls:", error);
+    this._setupFallbackControls();
   }
-  
+}
+
+/**
+ * Handle animation updates for controls
+ * @param {number} deltaTime - Time in seconds since last frame
+ */
+updateControls(deltaTime) {
+  if (this.controls && typeof this.controls.update === 'function') {
+    // For camera-controls, we need to pass delta time
+    this.controls.update(deltaTime);
+  }
+}
+
+
   /**
    * Set up fallback controls when CameraControls is not available
    * @private

@@ -128,6 +128,40 @@ export class Canvas2DEnvironment {
   }
   
   /**
+   * Prepare rendering by setting up camera transformations
+   * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+   * @returns {CanvasRenderingContext2D} Transformed context
+   */
+  prepareRender(ctx) {
+    ctx.save();
+    
+    // Apply camera transformations:
+    // 1. Translate to center of canvas
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    ctx.translate(centerX, centerY);
+    
+    // 2. Apply scale
+    ctx.scale(this.camera.scale, this.camera.scale);
+    
+    // 3. Apply rotation (in radians)
+    ctx.rotate((this.camera.rotation * Math.PI) / 180);
+    
+    // 4. Apply translation
+    ctx.translate(this.camera.x, this.camera.y);
+    
+    return ctx;
+  }
+  
+  /**
+   * Complete rendering by restoring context state
+   * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+   */
+  completeRender(ctx) {
+    ctx.restore();
+  }
+  
+  /**
    * Render a visualization
    * @param {Visualization} visualization - Visualization to render
    * @param {Object} parameters - Current parameters
@@ -181,7 +215,7 @@ export class Canvas2DEnvironment {
     const y = event.clientY - rect.top;
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -214,7 +248,9 @@ export class Canvas2DEnvironment {
       this.interaction.lastY = event.clientY;
       
       // Request render
-      this.core.renderingManager.requestRender();
+      if (this.core.renderingManager && this.core.renderingManager.requestRender) {
+        this.core.renderingManager.requestRender();
+      }
     }
     
     // Get mouse coordinates
@@ -223,7 +259,7 @@ export class Canvas2DEnvironment {
     const y = event.clientY - rect.top;
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -246,7 +282,7 @@ export class Canvas2DEnvironment {
     const y = event.clientY - rect.top;
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -291,7 +327,9 @@ export class Canvas2DEnvironment {
       this.camera.scale = newScale;
       
       // Request render
-      this.core.renderingManager.requestRender();
+      if (this.core.renderingManager && this.core.renderingManager.requestRender) {
+        this.core.renderingManager.requestRender();
+      }
     }
     
     // Get mouse coordinates
@@ -299,7 +337,7 @@ export class Canvas2DEnvironment {
     const y = mouseY;
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -321,7 +359,7 @@ export class Canvas2DEnvironment {
     }
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -338,7 +376,7 @@ export class Canvas2DEnvironment {
     this.interaction.keys[event.key] = false;
     
     // Pass to active visualization if any
-    const activePlugin = this.core.getActivePlugin();
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
       if (visualization) {
@@ -359,7 +397,9 @@ export class Canvas2DEnvironment {
     };
     
     // Request render
-    this.core.renderingManager.requestRender();
+    if (this.core.renderingManager && this.core.renderingManager.requestRender) {
+      this.core.renderingManager.requestRender();
+    }
   }
   
   /**

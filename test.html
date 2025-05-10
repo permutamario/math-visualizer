@@ -201,7 +201,7 @@
     {
       "imports": {
         "three": "/vendors/three.module.js",
-        "camera-controls": "/vendors/cameraControls3d/camera-controls.module.js"
+        "camera-controls": "/vendors/camera-controls.module.js"
       }
     }
   </script>
@@ -282,8 +282,12 @@
     import * as THREE from 'three';
     import CameraControls from 'camera-controls';
     
-    // Make THREE globally available for testing
+    // Initialize camera-controls with THREE
+    CameraControls.install({ THREE });
+    
+    // Make THREE and CameraControls globally available for testing
     window.THREE = THREE;
+    window.CameraControls = CameraControls;
     CameraControls.install({ THREE });
     
     // Core Classes Tests
@@ -844,46 +848,46 @@
     document.getElementById('test-2d-environment').addEventListener('click', () => {
       // Create mock core
       const mockCore = {
-        renderingManager: {
-          requestRender: () => {
-            // Render something simple
-            if (environment2d) {
-              environment2d.ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
-              environment2d.ctx.fillStyle = '#f0f0f0';
-              environment2d.ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
-              
-              // Draw grid for reference
-              environment2d.ctx.save();
-              environment2d.ctx.strokeStyle = '#ccc';
-              environment2d.ctx.beginPath();
-              
-              // Apply camera transformation
-              const ctx = environment2d.prepareRender(environment2d.ctx);
-              
-              // Draw grid lines
-              for (let i = -500; i <= 500; i += 50) {
-                ctx.beginPath();
-                ctx.moveTo(i, -500);
-                ctx.lineTo(i, 500);
-                ctx.stroke();
-                
-                ctx.beginPath();
-                ctx.moveTo(-500, i);
-                ctx.lineTo(500, i);
-                ctx.stroke();
-              }
-              
-              // Origin marker
-              ctx.fillStyle = 'red';
-              ctx.beginPath();
-              ctx.arc(0, 0, 5, 0, Math.PI * 2);
-              ctx.fill();
-              
-              environment2d.completeRender(environment2d.ctx);
-            }
-          }
+  renderingManager: {
+    requestRender: () => {
+      // Render something simple
+      if (environment2d) {
+        environment2d.ctx.clearRect(0, 0, canvas2d.width, canvas2d.height);
+        environment2d.ctx.fillStyle = '#f0f0f0';
+        environment2d.ctx.fillRect(0, 0, canvas2d.width, canvas2d.height);
+        
+        // Draw grid for reference
+        environment2d.ctx.strokeStyle = '#ccc';
+        
+        // Apply camera transformation
+        const ctx = environment2d.prepareRender(environment2d.ctx);
+        
+        // Draw grid lines
+        for (let i = -500; i <= 500; i += 50) {
+          ctx.beginPath();
+          ctx.moveTo(i, -500);
+          ctx.lineTo(i, 500);
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.moveTo(-500, i);
+          ctx.lineTo(500, i);
+          ctx.stroke();
         }
-      };
+        
+        // Origin marker
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        environment2d.completeRender(environment2d.ctx);
+      }
+    }
+  },
+  // Add getActivePlugin method that returns null for testing
+  getActivePlugin: () => null
+};
       
       // Size canvas to fit container
       const container = document.getElementById('canvas-2d-container');
@@ -1038,11 +1042,19 @@
     let environment3d = null;
     
     document.getElementById('test-3d-environment').addEventListener('click', () => {
-      // Create mock core
+      // Create mock core with animation loop support
       const mockCore = {
         renderingManager: {
           requestRender: () => {
             if (environment3d) {
+              // Use the clock to get delta time
+              const delta = environment3d.clock.getDelta();
+              
+              // Update camera controls
+              if (environment3d.controls && typeof environment3d.controls.update === 'function') {
+                environment3d.controls.update(delta);
+              }
+              
               // Render the scene
               environment3d.renderer.render(environment3d.scene, environment3d.camera);
             }
@@ -1068,12 +1080,27 @@
         const axes = new THREE.AxesHelper(5);
         environment3d.scene.add(axes);
         
-        // Request render
-        mockCore.renderingManager.requestRender();
+        // Start continuous animation for controls
+        function animate() {
+          requestAnimationFrame(animate);
+          
+          // Update controls
+          if (environment3d.controls && typeof environment3d.controls.update === 'function') {
+            const delta = environment3d.clock.getDelta();
+            environment3d.controls.update(delta);
+          }
+          
+          // Render scene
+          environment3d.renderer.render(environment3d.scene, environment3d.camera);
+        }
         
-        console.log('3D environment initialized');
+        // Start animation loop
+        animate();
+        
+        console.log('3D environment initialized with camera controls');
       });
     });
+ 
     
     // Draw 3D Shape
     document.getElementById('draw-3d-shape').addEventListener('click', () => {
@@ -1102,9 +1129,6 @@
       
       const cube = new THREE.Mesh(geometry, material);
       environment3d.scene.add(cube);
-      
-      // Render
-      environment3d.renderer.render(environment3d.scene, environment3d.camera);
       
       console.log('Drew 3D cube');
     });
@@ -1155,8 +1179,10 @@
       cone.position.set(0, 0.5, 2);
       environment3d.scene.add(cone);
       
-      // Render
-      environment3d.renderer.render(environment3d.scene, environment3d.camera);
+      // Reset camera position if needed
+      if (environment3d.controls && typeof environment3d.controls.setLookAt === 'function') {
+        environment3d.controls.setLookAt(0, 2, 5, 0, 0, 0, true);
+      }
       
       console.log('3D camera test ready - use mouse to orbit, zoom');
     });
