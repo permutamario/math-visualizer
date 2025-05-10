@@ -1,7 +1,7 @@
 // src/core/AppCore.js
 
 import { PluginRegistry } from './PluginRegistry.js';
-import { UIManager } from './UIManager.js';
+import { UIManager } from '../ui/UIManager.js';
 import { RenderingManager } from '../rendering/RenderingManager.js';
 import { ParameterManager } from './ParameterManager.js';
 import { StateManager } from './StateManager.js';

@@ -6,10 +6,10 @@
 export function loadStyles() {
   // Create link elements for each CSS file
   const cssFiles = [
-    './styles/base.css',
-    './styles/desktop.css',
-    './styles/mobile.css',
-    './styles/loading.css'
+    'src/ui/styles/base.css',
+    'src/ui/styles/desktop.css',
+    'src/ui/styles/mobile.css',
+    'src/ui/styles/loading.css'
   ];
   
   // Add media queries for responsive design

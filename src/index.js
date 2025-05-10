@@ -6,7 +6,7 @@ import { loadStyles } from './ui/styles.js';
 /**
  * Initialize the application
  */
-async function main() {
+export async function main() {
   try {
     console.log("Initializing Math Visualization Framework...");
     
