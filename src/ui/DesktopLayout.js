@@ -1,4 +1,4 @@
-// src/ui/DesktopLayout.js
+// src/ui/DesktopLayout.js - Modified version with plugin selector button
 
 import { EventEmitter } from '../core/EventEmitter.js';
 
@@ -20,8 +20,14 @@ export class DesktopLayout extends EventEmitter {
     this.plugins = [];
     this.initialized = false;
     
+    // New plugin selector elements
+    this.pluginSelectorButton = null;
+    this.pluginList = null;
+    
     // Bind methods
     this.handleParameterChange = this.handleParameterChange.bind(this);
+    this.togglePluginList = this.togglePluginList.bind(this);
+    this.handleDocumentClick = this.handleDocumentClick.bind(this);
   }
   
   /**
@@ -34,6 +40,12 @@ export class DesktopLayout extends EventEmitter {
     try {
       // Create UI panels
       this.createPanels();
+      
+      // Create plugin selector button and list
+      this.createPluginSelector();
+      
+      // Add document click listener for closing plugin list
+      document.addEventListener('click', this.handleDocumentClick);
       
       this.initialized = true;
       console.log("Desktop layout initialized");
@@ -51,10 +63,6 @@ export class DesktopLayout extends EventEmitter {
     // Remove any existing panels
     this.removePanels();
     
-    // Create plugin selector panel
-    this.panels.pluginSelector = this.createPluginSelectorPanel();
-    document.body.appendChild(this.panels.pluginSelector);
-    
     // Create structural parameters panel
     this.panels.structural = this.createStructuralPanel();
     document.body.appendChild(this.panels.structural);
@@ -66,6 +74,116 @@ export class DesktopLayout extends EventEmitter {
     // Create export panel
     this.panels.export = this.createExportPanel();
     document.body.appendChild(this.panels.export);
+  }
+  
+  /**
+   * Create plugin selector button and list
+   */
+  createPluginSelector() {
+    // Create plugin selector button
+    this.pluginSelectorButton = document.createElement('div');
+    this.pluginSelectorButton.className = 'plugin-selector-button';
+    this.pluginSelectorButton.title = 'Visualization Selector';
+    this.pluginSelectorButton.addEventListener('click', this.togglePluginList);
+    
+    // Add icon to button
+    const icon = document.createElement('div');
+    icon.className = 'plugin-selector-button-icon';
+    this.pluginSelectorButton.appendChild(icon);
+    
+    // Add button to document
+    document.body.appendChild(this.pluginSelectorButton);
+    
+    // Create plugin list
+    this.pluginList = document.createElement('div');
+    this.pluginList.className = 'plugin-list hidden';
+    
+    // Add header to list
+    const header = document.createElement('div');
+    header.className = 'plugin-list-header';
+    
+    const title = document.createElement('h3');
+    title.className = 'plugin-list-title';
+    title.textContent = 'Visualization Tools';
+    
+    header.appendChild(title);
+    this.pluginList.appendChild(header);
+    
+    // Add container for list items
+    const itemsContainer = document.createElement('div');
+    itemsContainer.className = 'plugin-list-items';
+    this.pluginList.appendChild(itemsContainer);
+    
+    // Add list to document
+    document.body.appendChild(this.pluginList);
+    
+    // Update list with available plugins
+    this.updatePluginList(this.plugins, null);
+  }
+  
+  /**
+   * Toggle plugin list visibility
+   * @param {Event} event - Click event
+   */
+  togglePluginList(event) {
+    event.stopPropagation();
+    this.pluginList.classList.toggle('hidden');
+  }
+  
+  /**
+   * Handle document clicks to close plugin list
+   * @param {Event} event - Click event
+   */
+  handleDocumentClick(event) {
+    // Close plugin list if clicking outside
+    if (!this.pluginList.classList.contains('hidden') &&
+        !this.pluginList.contains(event.target) &&
+        !this.pluginSelectorButton.contains(event.target)) {
+      this.pluginList.classList.add('hidden');
+    }
+  }
+  
+  /**
+   * Update plugin list with available plugins
+   * @param {Array<Object>} plugins - Available plugin metadata
+   * @param {string} activePluginId - Currently active plugin ID
+   */
+  updatePluginList(plugins, activePluginId) {
+    // Get list items container
+    const itemsContainer = this.pluginList.querySelector('.plugin-list-items');
+    
+    // Clear existing items
+    while (itemsContainer.firstChild) {
+      itemsContainer.removeChild(itemsContainer.firstChild);
+    }
+    
+    // Add item for each plugin
+    plugins.forEach(plugin => {
+      const item = document.createElement('div');
+      item.className = 'plugin-list-item';
+      if (plugin.id === activePluginId) {
+        item.classList.add('active');
+      }
+      
+      const itemTitle = document.createElement('h4');
+      itemTitle.className = 'plugin-list-item-title';
+      itemTitle.textContent = plugin.name;
+      
+      const itemDescription = document.createElement('p');
+      itemDescription.className = 'plugin-list-item-description';
+      itemDescription.textContent = plugin.description;
+      
+      item.appendChild(itemTitle);
+      item.appendChild(itemDescription);
+      
+      // Add click handler
+      item.addEventListener('click', () => {
+        this.emit('pluginSelect', plugin.id);
+        this.pluginList.classList.add('hidden');
+      });
+      
+      itemsContainer.appendChild(item);
+    });
   }
   
   /**
@@ -81,61 +199,6 @@ export class DesktopLayout extends EventEmitter {
     
     // Reset panels object
     this.panels = {};
-  }
-  
-  /**
-   * Create the plugin selector panel
-   * @returns {HTMLElement} Plugin selector panel
-   */
-  createPluginSelectorPanel() {
-    const panel = document.createElement('div');
-    panel.id = 'plugin-selector-panel';
-    panel.className = 'vis-selector-panel';
-    
-    // Add title
-    const title = document.createElement('h2');
-    title.textContent = 'Visualization Type';
-    panel.appendChild(title);
-    
-    // Create dropdown if we have plugins
-    if (this.plugins.length > 0) {
-      const selectContainer = document.createElement('div');
-      selectContainer.className = 'control';
-      
-      const label = document.createElement('label');
-      label.htmlFor = 'plugin-selector';
-      label.textContent = 'Select Visualization:';
-      
-      const select = document.createElement('select');
-      select.id = 'plugin-selector';
-      
-      // Add plugin options
-      this.plugins.forEach(plugin => {
-        const option = document.createElement('option');
-        option.value = plugin.id;
-        option.textContent = plugin.name;
-        select.appendChild(option);
-      });
-      
-      // Handle change events
-      select.addEventListener('change', (e) => {
-        const pluginId = e.target.value;
-        this.emit('pluginSelect', pluginId);
-      });
-      
-      selectContainer.appendChild(label);
-      selectContainer.appendChild(select);
-      panel.appendChild(selectContainer);
-    } else {
-      // No plugins message
-      const message = document.createElement('p');
-      message.textContent = 'No visualizations available.';
-      message.style.fontStyle = 'italic';
-      message.style.color = '#666';
-      panel.appendChild(message);
-    }
-    
-    return panel;
   }
   
   /**
@@ -407,31 +470,8 @@ export class DesktopLayout extends EventEmitter {
     // Store plugins
     this.plugins = [...plugins];
     
-    // Update plugin selector panel
-    this.updatePluginSelectorPanel(plugins, activePluginId);
-  }
-  
-  /**
-   * Update plugin selector panel
-   * @param {Array<Object>} plugins - Available plugin metadata
-   * @param {string} activePluginId - Currently active plugin ID
-   */
-  updatePluginSelectorPanel(plugins, activePluginId) {
-    // Recreate the panel
-    if (this.panels.pluginSelector && this.panels.pluginSelector.parentNode) {
-      this.panels.pluginSelector.parentNode.removeChild(this.panels.pluginSelector);
-    }
-    
-    this.panels.pluginSelector = this.createPluginSelectorPanel();
-    document.body.appendChild(this.panels.pluginSelector);
-    
-    // Select the active plugin
-    if (activePluginId) {
-      const select = document.getElementById('plugin-selector');
-      if (select) {
-        select.value = activePluginId;
-      }
-    }
+    // Update plugin list
+    this.updatePluginList(plugins, activePluginId);
   }
   
   /**
@@ -500,6 +540,18 @@ export class DesktopLayout extends EventEmitter {
   dispose() {
     // Remove panels
     this.removePanels();
+    
+    // Remove plugin selector
+    if (this.pluginSelectorButton && this.pluginSelectorButton.parentNode) {
+      this.pluginSelectorButton.parentNode.removeChild(this.pluginSelectorButton);
+    }
+    
+    if (this.pluginList && this.pluginList.parentNode) {
+      this.pluginList.parentNode.removeChild(this.pluginList);
+    }
+    
+    // Remove document click listener
+    document.removeEventListener('click', this.handleDocumentClick);
     
     // Remove any loading indicator
     this.hideLoading();

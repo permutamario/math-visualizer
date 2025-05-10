@@ -179,3 +179,112 @@
   margin-top: 0;
   white-space: nowrap;
 }
+
+/* Plugin selector button styles - add to desktop.css */
+
+.plugin-selector-button {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1001;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.plugin-selector-button:hover {
+  transform: scale(1.05);
+  background-color: #f0f5ff;
+}
+
+.plugin-selector-button:active {
+  transform: scale(0.95);
+}
+
+.plugin-selector-button-icon {
+  width: 30px;
+  height: 30px;
+  background-color: #1a73e8;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+  mask-size: cover;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+  -webkit-mask-size: cover;
+}
+
+.plugin-list {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  min-width: 250px;
+  max-width: 350px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  z-index: 1001;
+  transform-origin: top left;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.plugin-list.hidden {
+  transform: translateY(-10px) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.plugin-list-header {
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.plugin-list-title {
+  margin: 0;
+  color: #1a2433;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.plugin-list-items {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.plugin-list-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.plugin-list-item:last-child {
+  border-bottom: none;
+}
+
+.plugin-list-item:hover {
+  background-color: #f8f9fa;
+}
+
+.plugin-list-item.active {
+  background-color: #e8f0fe;
+  color: #1a73e8;
+  font-weight: 500;
+}
+
+.plugin-list-item-title {
+  font-size: 14px;
+  margin: 0 0 4px 0;
+}
+
+.plugin-list-item-description {
+  font-size: 12px;
+  color: #70757a;
+  margin: 0;
+}

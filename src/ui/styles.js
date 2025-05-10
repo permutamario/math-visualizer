@@ -1,4 +1,5 @@
 // src/ui/styles.js
+// src/ui/styles.js
 
 /**
  * Load CSS styles for the application
@@ -9,13 +10,15 @@ export function loadStyles() {
     'src/ui/styles/base.css',
     'src/ui/styles/desktop.css',
     'src/ui/styles/mobile.css',
-    'src/ui/styles/loading.css'
+    'src/ui/styles/loading.css',
+    'src/ui/styles/plugin-selector.css' // Added new CSS file
   ];
   
   // Add media queries for responsive design
   const mediaQueries = {
     'desktop.css': '(min-width: 600px)',
-    'mobile.css': '(max-width: 599px)'
+    'mobile.css': '(max-width: 599px)',
+    'plugin-selector.css': '(min-width: 600px)' // Only load on desktop
   };
   
   // Add CSS files to document head

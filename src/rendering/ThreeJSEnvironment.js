@@ -217,25 +217,38 @@ render(visualization, parameters) {
  */
 _setupCameraControls() {
   try {
-    // Check if camera-controls module is available
-    if (typeof CameraControls === 'undefined') {
-      console.warn("CameraControls not available. Using fallback controls.");
-      this._setupFallbackControls();
-      return;
+    // Access CameraControls from the window object - it's imported in index.html
+    if (typeof window.CameraControls === 'undefined') {
+      console.warn("CameraControls not available from window. Checking for global CameraControls.");
+      
+      // Check for global CameraControls (in case it's available but not on window)
+      if (typeof CameraControls === 'undefined') {
+        console.warn("CameraControls not available. Using fallback controls.");
+        this._setupFallbackControls();
+        return;
+      }
     }
     
-    // Initialize CameraControls with THREE.js dependency injection already done
-    this.controls = new CameraControls(this.camera, this.renderer.domElement);
+    // Use the CameraControls from wherever it's available
+    const CameraControlsClass = window.CameraControls || CameraControls;
+    
+    // Create the controls instance
+    this.controls = new CameraControlsClass(this.camera, this.renderer.domElement);
     
     // Configure controls
     this.controls.dampingFactor = 0.05;
     this.controls.draggingDampingFactor = 0.25;
     
+    // For Camera Controls v2+, set the proper properties
+    if (this.controls.smoothTime !== undefined) {
+      this.controls.smoothTime = 0.25;          // New in v2
+      this.controls.draggingSmoothTime = 0.125; // New in v2
+    }
+    
     // Set initial position
     this.controls.setLookAt(0, 1, 5, 0, 0, 0);
     
-    // Update will be called in animation loop
-    console.log("Camera controls initialized with camera-controls library");
+    console.log("Camera controls initialized successfully");
   } catch (error) {
     console.error("Error setting up camera controls:", error);
     this._setupFallbackControls();
@@ -247,9 +260,10 @@ _setupCameraControls() {
  * @param {number} deltaTime - Time in seconds since last frame
  */
 updateControls(deltaTime) {
-  if (this.controls && typeof this.controls.update === 'function') {
-    // For camera-controls, we need to pass delta time
-    this.controls.update(deltaTime);
+  if (this.controls) {
+    if (typeof this.controls.update === 'function') {
+      this.controls.update(deltaTime);
+    }
   }
 }
 

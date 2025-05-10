@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Math Visualization Framework</title>
   
-
   <!-- Add favicon -->
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   
@@ -120,15 +119,16 @@
   
   <!-- Core application script -->
   <script type="module">
-    // Import THREE.js and initialize camera-controls
+    // Import THREE.js and camera-controls
     import * as THREE from 'three';
     import CameraControls from 'camera-controls';
     
     // Initialize camera-controls with THREE.js
     CameraControls.install({ THREE });
     
-    // Make THREE globally available for plugins
+    // Make THREE and CameraControls globally available for plugins
     window.THREE = THREE;
+    window.CameraControls = CameraControls;
     
     // Import application entry point
     import { main } from './src/index.js';

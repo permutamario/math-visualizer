@@ -1,4 +1,4 @@
-// src/core/AppCore.js
+// src/core/AppCore.js 
 
 import { PluginRegistry } from './PluginRegistry.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -54,6 +54,10 @@ export class AppCore {
       this.uiManager.on('action', this.executeAction);
       this.uiManager.on('pluginSelect', this.activatePlugin);
       
+      // Update UI with available plugins (THIS IS THE FIX)
+      const pluginMetadata = this.pluginRegistry.getPluginMetadata();
+      this.uiManager.updatePlugins(pluginMetadata, null);
+      
       this.initialized = true;
       console.log("Math Visualization Framework initialized successfully");
       return true;
@@ -105,6 +109,10 @@ export class AppCore {
         // Update actions
         const actions = plugin.getActions();
         this.uiManager.updateActions(actions);
+        
+        // Update UI with currently active plugin (THIS IS ALSO ADDED)
+        const pluginMetadata = this.pluginRegistry.getPluginMetadata();
+        this.uiManager.updatePlugins(pluginMetadata, pluginId);
         
         // Trigger render
         this.renderingManager.requestRender();
