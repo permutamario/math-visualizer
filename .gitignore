@@ -6,3 +6,8 @@
 
 # ignore editor/backup temp files ending in “~”
 *~
+
+node_modules/
+
+package-lock.json
+package.json
