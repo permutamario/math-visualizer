@@ -119,45 +119,11 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Visualization parameters
    */
   render2D(ctx, parameters) {
-    // Draw boxes
+    // Draw boxes using base method
     this.drawBoxes(ctx, parameters);
     
     // Draw particles
     this.drawParticles(ctx, parameters);
-  }
-  
-  /**
-   * Draw the boxes/lattice
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
-   */
-  drawBoxes(ctx, parameters) {
-    const boxColor = parameters.boxColor;
-    const boxSize = this.state.boxSize;
-    
-    ctx.save();
-    ctx.strokeStyle = boxColor;
-    ctx.lineWidth = 2;
-    
-    // Draw each box
-    this.state.boxes.forEach((box, index) => {
-      // Draw a box
-      const x1 = box.x - boxSize / 2;
-      const y1 = box.y - boxSize / 2;
-      
-      // Draw the box
-      ctx.beginPath();
-      ctx.rect(x1, y1, boxSize, boxSize);
-      ctx.stroke();
-      
-      // Add site index below box
-      ctx.fillStyle = boxColor;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
-    });
-    
-    ctx.restore();
   }
   
   /**

@@ -1,5 +1,4 @@
-// src/plugins/asep-plugin/index.js - Modified to fix initialization issue
-
+// src/plugins/asep-plugin/index.js - Updated to handle model-specific parameters
 import { Plugin } from '../../core/Plugin.js';
 import { ClosedASEPVisualization } from './ClosedASEPVisualization.js';
 import { OpenASEPVisualization } from './OpenASEPVisualization.js';
@@ -51,89 +50,115 @@ export default class ASEPPlugin extends Plugin {
   }
 
   getParameterSchema() {
+    // Common parameters for all models
+    const commonParams = [
+      {
+        id: 'modelType',
+        type: 'dropdown',
+        label: 'Model Type',
+        options: [
+          { value: 'closed', label: 'Closed Linear' },
+          { value: 'open', label: 'Open Boundary' },
+          { value: 'circular', label: 'Circular' }
+        ],
+        default: 'closed'
+      },
+      {
+        id: 'numBoxes',
+        type: 'slider',
+        label: 'Number of Sites',
+        min: 5,
+        max: 50,
+        step: 1,
+        default: 20
+      },
+      {
+        id: 'numParticles',
+        type: 'slider',
+        label: 'Number of Particles',
+        min: 1,
+        max: 40,
+        step: 1,
+        default: 10
+      },
+      {
+        id: 'rightJumpRate',
+        type: 'slider',
+        label: 'Right Jump Rate',
+        min: 0.1,
+        max: 5,
+        step: 0.1,
+        default: 1.0
+      },
+      {
+        id: 'leftJumpRate',
+        type: 'slider',
+        label: 'Left Jump Rate',
+        min: 0,
+        max: 5,
+        step: 0.1,
+        default: 0.5
+      }
+    ];
+    
+    // Model-specific parameters
+    let specificParams = [];
+    
+    // Add model-specific parameters
+    switch (this.parameters.modelType) {
+      case 'open':
+        specificParams = [
+          {
+            id: 'entryRate',
+            type: 'slider',
+            label: 'Entry Rate (Open)',
+            min: 0,
+            max: 5,
+            step: 0.1,
+            default: 0.5
+          },
+          {
+            id: 'exitRate',
+            type: 'slider',
+            label: 'Exit Rate (Open)',
+            min: 0,
+            max: 5,
+            step: 0.1,
+            default: 0.5
+          }
+        ];
+        break;
+      case 'circular':
+      case 'closed':
+      default:
+        // No additional params for closed and circular models
+        break;
+    }
+    
+    // Combine common and specific parameters
+    const allStructuralParams = [...commonParams, ...specificParams];
+    
+    // Add animation parameters
+    allStructuralParams.push(
+      {
+        id: 'animationSpeed',
+        type: 'slider',
+        label: 'Animation Speed',
+        min: 0.1,
+        max: 5,
+        step: 0.1,
+        default: 1.0
+      },
+      {
+        id: 'isPaused',
+        type: 'checkbox',
+        label: 'Pause Simulation',
+        default: false
+      }
+    );
+    
     return {
-      structural: [
-        {
-          id: 'modelType',
-          type: 'dropdown',
-          label: 'Model Type',
-          options: [
-            { value: 'closed', label: 'Closed Linear' },
-            { value: 'open', label: 'Open Boundary' },
-            { value: 'circular', label: 'Circular' }
-          ],
-          default: 'closed'
-        },
-        {
-          id: 'numBoxes',
-          type: 'slider',
-          label: 'Number of Sites',
-          min: 5,
-          max: 50,
-          step: 1,
-          default: 20
-        },
-        {
-          id: 'numParticles',
-          type: 'slider',
-          label: 'Number of Particles',
-          min: 1,
-          max: 40,
-          step: 1,
-          default: 10
-        },
-        {
-          id: 'rightJumpRate',
-          type: 'slider',
-          label: 'Right Jump Rate',
-          min: 0.1,
-          max: 5,
-          step: 0.1,
-          default: 1.0
-        },
-        {
-          id: 'leftJumpRate',
-          type: 'slider',
-          label: 'Left Jump Rate',
-          min: 0,
-          max: 5,
-          step: 0.1,
-          default: 0.5
-        },
-        {
-          id: 'entryRate',
-          type: 'slider',
-          label: 'Entry Rate (Open)',
-          min: 0,
-          max: 5,
-          step: 0.1,
-          default: 0.5
-        },
-        {
-          id: 'exitRate',
-          type: 'slider',
-          label: 'Exit Rate (Open)',
-          min: 0,
-          max: 5,
-          step: 0.1,
-          default: 0.5
-        },
-        {
-          id: 'animationSpeed',
-          type: 'slider',
-          label: 'Animation Speed',
-          min: 0.1,
-          max: 5,
-          step: 0.1,
-          default: 1.0
-        },
-        {
-          id: 'isPaused',
-          type: 'checkbox',
-          label: 'Pause Simulation',
-          default: false
-        }
-      ],
+      structural: allStructuralParams,
       visual: [
         {
           id: 'particleColor',
@@ -158,6 +183,12 @@ export default class ASEPPlugin extends Plugin {
           type: 'color',
           label: 'Portal Color (Open)',
           default: '#9C27B0'
+        },
+        {
+          id: 'showLabels',
+          type: 'checkbox',
+          label: 'Show Labels',
+          default: false
         }
       ]
     };
@@ -185,6 +216,12 @@ export default class ASEPPlugin extends Plugin {
         // Set and initialize the new visualization
         this.currentVisualization = newViz;
         this.currentVisualization.initialize(this.parameters);
+        
+        // Update the parameter schema to reflect the new model type
+        if (this.core && this.core.uiManager) {
+          const paramSchema = this.getParameterSchema();
+          this.core.uiManager.buildControlsFromSchema(paramSchema, this.parameters);
+        }
       }
     } 
     // Handle pause toggle

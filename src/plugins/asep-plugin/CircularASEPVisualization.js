@@ -96,9 +96,16 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
         
         // For circular model, wrap around
         const numBoxes = this.state.boxes.length;
-        const targetPos = jumpRight ? 
-          (particle.position + 1) % numBoxes : 
-          (particle.position - 1 + numBoxes) % numBoxes;
+        let targetPos;
+        
+        if (jumpRight) {
+          // Move clockwise - to the next position
+          targetPos = (particle.position + 1) % numBoxes;
+        } else {
+          // Move counterclockwise - to the previous position
+          // Use modulo arithmetic to ensure positive result
+          targetPos = (particle.position - 1 + numBoxes) % numBoxes;
+        }
         
         // Check if target position is empty
         if (!this.isPositionOccupied(targetPos, particle)) {
@@ -172,6 +179,7 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   drawCircularBoxes(ctx, parameters) {
     const boxColor = parameters.boxColor;
     const boxSize = this.state.boxSize;
+    const showLabels = parameters.showLabels === true;
     
     ctx.save();
     ctx.strokeStyle = boxColor;
@@ -195,15 +203,17 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
       ctx.rect(x1, y1, boxSize, boxSize);
       ctx.stroke();
       
-      // Add site index outside box
-      ctx.fillStyle = boxColor;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      // Position the index text outside the box
-      const textRadius = 20;
-      ctx.fillText(box.index.toString(), 0, boxSize/2 + textRadius);
+      // Add site index outside box (only if showLabels is true)
+      if (showLabels) {
+        ctx.fillStyle = boxColor;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Position the index text outside the box
+        const textRadius = 20;
+        ctx.fillText(box.index.toString(), 0, boxSize/2 + textRadius);
+      }
       
       ctx.restore();
     });
@@ -230,8 +240,8 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
         
         // Determine if it's a wraparound jump
         const numBoxes = this.state.boxes.length;
-        const isWraparound = (Math.abs(particle.targetPosition - particle.startPosition) > 1) &&
-                            (Math.abs(particle.targetPosition - particle.startPosition) !== numBoxes - 1);
+        const isWraparound = Math.abs(particle.targetPosition - particle.startPosition) > 1 &&
+                            Math.abs(particle.targetPosition - particle.startPosition) !== numBoxes - 1;
         
         let x, y, scale;
         
@@ -250,14 +260,12 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
           let startAngle = startBox.angle;
           let endAngle = endBox.angle;
           
-          // Handle wraparound case
-          if (endAngle < startAngle) {
-            if (particle.targetPosition > particle.startPosition) {
-              // Moving clockwise across the boundary
-              endAngle += Math.PI * 2;
-            } else {
-              // Moving counterclockwise across the boundary
+          // Handle wraparound case - take the short path around the circle
+          if (Math.abs(endAngle - startAngle) > Math.PI) {
+            if (endAngle > startAngle) {
               startAngle += Math.PI * 2;
+            } else {
+              endAngle += Math.PI * 2;
             }
           }
           

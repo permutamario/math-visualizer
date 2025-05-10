@@ -11,6 +11,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Add portal state properties
     this.state.leftPortal = null;
     this.state.rightPortal = null;
+    this.state.particleCount = 0;
   }
   
   /**
@@ -29,6 +30,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Create initial particles with random positions
     this.createParticles(parameters);
+    
+    // Store particle count
+    this.state.particleCount = this.state.particles.length;
     
     // Schedule initial jumps for each particle
     this.scheduleInitialJumps();
@@ -104,9 +108,16 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     const rightRate = this.plugin.parameters.rightJumpRate;
     const leftRate = this.plugin.parameters.leftJumpRate;
+    const exitRate = this.plugin.parameters.exitRate || 0.5;
     
     // Determine total rate and waiting time
-    const totalRate = rightRate + leftRate;
+    let totalRate = rightRate + leftRate;
+    
+    // Add exit rate if particle is at the rightmost box
+    if (particle.position === this.state.boxes.length - 1) {
+      totalRate += exitRate;
+    }
+    
     const waitTime = -Math.log(Math.random()) / totalRate;
     const scaledWaitTime = waitTime / this.state.timeScale;
     
@@ -114,47 +125,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     const jumpEvent = {
       particleId: particle.id,
       timeoutId: setTimeout(() => {
-        // Choose direction based on rates
-        const jumpRight = Math.random() < (rightRate / totalRate);
+        // Choose movement type based on rates
+        const rand = Math.random() * totalRate;
         
-        const targetPos = jumpRight ? 
-          particle.position + 1 : 
-          particle.position - 1;
-        
-        // Handle boundary cases for open model
-        if (targetPos >= 0 && targetPos < this.state.boxes.length) {
-          // Normal internal jump
-          if (!this.isPositionOccupied(targetPos, particle)) {
-            // Start jump animation
-            particle.isJumping = true;
-            particle.jumpProgress = 0;
-            particle.startPosition = particle.position;
-            particle.targetPosition = targetPos;
-            particle.originalColor = particle.color;
-            particle.jumpState = 'entering'; // Start the jump animation sequence
-            
-            // Remove event from tracking array
-            this.state.jumpEvents = this.state.jumpEvents.filter(
-              e => e.timeoutId !== jumpEvent.timeoutId
-            );
-          } else {
-            // Target is occupied, try again
-            this.scheduleNextJump(particle);
-          }
-        } else if (targetPos === -1) {
-          // Exit left through portal
-          particle.isJumping = true;
-          particle.jumpProgress = 0;
-          particle.startPosition = particle.position;
-          particle.targetPosition = -1; // Special value for portal
-          particle.originalColor = particle.color;
-          particle.jumpState = 'exiting'; // Exiting the system
-          
-          // Remove event from tracking array
-          this.state.jumpEvents = this.state.jumpEvents.filter(
-            e => e.timeoutId !== jumpEvent.timeoutId
-          );
-        } else if (targetPos === this.state.boxes.length) {
+        if (particle.position === this.state.boxes.length - 1 && rand > rightRate + leftRate) {
           // Exit right through portal
           particle.isJumping = true;
           particle.jumpProgress = 0;
@@ -163,13 +137,45 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
           particle.originalColor = particle.color;
           particle.jumpState = 'exiting'; // Exiting the system
           
+          // Decrease particle count
+          this.state.particleCount--;
+          
           // Remove event from tracking array
           this.state.jumpEvents = this.state.jumpEvents.filter(
             e => e.timeoutId !== jumpEvent.timeoutId
           );
         } else {
-          // Position out of bounds, try again
-          this.scheduleNextJump(particle);
+          // Normal jump left or right
+          const jumpRight = rand < rightRate;
+          
+          const targetPos = jumpRight ? 
+            particle.position + 1 : 
+            particle.position - 1;
+          
+          // Ensure target position is valid (within bounds for open model)
+          if (targetPos >= 0 && targetPos < this.state.boxes.length) {
+            // Check if target position is empty
+            if (!this.isPositionOccupied(targetPos, particle)) {
+              // Start jump animation
+              particle.isJumping = true;
+              particle.jumpProgress = 0;
+              particle.startPosition = particle.position;
+              particle.targetPosition = targetPos;
+              particle.originalColor = particle.color;
+              particle.jumpState = 'entering'; // Start the jump animation sequence
+              
+              // Remove event from tracking array
+              this.state.jumpEvents = this.state.jumpEvents.filter(
+                e => e.timeoutId !== jumpEvent.timeoutId
+              );
+            } else {
+              // Target is occupied, try again
+              this.scheduleNextJump(particle);
+            }
+          } else {
+            // Position out of bounds, try again
+            this.scheduleNextJump(particle);
+          }
         }
       }, scaledWaitTime * 1000) // Convert to milliseconds
     };
@@ -179,12 +185,27 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
+   * Try to generate a new particle from the left portal
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   */
+  tryGenerateParticle(deltaTime) {
+    if (this.state.isPaused) return;
+    
+    const entryRate = this.plugin.parameters.entryRate || 0.5;
+    
+    // Calculate probability for this frame
+    const probability = entryRate * 0.01 * deltaTime;
+    
+    // Check if first position is empty
+    if (Math.random() < probability && !this.isPositionOccupied(0)) {
+      this.generateNewParticleFromLeft();
+    }
+  }
+  
+  /**
    * Generate a new particle from the left portal
    */
   generateNewParticleFromLeft() {
-    // Check if the target position is occupied
-    if (this.isPositionOccupied(0)) return;
-    
     // Find the highest ID to create a new unique ID
     const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
     
@@ -204,21 +225,33 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       insideProgress: 0
     };
     
+    // Add to particles array
     this.state.particles.push(newParticle);
+    
+    // Increase particle count
+    this.state.particleCount++;
   }
   
   /**
    * Custom animate function for open model
-   * Handles particle generation from portals
+   * Handles particle generation from the left portal
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   customAnimate(deltaTime) {
-    if (!this.state.isPaused) {
-      const entryRate = this.plugin.parameters.entryRate;
+    // Try to generate a new particle from left portal
+    this.tryGenerateParticle(deltaTime);
+    
+    // Update count display/slider if needed
+    if (this.plugin && this.plugin.parameters && 
+        this.plugin.parameters.numParticles !== this.state.particleCount) {
+      // Dynamic update of particle count for UI
+      this.plugin.parameters.numParticles = this.state.particleCount;
       
-      // Chance of generating a particle from the left (entry rate)
-      if (Math.random() < entryRate * 0.01 * deltaTime) {
-        this.generateNewParticleFromLeft();
+      // Update UI if core exists
+      if (this.plugin.core && this.plugin.core.uiManager) {
+        this.plugin.core.uiManager.updateControls({
+          numParticles: this.state.particleCount
+        });
       }
     }
   }
@@ -230,7 +263,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    */
   completeJump(particle, particlesToRemove) {
     // Check if particle is exiting the system
-    if (particle.targetPosition === -1 || particle.targetPosition === this.state.boxes.length) {
+    if (particle.targetPosition === this.state.boxes.length) {
       // Mark for removal
       particlesToRemove.push(particle);
     } else {
@@ -279,8 +312,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Draw portals first
     this.drawPortals(ctx, parameters);
     
-    // Draw boxes
-    this.drawBoxes(ctx, parameters);
+    // Draw boxes using base method with portal connections
+    this.drawOpenBoxes(ctx, parameters);
     
     // Draw particles
     this.drawParticles(ctx, parameters);
@@ -318,7 +351,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       this.drawPortalSwirl(ctx, this.state.rightPortal, Date.now() / 1000 + Math.PI);
     }
   }
-  
+
   /**
    * Draw a swirl pattern in the portal
    * @param {CanvasRenderingContext2D} ctx - Canvas context
@@ -363,13 +396,14 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Draw the boxes/lattice
+   * Draw the boxes/lattice with connections to portals
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {Object} parameters - Visualization parameters
    */
-  drawBoxes(ctx, parameters) {
+  drawOpenBoxes(ctx, parameters) {
     const boxColor = parameters.boxColor;
     const boxSize = this.state.boxSize;
+    const showLabels = parameters.showLabels === true;
     
     ctx.save();
     ctx.strokeStyle = boxColor;
@@ -386,11 +420,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       ctx.rect(x1, y1, boxSize, boxSize);
       ctx.stroke();
       
-      // Add site index below box
-      ctx.fillStyle = boxColor;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
+      // Add site index below box only if showLabels is true
+      if (showLabels) {
+        ctx.fillStyle = boxColor;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
+      }
     });
     
     // Draw connection to portals
@@ -460,38 +496,6 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             // Exiting the box
             const x = targetBox.x;
             const y = targetBox.y;
-            const scale = 1.0;
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-            this.drawParticle(ctx, particle, x, y, scale);
-          }
-        } else if (particle.targetPosition === -1) {
-          // Exiting to left portal
-          const startBox = this.state.boxes[particle.startPosition];
-          const portalX = this.state.leftPortal.x;
-          const portalY = this.state.leftPortal.y;
-          
-          if (particle.jumpState === 'entering') {
-            // Entering the box
-            const x = startBox.x;
-            const y = startBox.y;
-            const scale = 1.0 - 0.3 * Math.sin(Math.PI * 0.5); // Shrink at start
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-            this.drawParticle(ctx, particle, x, y, scale);
-          } else if (particle.jumpState === 'inside') {
-            // Inside the box
-            const x = startBox.x;
-            const y = startBox.y;
-            const scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink inside
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
-            this.drawParticle(ctx, particle, x, y, scale);
-          } else {
-            // Moving from box edge to portal
-            const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
-            const x = (startBox.x - boxSize/2) + (portalX - (startBox.x - boxSize/2)) * progress;
-            const y = portalY;
             const scale = 1.0;
             
             ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
@@ -602,6 +606,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
           if (particleIndex >= 0) {
             // Remove particle
             this.state.particles.splice(particleIndex, 1);
+            this.state.particleCount--;
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
@@ -621,6 +626,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
               insideProgress: 0
             });
             
+            this.state.particleCount++;
+            
             // Schedule a jump if not paused
             if (!this.state.isPaused) {
               this.scheduleNextJump(this.state.particles[this.state.particles.length - 1]);
@@ -631,10 +638,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         }
       }
       
-      // Check if clicking on portals
+      // Check if clicking on left portal to manually add a particle
       const leftPortal = this.state.leftPortal;
-      const rightPortal = this.state.rightPortal;
-      
       if (leftPortal) {
         const dx = event.x - leftPortal.x;
         const dy = event.y - leftPortal.y;

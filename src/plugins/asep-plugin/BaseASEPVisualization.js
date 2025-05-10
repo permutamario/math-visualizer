@@ -1,4 +1,4 @@
-// src/plugins/asep-plugin/BaseASEPVisualization.js - Modified to fix initialization issue
+// src/plugins/asep-plugin/BaseASEPVisualization.js
 import { Visualization } from '../../core/Visualization.js';
 
 /**
@@ -312,12 +312,53 @@ export class BaseASEPVisualization extends Visualization {
     ctx.arc(x, y, particle.radius * scale, 0, Math.PI * 2);
     ctx.fill();
     
-    // Draw particle ID
-    ctx.fillStyle = '#fff';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(particle.id.toString(), x, y);
+    // Draw particle ID only if showLabels is true
+    if (this.plugin && this.plugin.parameters && this.plugin.parameters.showLabels) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(particle.id.toString(), x, y);
+    }
+  }
+  
+  /**
+   * Draw boxes without labels
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
+   */
+  drawBoxes(ctx, parameters) {
+    if (!ctx || !Array.isArray(this.state.boxes)) return;
+    
+    const boxColor = parameters.boxColor;
+    const boxSize = this.state.boxSize;
+    const showLabels = parameters.showLabels === true;
+    
+    ctx.save();
+    ctx.strokeStyle = boxColor;
+    ctx.lineWidth = 2;
+    
+    // Draw each box
+    this.state.boxes.forEach((box, index) => {
+      // Calculate box position
+      const x1 = box.x - boxSize / 2;
+      const y1 = box.y - boxSize / 2;
+      
+      // Draw the box
+      ctx.beginPath();
+      ctx.rect(x1, y1, boxSize, boxSize);
+      ctx.stroke();
+      
+      // Add site index below box only if showLabels is true
+      if (showLabels) {
+        ctx.fillStyle = boxColor;
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
+      }
+    });
+    
+    ctx.restore();
   }
   
   /**
