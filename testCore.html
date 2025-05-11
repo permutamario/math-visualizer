@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Core-Plugin Interaction Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .controls {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    
+    .control-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    
+    button {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    .test-button {
+      background-color: #2196F3;
+    }
+    
+    .test-button:hover {
+      background-color: #0b7dda;
+    }
+    
+    .reset-button {
+      background-color: #f44336;
+    }
+    
+    .reset-button:hover {
+      background-color: #d32f2f;
+    }
+    
+    .log-container {
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+      height: 500px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin: 0;
+      padding: 3px 0;
+      border-bottom: 1px solid #eee;
+      font-family: monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+    
+    .log-timestamp {
+      color: #888;
+      font-size: 12px;
+    }
+    
+    .log-plugin {
+      color: #4CAF50;
+    }
+    
+    .log-core {
+      color: #2196F3;
+    }
+    
+    .log-event {
+      color: #9C27B0;
+    }
+    
+    .log-error {
+      color: #f44336;
+    }
+    
+    .log-warning {
+      color: #ff9800;
+    }
+  </style>
+</head>
+<body>
+  <h1>Core-Plugin Interaction Test</h1>
+  <p>This test simulates the interaction between the Core system and the Polytope Viewer plugin without UI components.</p>
+  
+  <div class="controls">
+    <h2>Test Controls</h2>
+    <div class="control-group">
+      <button id="activatePlugin" class="test-button">Activate Plugin</button>
+      <button id="sendParameter" class="test-button">Change Visualization Type</button>
+      <button id="reinitialize" class="test-button">Reinitialize</button>
+      <button id="reset" class="reset-button">Reset Test</button>
+      <button id="clearLog" class="reset-button">Clear Log</button>
+    </div>
+    <div class="control-group">
+      <button id="testSequence" class="test-button">Run Complete Test Sequence</button>
+    </div>
+  </div>
+  
+  <h2>Event Log</h2>
+  <div class="log-container" id="logContainer"></div>
+  
+  <script>
+    // Simple event bus to simulate core events
+    class EventBus {
+      constructor() {
+        this.listeners = {};
+      }
+      
+      on(event, callback) {
+        if (!this.listeners[event]) {
+          this.listeners[event] = [];
+        }
+        this.listeners[event].push(callback);
+        logEvent(`EventBus: Registered listener for "${event}"`);
+      }
+      
+      emit(event, ...args) {
+        logEvent(`EventBus: Emitting "${event}" event with args: ${JSON.stringify(args)}`);
+        if (this.listeners[event]) {
+          this.listeners[event].forEach(callback => callback(...args));
+        }
+      }
+      
+      off(event, callback) {
+        if (this.listeners[event]) {
+          this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+        }
+      }
+      
+      removeAllListeners() {
+        this.listeners = {};
+      }
+    }
+    
+    // Core system simulation
+    class CoreSystem {
+      constructor() {
+        this.events = new EventBus();
+        this.activePlugin = null;
+        this.logPrefix = 'CORE';
+        
+        // Simulated UI Manager
+        this.uiManager = {
+          buildControlsFromSchema: (schema, values) => {
+            this.log(`UIManager.buildControlsFromSchema called with schema: ${JSON.stringify(schema)}`);
+            this.log(`UIManager.buildControlsFromSchema called with values: ${JSON.stringify(values)}`);
+          },
+          updateControls: (values) => {
+            this.log(`UIManager.updateControls called with values: ${JSON.stringify(values)}`);
+          }
+        };
+        
+        this.log('Core system initialized');
+      }
+      
+      log(message) {
+        logMessage(this.logPrefix, message);
+      }
+      
+      async activatePlugin(plugin) {
+        this.log(`Activating plugin: ${plugin.constructor.name}`);
+        
+        try {
+          // Store reference to previous plugin
+          const previousPlugin = this.activePlugin;
+          
+          // Deactivate previous plugin if any
+          if (previousPlugin) {
+            this.log('Deactivating previous plugin');
+            await previousPlugin.deactivate();
+          }
+          
+          // Activate new plugin
+          this.log('Calling plugin.activate()');
+          const success = await plugin.activate();
+          
+          if (success) {
+            this.activePlugin = plugin;
+            this.log(`Plugin activated successfully: ${plugin.constructor.name}`);
+            
+            // Update UI with plugin's parameters
+            this.log('Getting parameter schema from plugin');
+            const paramSchema = plugin.getParameterSchema();
+            
+            this.log('Building UI controls from schema');
+            this.uiManager.buildControlsFromSchema(paramSchema, plugin.parameters);
+            
+            return true;
+          } else {
+            this.log(`Failed to activate plugin: ${plugin.constructor.name}`);
+            return false;
+          }
+        } catch (error) {
+          this.log(`Error activating plugin: ${error.message}`);
+          return false;
+        }
+      }
+      
+      handleParameterChange(parameterId, value) {
+        this.log(`handleParameterChange called: ${parameterId} = ${value}`);
+        
+        if (!this.activePlugin) {
+          this.log('No active plugin to handle parameter change');
+          return;
+        }
+        
+        try {
+          this.log(`Calling plugin.onParameterChanged(${parameterId}, ${value})`);
+          this.activePlugin.onParameterChanged(parameterId, value);
+        } catch (error) {
+          this.log(`Error handling parameter change: ${error.message}`);
+        }
+      }
+      
+      getActivePlugin() {
+        return this.activePlugin;
+      }
+    }
+    
+    // Simulated visualization base class
+    class Visualization {
+      constructor(plugin) {
+        this.plugin = plugin;
+        this.logPrefix = 'VISUALIZATION';
+      }
+      
+      log(message) {
+        logMessage(this.logPrefix, message);
+      }
+      
+      async initialize(parameters) {
+        this.log(`initialize called with parameters: ${JSON.stringify(parameters)}`);
+        return true;
+      }
+      
+      update(parameters) {
+        this.log(`update called with parameters: ${JSON.stringify(parameters)}`);
+      }
+      
+      dispose() {
+        this.log('dispose called');
+      }
+    }
+    
+    // Sample visualization classes
+    class PlatonicVisualization extends Visualization {
+      constructor(plugin) {
+        super(plugin);
+        this.logPrefix = 'PLATONIC_VIZ';
+        this.log('created');
+      }
+    }
+    
+    class PermutahedronVisualization extends Visualization {
+      constructor(plugin) {
+        super(plugin);
+        this.logPrefix = 'PERMUTAHEDRON_VIZ';
+        this.log('created');
+      }
+    }
+    
+    class RootPolytopeVisualization extends Visualization {
+      constructor(plugin) {
+        super(plugin);
+        this.logPrefix = 'ROOT_POLYTOPE_VIZ';
+        this.log('created');
+      }
+    }
+    
+    // Simulated plugin
+    class PolytopeViewerPlugin {
+      constructor(core) {
+        this.core = core;
+        this.logPrefix = 'PLUGIN';
+        
+        // Initial parameters
+        this.parameters = {
+          visualizationType: 'platonic'
+        };
+        
+        // Initialize visualizations
+        this.visualizationTypes = [
+          { id: 'platonic', name: 'Platonic Solids', class: PlatonicVisualization },
+          { id: 'permutahedron', name: 'Permutahedron', class: PermutahedronVisualization },
+          { id: 'root-polytope', name: 'Root Polytope', class: RootPolytopeVisualization }
+        ];
+        
+        this.currentVisualization = null;
+        
+        this.log('Plugin created');
+      }
+      
+      log(message) {
+        logMessage(this.logPrefix, message);
+      }
+      
+      async initialize() {
+        this.log('initialize called');
+        this.parameters.visualizationType = 'platonic';
+        return true;
+      }
+      
+      async activate() {
+        this.log('activate called');
+        await this._initializeDefaultVisualization();
+        return true;
+      }
+      
+      async deactivate() {
+        this.log('deactivate called');
+        
+        if (this.currentVisualization) {
+          this.log('Disposing current visualization');
+          this.currentVisualization.dispose();
+          this.currentVisualization = null;
+        }
+        
+        return true;
+      }
+      
+      async _initializeDefaultVisualization() {
+        this.log('_initializeDefaultVisualization called');
+        
+        // Get the selected visualization type
+        const selectedType = this.parameters.visualizationType || this.visualizationTypes[0].id;
+        this.log(`Selected visualization type: ${selectedType}`);
+        
+        // Find the visualization info
+        const vizInfo = this.visualizationTypes.find(vt => vt.id === selectedType);
+        if (!vizInfo) {
+          this.log(`ERROR: Visualization type ${selectedType} not found`);
+          return false;
+        }
+        
+        // Update parameter for consistency
+        this.parameters.visualizationType = vizInfo.id;
+        
+        // Create and register visualization
+        this.log(`Creating visualization: ${vizInfo.id}`);
+        const visualization = new vizInfo.class(this);
+        this.currentVisualization = visualization;
+        
+        // Initialize with current parameters
+        this.log('Initializing visualization with parameters');
+        await this.currentVisualization.initialize(this.parameters);
+        
+        return true;
+      }
+      
+      getParameterSchema() {
+        this.log('getParameterSchema called');
+        
+        // Log the current state
+        this.log(`Current parameters: ${JSON.stringify(this.parameters)}`);
+        
+        // Use the current visualization type
+        const currentType = this.parameters.visualizationType || this.visualizationTypes[0].id;
+        this.log(`Current type in getParameterSchema: ${currentType}`);
+        
+        // Create visualization type selector options
+        const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
+          value: vt.id,
+          label: vt.name
+        }));
+        
+        // Plugin parameter
+        const pluginParam = {
+          id: 'visualizationType',
+          type: 'dropdown',
+          label: 'Polytope Class',
+          options: visualizationTypeOptions,
+          default: currentType  // Default to current type
+        };
+        
+        return {
+          structural: [pluginParam],
+          visual: []
+        };
+      }
+      
+      onParameterChanged(parameterId, value) {
+        this.log(`onParameterChanged: ${parameterId} = ${value}`);
+        this.log(`Current parameters before change: ${JSON.stringify(this.parameters)}`);
+        
+        // Store previous value for comparison
+        const prevValue = this.parameters[parameterId];
+        
+        // Update parameter value
+        this.parameters[parameterId] = value;
+        this.log(`Parameters after update: ${JSON.stringify(this.parameters)}`);
+        
+        // Special handling for visualization type changes
+        if (parameterId === 'visualizationType' && value !== prevValue) {
+          this.log(`Visualization type changing from ${prevValue} to ${value}`);
+          
+          // Find visualization info
+          const vizInfo = this.visualizationTypes.find(vt => vt.id === value);
+          
+          if (!vizInfo) {
+            this.log(`ERROR: Visualization type ${value} not found`);
+            return;
+          }
+          
+          // Dispose current visualization
+          if (this.currentVisualization) {
+            this.log('Disposing current visualization');
+            this.currentVisualization.dispose();
+          }
+          
+          // Create and register new visualization
+          this.log(`Creating new visualization: ${vizInfo.id}`);
+          const visualization = new vizInfo.class(this);
+          this.currentVisualization = visualization;
+          
+          // Initialize with current parameters
+          this.log('Initializing new visualization with parameters');
+          // Using a timeout to simulate async behavior
+          setTimeout(() => {
+            this.currentVisualization.initialize(this.parameters)
+              .then(() => {
+                this.log('Visualization initialized successfully');
+                
+                // Update UI with new parameter schema
+                if (this.core && this.core.uiManager) {
+                  this.log('Getting updated parameter schema');
+                  const paramSchema = this.getParameterSchema();
+                  
+                  this.log('Building UI controls from updated schema');
+                  this.core.uiManager.buildControlsFromSchema(paramSchema, this.parameters);
+                  
+                  // Also explicitly update controls with current values
+                  this.log('Updating UI controls with current parameter values');
+                  this.core.uiManager.updateControls(this.parameters);
+                }
+              })
+              .catch(error => {
+                this.log(`ERROR initializing visualization: ${error.message}`);
+              });
+          }, 50);
+          
+          return;
+        }
+        
+        // Update visualization with the parameter change
+        if (this.currentVisualization) {
+          this.log('Updating visualization with parameter change');
+          this.currentVisualization.update({ [parameterId]: value });
+        }
+      }
+    }
+    
+    // Logging utilities
+    function logMessage(prefix, message) {
+      const logContainer = document.getElementById('logContainer');
+      const timestamp = new Date().toISOString();
+      
+      const entry = document.createElement('p');
+      entry.className = 'log-entry';
+      
+      // Determine log type for styling
+      let prefixClass = '';
+      if (prefix === 'CORE' || prefix === 'CORE-UI') {
+        prefixClass = 'log-core';
+      } else if (prefix === 'PLUGIN') {
+        prefixClass = 'log-plugin';
+      } else if (prefix === 'EVENT') {
+        prefixClass = 'log-event';
+      } else if (prefix.includes('ERROR')) {
+        prefixClass = 'log-error';
+      } else if (prefix.includes('WARNING')) {
+        prefixClass = 'log-warning';
+      }
+      
+      entry.innerHTML = `<span class="log-timestamp">[${timestamp.split('T')[1].split('.')[0]}]</span> <span class="${prefixClass}">${prefix}</span>: ${message}`;
+      
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+      
+      // Also log to console for easier debugging
+      console.log(`[${prefix}] ${message}`);
+    }
+    
+    function logEvent(message) {
+      logMessage('EVENT', message);
+    }
+    
+    // Test runner
+    function runTest() {
+      // Reset test environment
+      resetTest();
+      
+      // Get references
+      const core = window.testCore;
+      const plugin = window.testPlugin;
+      
+      // Run test sequence
+      setTimeout(() => {
+        logEvent('TEST: Activating plugin');
+        core.activatePlugin(plugin).then(() => {
+          
+          logEvent('TEST: Waiting 500ms before changing parameter');
+          setTimeout(() => {
+            logEvent('TEST: Changing visualization type to permutahedron');
+            core.handleParameterChange('visualizationType', 'permutahedron');
+            
+            logEvent('TEST: Waiting 500ms before changing parameter again');
+            setTimeout(() => {
+              logEvent('TEST: Changing visualization type to root-polytope');
+              core.handleParameterChange('visualizationType', 'root-polytope');
+              
+              logEvent('TEST: Test sequence complete');
+            }, 500);
+          }, 500);
+        });
+      }, 100);
+    }
+    
+    // Set up test environment
+    function setupTest() {
+      const core = new CoreSystem();
+      const plugin = new PolytopeViewerPlugin(core);
+      
+      // Store references for global access
+      window.testCore = core;
+      window.testPlugin = plugin;
+      
+      return { core, plugin };
+    }
+    
+    // Reset test environment
+    function resetTest() {
+      // Clear log
+      document.getElementById('logContainer').innerHTML = '';
+      
+      // Set up fresh test environment
+      setupTest();
+      
+      logEvent('TEST: Environment reset');
+    }
+    
+    // Initialize test
+    document.addEventListener('DOMContentLoaded', () => {
+      setupTest();
+      
+      // Add button event listeners
+      document.getElementById('activatePlugin').addEventListener('click', () => {
+        const { core, plugin } = window;
+        core.activatePlugin(plugin);
+      });
+      
+      document.getElementById('sendParameter').addEventListener('click', () => {
+        const { core } = window;
+        
+        // Get active plugin parameters to determine next visualization type
+        const activePlugin = core.getActivePlugin();
+        if (!activePlugin) {
+          logEvent('ERROR: No active plugin');
+          return;
+        }
+        
+        // Find the current visualization type
+        const currentType = activePlugin.parameters.visualizationType;
+        
+        // Get next visualization type
+        const visualizationTypes = activePlugin.visualizationTypes.map(vt => vt.id);
+        const currentIndex = visualizationTypes.indexOf(currentType);
+        const nextIndex = (currentIndex + 1) % visualizationTypes.length;
+        const nextType = visualizationTypes[nextIndex];
+        
+        logEvent(`TEST: Changing visualization type from ${currentType} to ${nextType}`);
+        core.handleParameterChange('visualizationType', nextType);
+      });
+      
+      document.getElementById('reinitialize').addEventListener('click', () => {
+        const { core, plugin } = window;
+        
+        if (core.activePlugin) {
+          logEvent('TEST: Reinitializing active plugin');
+          core.activePlugin.initialize().then(() => {
+            // Get parameter schema and rebuild UI
+            const paramSchema = core.activePlugin.getParameterSchema();
+            core.uiManager.buildControlsFromSchema(paramSchema, core.activePlugin.parameters);
+          });
+        } else {
+          logEvent('ERROR: No active plugin to reinitialize');
+        }
+      });
+      
+      document.getElementById('reset').addEventListener('click', resetTest);
+      
+      document.getElementById('clearLog').addEventListener('click', () => {
+        document.getElementById('logContainer').innerHTML = '';
+      });
+      
+      document.getElementById('testSequence').addEventListener('click', runTest);
+      
+      logEvent('TEST: Environment initialized');
+    });
+  </script>
+</body>
+</html>

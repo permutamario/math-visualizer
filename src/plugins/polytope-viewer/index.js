@@ -200,49 +200,49 @@ export default class PolytopeViewerPlugin extends Plugin {
    * Get the parameter schema combining plugin, base, and visualization parameters
    */
   getParameterSchema() {
-    // Visualization type selector options
-    const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
-      value: vt.id,
-      label: vt.name
-    }));
-    
-    // Default to first visualization if none selected
-    const defaultType = this.parameters.visualizationType || this.visualizationTypes[0].id;
-    
-    // Plugin parameter
-    const pluginParam = {
-      id: 'visualizationType',
-      type: 'dropdown',
-      label: 'Polytope Class',
-      options: visualizationTypeOptions,
-      default: defaultType
-    };
-    
-    // Start with base parameters from BasePolytopeVisualization
-    const baseParams = BasePolytopeVisualization.getBaseParameters();
-    
-    // Get visualization-specific parameters if visualization class is available
-    let vizParams = { structural: [], visual: [] };
-    const vizInfo = this.visualizationTypes.find(vt => vt.id === this.parameters.visualizationType);
-    
-    if (vizInfo && vizInfo.class && vizInfo.class.getParameters) {
-      vizParams = vizInfo.class.getParameters();
-    }
-    
-    // Combine all parameters
-    return {
-      structural: [
-        pluginParam,
-        ...baseParams.structural,
-        ...vizParams.structural
-      ],
-      visual: [
-        ...baseParams.visual,
-        ...vizParams.visual
-      ]
-    };
+  // Visualization type selector options
+  const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
+    value: vt.id,
+    label: vt.name
+  }));
+  
+  // Use the current visualization type instead of falling back to default
+  const currentType = this.parameters.visualizationType;
+console.log("CurrenType --------------", currentType);
+  
+  // Plugin parameter - NOTE: We still include default but prioritize current value
+  const pluginParam = {
+    id: 'visualizationType',
+    type: 'dropdown',
+    label: 'Polytope Class',
+    options: visualizationTypeOptions,
+    default: currentType  // Set default to current type
+  };
+  
+  // Start with base parameters from BasePolytopeVisualization
+  const baseParams = BasePolytopeVisualization.getBaseParameters();
+  
+  // Get visualization-specific parameters if visualization class is available
+  let vizParams = { structural: [], visual: [] };
+  const vizInfo = this.visualizationTypes.find(vt => vt.id === currentType);
+  
+  if (vizInfo && vizInfo.class && vizInfo.class.getParameters) {
+    vizParams = vizInfo.class.getParameters();
   }
   
+  // Combine all parameters
+  return {
+    structural: [
+      pluginParam,
+      ...baseParams.structural,
+      ...vizParams.structural
+    ],
+    visual: [
+      ...baseParams.visual,
+      ...vizParams.visual
+    ]
+  };
+}
   /**
    * Handle parameter changes
    */
