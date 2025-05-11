@@ -20,7 +20,13 @@ export class BaseASEPVisualization extends Visualization {
       jumpEvents: [],           // Array to track scheduled jump events
       timeScale: 1.0,           // Time scaling factor for simulation speed
       boxSize: 40,              // Fixed box size (pixels)
-      particleRadius: 14        // Fixed particle radius (pixels)
+      particleRadius: 14,       // Fixed particle radius (pixels)
+      colorIndices: {           // Default color indices from the palette
+        particle: 0,            // First color for particles
+        box: 1,                 // Second color for boxes
+        jump: 2,                // Third color for jumping particles
+        portal: 4               // Fifth color for portals
+      }
     };
   }
 
@@ -76,17 +82,8 @@ export class BaseASEPVisualization extends Visualization {
       }
     }
 
-    // Get particle color - either from palette or fallback to direct color
-    let particleColor;
-    if (parameters.colorPalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
-      // Get the selected palette
-      const palette = this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette);
-      // Use the first color in the palette for particles
-      particleColor = palette[0];
-    } else {
-      // Fallback to direct color parameter if palette not available
-      particleColor = parameters.particleColor || '#3498db';
-    }
+    // Get particle color from the palette
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
     
     // Create particles
     for (let i = 0; i < numParticles; i++) {
@@ -168,6 +165,44 @@ export class BaseASEPVisualization extends Visualization {
         this.state.jumpEvents = [];
       }
     }
+  }
+  
+  /**
+   * Get color from the specified palette
+   * @param {Object} parameters - Visualization parameters 
+   * @param {number} colorIndex - Index in the palette
+   * @returns {string} Color string
+   */
+  getColorFromPalette(parameters, colorIndex = 0) {
+    // Default palette and colors
+    const defaultPalette = ['#3498db', '#2c3e50', '#ff5722', '#27ae60', '#9C27B0', '#f1c40f', '#e74c3c'];
+    
+    // Try to get palette from the core
+    if (parameters.colorPalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
+      const palette = this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette);
+      if (palette && palette.length > 0) {
+        return palette[colorIndex % palette.length];
+      }
+    }
+    
+    // If we don't have a core palette, check for direct color parameters (backwards compatibility)
+    if (parameters) {
+      if (colorIndex === this.state.colorIndices.particle && parameters.particleColor) {
+        return parameters.particleColor;
+      }
+      if (colorIndex === this.state.colorIndices.box && parameters.boxColor) {
+        return parameters.boxColor;
+      }
+      if (colorIndex === this.state.colorIndices.jump && parameters.jumpColor) {
+        return parameters.jumpColor;
+      }
+      if (colorIndex === this.state.colorIndices.portal && parameters.portalColor) {
+        return parameters.portalColor;
+      }
+    }
+    
+    // Fallback to default palette
+    return defaultPalette[colorIndex % defaultPalette.length];
   }
   
   /**
@@ -333,25 +368,6 @@ export class BaseASEPVisualization extends Visualization {
       ctx.fillText(particle.id.toString(), x, y);
     }
   }
-
-  /**
-   * Get color from palette or fallback to parameter
-   * @param {Object} parameters - Visualization parameters
-   * @param {string} paramName - Parameter name for fallback color
-   * @param {number} index - Color index in palette
-   * @returns {string} Color value
-   */
-  getColorFromPalette(parameters, paramName, index = 0) {
-    if (parameters.colorPalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
-      // Get the selected palette
-      const palette = this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette);
-      // Use the specified index with wrap-around
-      return palette[index % palette.length];
-    }
-    
-    // Fallback to direct color parameter
-    return parameters[paramName] || '#3498db';
-  }
   
   /**
    * Draw boxes without labels
@@ -361,8 +377,8 @@ export class BaseASEPVisualization extends Visualization {
   drawBoxes(ctx, parameters) {
     if (!ctx || !Array.isArray(this.state.boxes)) return;
     
-    // Get box color from parameters or palette
-    const boxColor = this.getColorFromPalette(parameters, 'boxColor', 2);
+    // Get box color from palette
+    const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
     const boxSize = this.state.boxSize;
     const showLabels = parameters.showLabels === true;
     
@@ -444,12 +460,12 @@ export class BaseASEPVisualization extends Visualization {
     if (!Array.isArray(this.state.particles) || this.state.particles.length === 0) return;
     
     // Get the new color from palette
-    const newColor = this.getColorFromPalette(parameters, 'particleColor', 0);
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
     
     // Update all particle colors
     this.state.particles.forEach(particle => {
-      particle.color = newColor;
-      particle.originalColor = newColor;
+      particle.color = particleColor;
+      particle.originalColor = particleColor;
     });
   }
   

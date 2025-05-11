@@ -80,8 +80,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     const firstBox = this.state.boxes[0];
     const lastBox = this.state.boxes[this.state.boxes.length - 1];
     
-    // Get portal color from parameters or palette
-    const portalColor = this.getColorFromPalette(parameters, 'portalColor', 5);
+    // Get portal color from palette
+    const portalColor = this.getColorFromPalette(parameters, this.state.colorIndices.portal);
 
     // Create left portal (entry)
     this.state.leftPortal = {
@@ -209,15 +209,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * Generate a new particle from the left portal
    */
   generateNewParticleFromLeft() {
-    // Get particle color from palette or fallback to parameter
-    let particleColor;
-    const parameters = this.plugin.parameters;
-    if (parameters.colorPalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
-      const palette = this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette);
-      particleColor = palette[0];
-    } else {
-      particleColor = parameters.particleColor || '#3498db';
-    }
+    // Get particle color from palette
+    const particleColor = this.getColorFromPalette(this.plugin.parameters, this.state.colorIndices.particle);
 
     // Find the highest ID to create a new unique ID
     const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
@@ -309,9 +302,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       this.state.rightPortal.exitRate = parameters.exitRate;
     }
     
-    // Update portal colors if provided
-    if (parameters.portalColor !== undefined || parameters.colorPalette !== undefined) {
-      const portalColor = this.getColorFromPalette(parameters, 'portalColor', 5);
+    // Update portal colors if color palette changed
+    if (parameters.colorPalette !== undefined) {
+      const portalColor = this.getColorFromPalette(parameters, this.state.colorIndices.portal);
       if (this.state.leftPortal) this.state.leftPortal.color = portalColor;
       if (this.state.rightPortal) this.state.rightPortal.color = portalColor;
     }
@@ -415,7 +408,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Visualization parameters
    */
   drawOpenBoxes(ctx, parameters) {
-    const boxColor = this.getColorFromPalette(parameters, 'boxColor', 2);
+    const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
     const boxSize = this.state.boxSize;
     const showLabels = parameters.showLabels === true;
     
@@ -473,8 +466,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    */
   drawParticles(ctx, parameters) {
     const boxSize = this.state.boxSize;
-    // Get jump color from parameters or palette
-    const jumpColor = this.getColorFromPalette(parameters, 'jumpColor', 4);
+    // Get jump color from palette
+    const jumpColor = this.getColorFromPalette(parameters, this.state.colorIndices.jump);
     
     // Draw each particle
     this.state.particles.forEach(particle => {
@@ -624,8 +617,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             this.state.particleCount--;
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
-            // Get particle color from parameters
-            const particleColor = this.getColorFromPalette(this.plugin.parameters, 'particleColor', 0);
+            // Get particle color from palette
+            const particleColor = this.getColorFromPalette(this.plugin.parameters, this.state.colorIndices.particle);
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
             this.state.particles.push({

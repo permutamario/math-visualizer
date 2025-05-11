@@ -67,27 +67,15 @@ export default class ASEPPlugin extends Plugin {
       .addCheckbox('isPaused', 'Pause Simulation', false, 'structural')
       .addCheckbox('showLabels', 'Show Labels', false);
     
-    // Add color parameters from core
+    // Add color palette from core
     if (this.core && this.core.colorSchemeManager) {
       params.addDropdown('colorPalette', 'Color Palette', 'default', 
         this.core.colorSchemeManager.getPaletteNames().map(name => ({
           value: name, 
           label: name
         })), 'visual');
-    } else {
-      // Fallback if core is not available
-      params.addColor('particleColor', 'Particle Color', '#3498db', 'visual');
     }
-      
-    // Add jump and box colors
-    params.addColor('jumpColor', 'Jump Color', '#ff5722', 'visual')
-          .addColor('boxColor', 'Box Color', '#2c3e50', 'visual');
     
-    // Add portal color for open model
-    if (modelType === 'open') {
-      params.addColor('portalColor', 'Portal Color (Open)', '#9C27B0', 'visual');
-    }
-      
     return params;
   }
   
@@ -122,6 +110,14 @@ export default class ASEPPlugin extends Plugin {
       // Set up default parameters from parameter builder
       const schema = this.defineParameters().build();
       this.parameters = this._getDefaultParametersFromSchema(schema);
+      
+      // Add default colors for backward compatibility if not using core
+      if (!this.core || !this.core.colorSchemeManager) {
+        this.parameters.particleColor = '#3498db';
+        this.parameters.jumpColor = '#ff5722';
+        this.parameters.boxColor = '#2c3e50';
+        this.parameters.portalColor = '#9C27B0';
+      }
       
       // Initialize default visualization
       await this._initializeDefaultVisualization();
