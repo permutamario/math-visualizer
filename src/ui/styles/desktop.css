@@ -1,5 +1,4 @@
-/* styles/desktop.css */
-/* Desktop-specific styles (min-width: 600px) */
+/* Desktop-specific styles with variables (min-width: 600px) */
 
 /* Visualization selector (top right) */
 .vis-selector-panel {
@@ -7,9 +6,9 @@
   top: 90px;
   right: 20px;
   width: 300px;
-  background: #ffffff;
+  background: var(--background-secondary);
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 10px var(--overlay-light);
   padding: 20px;
   font-family: sans-serif;
   z-index: 1000;
@@ -18,9 +17,9 @@
 .vis-selector-panel h2 {
   margin-top: 0;
   margin-bottom: 15px;
-  color: #333;
+  color: var(--text-color);
   font-size: 20px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 5px;
 }
 
@@ -28,9 +27,9 @@
 .control-panel {
   position: fixed;
   width: 300px;
-  background: #ffffff;
+  background: var(--background-secondary);
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 10px var(--overlay-light);
   padding: 20px;
   font-family: sans-serif;
   z-index: 1000;
@@ -62,17 +61,17 @@
 #debug-panel {
   bottom: 20px;
   right: 20px;
-  background-color: #fff3cd;
-  border: 1px solid #ffeeba;
+  background-color: var(--warning-color);
+  border: 1px solid var(--border-color);
 }
 
 #debug-panel h3 {
-  color: #856404;
+  color: var(--text-color);
 }
 
 #debug-log-display {
-  background-color: #fff;
-  border: 1px solid #ddd;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--border-color);
   padding: 5px;
   font-size: 11px;
   max-height: 150px;
@@ -86,9 +85,9 @@
 .control-panel h3 {
   margin-top: 0;
   margin-bottom: 15px;
-  color: #333;
+  color: var(--text-color);
   font-size: 16px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 5px;
 }
 
@@ -101,7 +100,7 @@
   display: block;
   margin-bottom: 6px;
   font-weight: bold;
-  color: #444;
+  color: var(--text-color);
 }
 
 .control-panel input[type="text"],
@@ -110,9 +109,9 @@
 .control-panel select {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--control-border);
   border-radius: 4px;
-  background-color: #fafafa;
+  background-color: var(--control-bg);
 }
 
 .control-panel input[type="range"] {
@@ -148,21 +147,21 @@
   width: 100%;
   padding: 10px;
   margin-top: 10px;
-  background-color: #4285f4;
+  background-color: var(--accent-color);
   border: none;
   border-radius: 4px;
-  color: #fff;
+  color: white;
   font-weight: bold;
   cursor: pointer;
   transition: background-color 0.2s, transform 0.1s;
 }
 
 .control-panel button:hover {
-  background-color: #3367d6;
+  background-color: var(--control-focus);
 }
 
 .control-panel button:active {
-  background-color: #2a56c6;
+  background-color: var(--control-focus);
   transform: translateY(1px);
 }
 
@@ -189,9 +188,9 @@
   left: 20px;
   width: 50px;
   height: 50px;
-  background-color: #ffffff;
+  background-color: var(--background-secondary);
   border-radius: 50%;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 10px var(--overlay-light);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,7 +201,7 @@
 
 .plugin-selector-button:hover {
   transform: scale(1.05);
-  background-color: #f0f5ff;
+  background-color: var(--control-active);
 }
 
 .plugin-selector-button:active {
@@ -212,7 +211,7 @@
 .plugin-selector-button-icon {
   width: 30px;
   height: 30px;
-  background-color: #1a73e8;
+  background-color: var(--accent-color);
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
   mask-size: cover;
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
@@ -225,9 +224,9 @@
   left: 20px;
   min-width: 250px;
   max-width: 350px;
-  background: #ffffff;
+  background: var(--background-secondary);
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 20px var(--overlay-light);
   overflow: hidden;
   z-index: 1002;
   transform-origin: top left;
@@ -242,13 +241,13 @@
 
 .plugin-list-header {
   padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+  background-color: var(--control-bg);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .plugin-list-title {
   margin: 0;
-  color: #1a2433;
+  color: var(--text-color);
   font-size: 16px;
   font-weight: 600;
 }
@@ -261,7 +260,7 @@
 .plugin-list-item {
   padding: 12px 20px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
 }
 
@@ -270,12 +269,12 @@
 }
 
 .plugin-list-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--control-active);
 }
 
 .plugin-list-item.active {
-  background-color: #e8f0fe;
-  color: #1a73e8;
+  background-color: var(--control-active);
+  color: var(--accent-color);
   font-weight: 500;
 }
 
@@ -286,10 +285,9 @@
 
 .plugin-list-item-description {
   font-size: 12px;
-  color: #70757a;
+  color: var(--text-secondary);
   margin: 0;
 }
-
 
 /* Fullscreen button */
 .fullscreen-button {
@@ -298,7 +296,7 @@
   right: 20px;
   width: 40px;
   height: 40px;
-  background-color: rgba(26, 36, 51, 0.7);
+  background-color: var(--overlay-light);
   border: none;
   border-radius: 4px;
   color: white;
@@ -311,7 +309,7 @@
 }
 
 .fullscreen-button:hover {
-  background-color: rgba(26, 36, 51, 0.9);
+  background-color: var(--overlay-bg);
 }
 
 .fullscreen-button:active {

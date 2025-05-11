@@ -5,6 +5,7 @@ import { validateParameterSchema } from '../core/ParameterSchema.js';
 import { UIBuilder } from './UIBuilder.js';
 import { DesktopLayout } from './DesktopLayout.js';
 import { MobileLayout } from './MobileLayout.js';
+import { applyThemeColors } from './styles.js';
 
 /**
  * Manages UI creation and event handling
@@ -24,6 +25,13 @@ export class UIManager extends EventEmitter {
     
     // Determine if using mobile layout
     this.isMobile = this._detectMobile();
+    
+    // References to theme toggle buttons
+    this.themeToggleButton = null;
+    this.mobileThemeToggleButton = null;
+    
+    // Bind methods
+    this.updateTheme = this.updateTheme.bind(this);
   }
   
   /**
@@ -59,6 +67,18 @@ export class UIManager extends EventEmitter {
       
       // Listen for window resize
       window.addEventListener('resize', this._handleResize.bind(this));
+      
+      // Set up theme handling if ColorSchemeManager is available
+      if (this.core && this.core.colorSchemeManager) {
+        // Apply initial theme
+        this.updateTheme(this.core.colorSchemeManager.getActiveScheme());
+        
+        // Listen for theme changes
+        this.core.events.on('colorSchemeChanged', this.updateTheme);
+        
+        // Create theme toggle buttons
+        this.createThemeToggleButtons();
+      }
       
       this.initialized = true;
       console.log(`UI manager initialized with ${this.isMobile ? 'mobile' : 'desktop'} layout`);
@@ -174,6 +194,17 @@ export class UIManager extends EventEmitter {
     const isMobileNow = this._detectMobile();
     
     if (isMobileNow !== this.isMobile) {
+      // Clean up theme toggle buttons before changing layout
+      if (this.themeToggleButton && this.themeToggleButton.parentNode) {
+        this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
+        this.themeToggleButton = null;
+      }
+      
+      if (this.mobileThemeToggleButton && this.mobileThemeToggleButton.parentNode) {
+        this.mobileThemeToggleButton.parentNode.removeChild(this.mobileThemeToggleButton);
+        this.mobileThemeToggleButton = null;
+      }
+      
       // Layout needs to change
       this.isMobile = isMobileNow;
       
@@ -210,10 +241,151 @@ export class UIManager extends EventEmitter {
         this.layout.buildControls(this.controls.schema, this.controls.values);
       }
       
+      // Re-create theme toggle buttons after layout change
+      this.createThemeToggleButtons();
+      
       console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
     } else {
       // Just notify layout of resize
       this.layout.handleResize();
     }
+  }
+  
+  /**
+   * Update the UI theme based on the color scheme
+   * @param {Object} colorScheme - Color scheme to apply
+   */
+  updateTheme(colorScheme) {
+    // Apply theme colors using the utility function
+    if (typeof applyThemeColors === 'function') {
+      applyThemeColors(colorScheme);
+    } else {
+      // Fallback implementation if the utility function is not available
+      const root = document.documentElement;
+      
+      root.style.setProperty('--background-color', colorScheme.background);
+      root.style.setProperty('--text-color', colorScheme.text);
+      root.style.setProperty('--accent-color', colorScheme.accent);
+      
+      // Set other properties based on the theme
+      const isDark = colorScheme.id === 'dark';
+      root.style.setProperty('--background-secondary', isDark ? '#2a2a2a' : '#ffffff');
+      root.style.setProperty('--text-secondary', isDark ? '#b0b0b0' : '#666666');
+      root.style.setProperty('--border-color', isDark ? '#444444' : '#e0e0e0');
+      root.style.setProperty('--control-bg', isDark ? '#333333' : '#ffffff');
+      root.style.setProperty('--control-border', isDark ? '#555555' : '#cccccc');
+      root.style.setProperty('--control-active', isDark ? '#3c4043' : '#e8f0fe');
+      root.style.setProperty('--control-focus', isDark ? '#8ab4f8' : '#3367d6');
+      root.style.setProperty('--error-color', isDark ? '#f28b82' : '#d93025');
+      root.style.setProperty('--success-color', isDark ? '#81c995' : '#0f9d58');
+      root.style.setProperty('--warning-color', isDark ? '#fdd663' : '#f29900');
+      root.style.setProperty('--info-color', isDark ? '#8ab4f8' : '#4285f4');
+      root.style.setProperty('--overlay-bg', isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.7)');
+      root.style.setProperty('--overlay-light', isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)');
+      root.style.setProperty('--modal-bg', isDark ? 'rgba(42, 42, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)');
+    }
+    
+    // Update the theme toggle button text if it exists
+    this.updateThemeToggleButton(colorScheme.id);
+  }
+
+  /**
+   * Create theme toggle buttons
+   */
+  createThemeToggleButtons() {
+    // Only create if we have a ColorSchemeManager
+    if (!this.core || !this.core.colorSchemeManager) {
+      return;
+    }
+    
+    // Create desktop theme toggle
+    const desktopToggle = document.createElement('button');
+    desktopToggle.className = 'theme-toggle';
+    desktopToggle.setAttribute('aria-label', 'Toggle color scheme');
+    
+    // Get the current scheme
+    const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+    desktopToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
+    
+    // Add click handler
+    desktopToggle.addEventListener('click', () => {
+      const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+      const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
+      
+      this.core.colorSchemeManager.setActiveScheme(newScheme);
+    });
+    
+    // Add to document
+    document.body.appendChild(desktopToggle);
+    this.themeToggleButton = desktopToggle;
+    
+    // Create mobile theme toggle if in mobile layout
+    if (this.isMobile) {
+      const mobileToggle = document.createElement('button');
+      mobileToggle.className = 'mobile-theme-toggle';
+      mobileToggle.setAttribute('aria-label', 'Toggle color scheme');
+      mobileToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
+      
+      // Add click handler
+      mobileToggle.addEventListener('click', () => {
+        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+        const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
+        
+        this.core.colorSchemeManager.setActiveScheme(newScheme);
+      });
+      
+      // Add to document
+      document.body.appendChild(mobileToggle);
+      this.mobileThemeToggleButton = mobileToggle;
+    }
+  }
+
+  /**
+   * Update theme toggle button text
+   * @param {string} schemeId - Current color scheme ID
+   */
+  updateThemeToggleButton(schemeId) {
+    if (this.themeToggleButton) {
+      this.themeToggleButton.textContent = schemeId === 'light' ? '🌙' : '☀️';
+    }
+    
+    if (this.mobileThemeToggleButton) {
+      this.mobileThemeToggleButton.textContent = schemeId === 'light' ? '🌙' : '☀️';
+    }
+  }
+  
+  /**
+   * Clean up resources when the UI manager is no longer needed
+   */
+  cleanup() {
+    // Remove event listeners
+    window.removeEventListener('resize', this._handleResize);
+    
+    if (this.core && this.core.events) {
+      this.core.events.off('colorSchemeChanged', this.updateTheme);
+    }
+    
+    // Clean up theme toggle buttons
+    if (this.themeToggleButton && this.themeToggleButton.parentNode) {
+      this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
+      this.themeToggleButton = null;
+    }
+    
+    if (this.mobileThemeToggleButton && this.mobileThemeToggleButton.parentNode) {
+      this.mobileThemeToggleButton.parentNode.removeChild(this.mobileThemeToggleButton);
+      this.mobileThemeToggleButton = null;
+    }
+    
+    // Clean up layout
+    if (this.layout) {
+      this.layout.dispose();
+      this.layout = null;
+    }
+    
+    // Reset state
+    this.controls = {};
+    this.initialized = false;
+    
+    console.log("UI manager cleaned up");
   }
 }

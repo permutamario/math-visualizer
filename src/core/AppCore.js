@@ -6,6 +6,7 @@ import { RenderingManager } from '../rendering/RenderingManager.js';
 import { ParameterManager } from './ParameterManager.js';
 import { StateManager } from './StateManager.js';
 import { EventEmitter } from './EventEmitter.js';
+import { ColorSchemeManager } from './ColorSchemeManager.js';
 
 /**
  * Main application controller
@@ -23,6 +24,7 @@ export class AppCore {
     this.parameterManager = new ParameterManager(this);
     this.renderingManager = new RenderingManager(this);
     this.uiManager = new UIManager(this);
+    this.colorSchemeManager = new ColorSchemeManager(this);
     
     // Application state
     this.activePlugin = null;
@@ -46,6 +48,7 @@ export class AppCore {
       console.log("Initializing Math Visualization Framework...");
       
       // Initialize core components
+      await this.colorSchemeManager.initialize(); // Initialize color schemes first
       await this.renderingManager.initialize();
       await this.pluginRegistry.initialize();
       await this.uiManager.initialize();
@@ -287,6 +290,15 @@ async activatePlugin(pluginId) {
     if (!this.activePlugin) return false;
     
     try {
+      // Handle app-level actions
+      if (actionId === 'toggle-theme') {
+        const currentScheme = this.colorSchemeManager.getActiveScheme();
+        const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
+        
+        this.colorSchemeManager.setActiveScheme(newScheme);
+        return true;
+      }
+      
       // Let the plugin handle the action
       return this.activePlugin.executeAction(actionId, ...args);
     } catch (error) {
@@ -333,5 +345,32 @@ async activatePlugin(pluginId) {
       }
       return false;
     }
+  }
+  
+  /**
+   * Clean up resources when the application is shutting down
+   */
+  cleanup() {
+    // Clean up rendering
+    if (this.renderingManager) {
+      this.renderingManager.cleanup();
+    }
+    
+    // Deactivate active plugin
+    if (this.activePlugin) {
+      this.activePlugin.deactivate();
+    }
+    
+    // Clean up UI
+    if (this.uiManager) {
+      this.uiManager.cleanup();
+    }
+    
+    // Reset state
+    this.activePlugin = null;
+    this.previousActivePlugin = null;
+    this.initialized = false;
+    
+    console.log("Application cleaned up");
   }
 }

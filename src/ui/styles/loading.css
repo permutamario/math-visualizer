@@ -1,11 +1,11 @@
-/* Loading screen styles */
+/* Loading screen styles with variables */
 #loading-screen {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: #f5f5f5;
+  background-color: var(--background-color);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -15,15 +15,15 @@
 }
 
 .loading-title {
-  color: #1a73e8;
+  color: var(--accent-color);
   margin-bottom: 20px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   font-size: 24px;
 }
 
 .spinner {
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #1a73e8;
+  border: 5px solid var(--border-color);
+  border-top: 5px solid var(--accent-color);
   border-radius: 50%;
   width: 50px;
   height: 50px;
@@ -32,7 +32,7 @@
 
 .loading-text {
   margin-top: 20px;
-  color: #666;
+  color: var(--text-secondary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
