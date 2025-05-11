@@ -1,4 +1,6 @@
-/* Plugin selector styles with variables */
+/* Plugin list styling for both light and dark themes */
+
+/* Common styles for plugin selector button */
 .plugin-selector-button {
   position: fixed;
   top: 20px;
@@ -35,6 +37,7 @@
   -webkit-mask-size: cover;
 }
 
+/* Plugin list container */
 .plugin-list {
   position: fixed;
   top: 80px;
@@ -45,9 +48,10 @@
   border-radius: 8px;
   box-shadow: 0 4px 20px var(--overlay-light);
   overflow: hidden;
-  z-index: 1001;
+  z-index: 1002;
   transform-origin: top left;
   transition: transform 0.3s ease, opacity 0.3s ease;
+  color: var(--text-color); /* Explicitly set text color */
 }
 
 .plugin-list.hidden {
@@ -56,29 +60,36 @@
   pointer-events: none;
 }
 
+/* Plugin list header */
 .plugin-list-header {
   padding: 15px 20px;
   background-color: var(--control-bg);
   border-bottom: 1px solid var(--border-color);
+  color: var(--text-color); /* Ensure header text uses theme color */
 }
 
 .plugin-list-title {
   margin: 0;
-  color: var(--text-color);
+  color: var(--text-color); /* Explicitly set title color */
   font-size: 16px;
   font-weight: 600;
 }
 
+/* Plugin list items container */
 .plugin-list-items {
   max-height: 60vh;
   overflow-y: auto;
+  background-color: var(--background-secondary); /* Ensure consistent background */
 }
 
+/* Individual plugin list item */
 .plugin-list-item {
   padding: 12px 20px;
   cursor: pointer;
   border-bottom: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
+  color: var(--text-color); /* Explicitly set item text color */
+  background-color: var(--background-secondary);
 }
 
 .plugin-list-item:last-child {
@@ -91,17 +102,80 @@
 
 .plugin-list-item.active {
   background-color: var(--control-active);
-  color: var(--accent-color);
+  color: var(--accent-color); /* Use accent color for active item */
   font-weight: 500;
 }
 
+/* Plugin list item title */
 .plugin-list-item-title {
   font-size: 14px;
   margin: 0 0 4px 0;
+  color: var(--text-color); /* Explicitly set title color */
 }
 
+/* Plugin list item description */
 .plugin-list-item-description {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-secondary); /* Use secondary text color for descriptions */
   margin: 0;
+}
+
+/* Mobile-specific plugin list styles */
+body.mobile-device #mobile-plugin-menu {
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 320px;
+  background-color: var(--background-secondary);
+  color: var(--text-color);
+}
+
+body.mobile-device #mobile-plugin-menu.hidden {
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.mobile-device .plugin-list-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+  background-color: var(--background-secondary);
+}
+
+/* Dark mode specific fixes with fallbacks */
+body[data-theme="dark"] .plugin-list {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-header {
+  background-color: #333333;
+  border-color: #444444;
+}
+
+body[data-theme="dark"] .plugin-list-items {
+  background-color: #2a2a2a;
+}
+
+body[data-theme="dark"] .plugin-list-item {
+  border-color: #444444;
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-item:hover {
+  background-color: #3c4043;
+}
+
+body[data-theme="dark"] .plugin-list-item.active {
+  background-color: #3c4043;
+}
+
+body[data-theme="dark"] .plugin-list-item-title {
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-item-description {
+  color: #b0b0b0;
 }

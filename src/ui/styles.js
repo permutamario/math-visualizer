@@ -173,76 +173,114 @@ function addSpecialStyles() {
       z-index: 1002;
     }
     
-    /* Dropdown option styling */
+    /* Enhanced Dropdown Styling */
     select {
       color: var(--text-color);
       background-color: var(--control-bg);
       border: 1px solid var(--control-border);
       border-radius: 4px;
+      padding: 8px;
+      padding-right: 30px;
+      font-size: 14px;
+      cursor: pointer;
+      
+      /* Custom dropdown arrow */
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 12px;
     }
     
+    /* Style the arrow for different themes */
+    select {
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    }
+    
+    body[data-theme="dark"] select {
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cccccc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    }
+    
+    /* Fix for dropdown options */
     select option {
       color: var(--text-color);
       background-color: var(--control-bg);
+      padding: 8px;
     }
     
-    /* Firefox specific dropdown styling */
+    /* Firefox specific fixes */
     @-moz-document url-prefix() {
       select {
         color: var(--text-color);
         background-color: var(--control-bg);
+        text-indent: 0.01px;
+        text-overflow: '';
       }
       
-      select option {
-        color: var(--text-color);
-        background-color: var(--control-bg);
+      body[data-theme="dark"] select option {
+        background-color: #333333;
+        color: #f0f0f0;
       }
     }
     
-    /* Safari specific dropdown styling */
+    /* Chrome/Safari specific fixes */
     @media screen and (-webkit-min-device-pixel-ratio:0) {
-      select {
-        -webkit-appearance: none;
-        padding-right: 25px;
-        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='5'><path fill='%23666' d='M0,0 L10,0 L5,5 Z'/></svg>");
-        background-repeat: no-repeat;
-        background-position: right 10px center;
+      body[data-theme="dark"] select option {
+        background-color: #333333;
+        color: #f0f0f0;
       }
     }
     
-    /* Mobile specific dropdown styling */
+    /* Force dark theme colors with direct values as fallback */
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] select option {
+      color: #f0f0f0 !important;
+    }
+    
+    body[data-theme="dark"] .control-panel select option,
+    body[data-theme="dark"] .mobile-header select option,
+    body[data-theme="dark"] .mobile-options-menu select option {
+      background-color: #333333 !important;
+      color: #f0f0f0 !important;
+    }
+    
+    /* Specific styling for different UI areas */
+    .control-panel select,
     .mobile-header select,
     .mobile-options-menu select {
       color: var(--text-color);
       background-color: var(--control-bg);
     }
     
+    .control-panel select option,
     .mobile-header select option,
     .mobile-options-menu select option {
       color: var(--text-color);
       background-color: var(--control-bg);
     }
     
-    /* Input focus styles */
-    input:focus, select:focus {
-      outline: 2px solid var(--control-focus);
-      outline-offset: 1px;
-    }
-    
-    /* Dark mode specific adjustments */
-    body[data-theme="dark"] select {
-      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='5'><path fill='%23ccc' d='M0,0 L10,0 L5,5 Z'/></svg>");
-    }
-    
-    /* High contrast mode support */
+    /* Support for Windows High Contrast Mode */
     @media (forced-colors: active) {
+      select, 
+      select option,
       .theme-toggle,
       .mobile-theme-toggle,
-      select,
       input[type="range"],
       input[type="checkbox"] {
         forced-color-adjust: none;
       }
+    }
+    
+    /* Modern browsers select specific styling */
+    select:focus {
+      outline: 2px solid var(--control-focus);
+      outline-offset: 1px;
+    }
+    
+    /* Hover effect */
+    select:hover {
+      border-color: var(--accent-color);
     }
   `;
   
@@ -265,8 +303,16 @@ function addSpecialStyles() {
     });
     
     observer.observe(root, { attributes: true });
+    
+    // Set initial data-theme attribute
+    if (root.style.getPropertyValue('--background-color')) {
+      const bgColor = root.style.getPropertyValue('--background-color').trim();
+      const isDark = bgColor.startsWith('#1') || bgColor.startsWith('#2') || bgColor.startsWith('#3');
+      document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    }
   });
 }
+
 /**
  * Apply theme colors based on color scheme
  * @param {Object} colorScheme - Color scheme to apply
@@ -313,4 +359,7 @@ export function applyThemeColors(colorScheme) {
     root.style.setProperty('--overlay-light', 'rgba(0, 0, 0, 0.5)');
     root.style.setProperty('--modal-bg', 'rgba(42, 42, 42, 0.95)');
   }
+  
+  // Update data-theme attribute immediately
+  document.body.setAttribute('data-theme', colorScheme.id);
 }
