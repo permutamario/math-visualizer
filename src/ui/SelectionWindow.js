@@ -238,33 +238,27 @@ show() {
     }
   }
   
-  /**
-   * Update the list of available plugins
-   * @param {Object[]} plugins - Available plugin metadata
-   * @param {string} activePluginId - Currently active plugin ID
-   */
-  update(plugins, activePluginId) {
-    this.plugins = plugins || [];
-    this.activePluginId = activePluginId;
+  
+update(plugins, activePluginId) {
+  this.plugins = plugins || [];
+  this.activePluginId = activePluginId;
+  
+  // If the element exists, update it without reopening
+  if (this.element && this.element.parentNode) {
+    // Remove old element
+    this.element.parentNode.removeChild(this.element);
+    this.element = null;
     
-    // If the element exists, rebuild it
-    if (this.element && this.element.parentNode) {
-      // Remember visibility state
-      const wasVisible = this.visible;
-      
-      // Remove old element
-      this.element.parentNode.removeChild(this.element);
-      this.element = null;
-      
-      // Create new element
-      this.create();
-      
-      // Restore visibility if needed
-      if (wasVisible) {
-        this.show();
-      }
-    }
+    // Create new element
+    this.create();
+    
+    // DO NOT automatically restore visibility - this causes the reopening issue
+    // Instead, just keep it hidden
+    this.visible = false;
+    this.element.classList.add('hidden');
+    this.element.classList.remove('visible');
   }
+}
   
   /**
    * Handle keydown events (close on Escape)
