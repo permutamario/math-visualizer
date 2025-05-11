@@ -147,42 +147,45 @@ export class SelectionWindow {
   }
   
   
-   * Show the selection window
-   */
-  show() {
-    // Create the element if it doesn't exist
-    if (!this.element) {
-      this.create();
-    }
-    
-    // Make sure the element exists and is not already visible
-    if (this.element && !this.visible) {
-      this.element.classList.remove('hidden');
-      
-      // Mark as visible immediately to prevent race conditions
-      this.visible = true;
-      
-      // Prevent body scrolling while modal is open
-      document.body.style.overflow = 'hidden';
-      
-      // Add animation class after a short delay
-      setTimeout(() => {
-        if (this.element) {
-          this.element.classList.add('visible');
-          
-          // Add event listeners after a short delay to prevent immediate closing
-          setTimeout(() => {
-            // Add global event listeners
-            document.addEventListener('keydown', this.handleKeyDown);
-            document.addEventListener('click', this.handleOutsideClick);
-          }, 100);
-        }
-      }, 10); // Short delay for the CSS transition to work
-    }
-    
-    // Update active plugin highlight
-    this.updateActivePlugin(this.activePluginId);
+   
+show() {
+  // Create the element if it doesn't exist
+  if (!this.element) {
+    this.create();
   }
+  
+  // Make sure the element exists and is not already visible
+  if (this.element && !this.visible) {
+    this.element.classList.remove('hidden');
+    
+    // Mark as visible immediately to prevent race conditions
+    this.visible = true;
+    
+    // Prevent body scrolling while modal is open
+    document.body.style.overflow = 'hidden';
+    
+    // Add animation class after a short delay
+    setTimeout(() => {
+      if (this.element) {
+        this.element.classList.add('visible');
+        
+        // Add event listeners USING NEXT TICK to prevent immediate closing
+        setTimeout(() => {
+          // Add global event listeners
+          document.addEventListener('keydown', this.handleKeyDown);
+          
+          // THE KEY FIX: Register the click handler on the next event cycle
+          requestAnimationFrame(() => {
+            document.addEventListener('click', this.handleOutsideClick);
+          });
+        }, 100);
+      }
+    }, 10); // Short delay for the CSS transition to work
+  }
+  
+  // Update active plugin highlight
+  this.updateActivePlugin(this.activePluginId);
+}
   
   /**
    * Hide the selection window
