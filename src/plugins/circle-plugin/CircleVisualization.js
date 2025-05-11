@@ -109,5 +109,6 @@ export class CircleVisualization extends Visualization {
    */
   dispose() {
     // Nothing to clean up for this simple visualization
+    // But we implement the method to satisfy the interface
   }
 }

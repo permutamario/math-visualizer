@@ -1,6 +1,6 @@
 // src/core/AppCore.js 
 
-import { PluginRegistry } from './PluginRegistry.js';
+import { discoverPlugins, getFirstPluginId } from './PluginDiscovery.js';
 import { UIManager } from '../ui/UIManager.js';
 import { RenderingManager } from '../rendering/RenderingManager.js';
 import { ParameterManager } from './ParameterManager.js';
@@ -20,7 +20,6 @@ export class AppCore {
     // Create core components
     this.events = new EventEmitter();
     this.state = new StateManager();
-    this.pluginRegistry = new PluginRegistry(this);
     this.parameterManager = new ParameterManager(this);
     this.renderingManager = new RenderingManager(this);
     this.uiManager = new UIManager(this);
@@ -29,6 +28,7 @@ export class AppCore {
     // Application state
     this.loadedPlugin = null;
     this.previousPluginId = null; // Store previous plugin ID for recovery
+    this.availablePlugins = []; // Plugin metadata
     this.initialized = false;
     
     // Bind methods
@@ -50,8 +50,16 @@ export class AppCore {
       // Initialize core components
       await this.colorSchemeManager.initialize(); // Initialize color schemes first
       await this.renderingManager.initialize();
-      await this.pluginRegistry.initialize();
       await this.uiManager.initialize();
+      
+      // Discover available plugins
+      this.availablePlugins = await discoverPlugins();
+      
+      if (this.availablePlugins.length === 0) {
+        console.warn("No plugins discovered");
+      } else {
+        console.log(`Discovered ${this.availablePlugins.length} plugins`);
+      }
       
       // Register event handlers
       this.uiManager.on('parameterChange', this.handleParameterChange);
@@ -59,8 +67,7 @@ export class AppCore {
       this.uiManager.on('pluginSelect', this.loadPlugin);
       
       // Update UI with available plugins
-      const pluginMetadata = this.pluginRegistry.getPluginMetadata();
-      this.uiManager.updatePlugins(pluginMetadata, null);
+      this.uiManager.updatePlugins(this.availablePlugins, null);
       
       this.initialized = true;
       console.log("Math Visualization Framework initialized successfully");
@@ -92,11 +99,10 @@ export class AppCore {
         return true;
       }
       
-      // Get the plugin instance
-      const plugin = this.pluginRegistry.getPlugin(pluginId);
+      // Find plugin metadata
+      const pluginMetadata = this.availablePlugins.find(p => p.id === pluginId);
       
-      if (!plugin) {
-        // Show error notification
+      if (!pluginMetadata) {
         this.uiManager.showError(`Plugin "${pluginId}" not found`);
         console.error(`Plugin ${pluginId} not found`);
         return false;
@@ -110,7 +116,7 @@ export class AppCore {
       
       try {
         // Show loading indicator
-        this.uiManager.showLoading(`Loading ${plugin.constructor.name}...`);
+        this.uiManager.showLoading(`Loading ${pluginMetadata.name}...`);
         
         // Unload current plugin if any
         if (this.loadedPlugin) {
@@ -125,7 +131,7 @@ export class AppCore {
         
         // Setup appropriate rendering environment
         try {
-          await this.renderingManager.setEnvironment(plugin.constructor.renderingType);
+          await this.renderingManager.setEnvironment(pluginMetadata.renderingType);
         } catch (renderingError) {
           this.uiManager.showError(`Error setting up rendering environment: ${renderingError.message}`);
           console.error(`Error setting up rendering environment:`, renderingError);
@@ -139,7 +145,10 @@ export class AppCore {
           return false;
         }
         
-        // Load the new plugin
+        // Create new plugin instance
+        const plugin = new pluginMetadata.PluginClass(this);
+        
+        // Load the plugin
         try {
           const success = await plugin.load();
           
@@ -147,13 +156,7 @@ export class AppCore {
             this.loadedPlugin = plugin;
             
             // Update UI with currently active plugin
-            try {
-              const pluginMetadata = this.pluginRegistry.getPluginMetadata();
-              this.uiManager.updatePlugins(pluginMetadata, pluginId);
-            } catch (pluginsError) {
-              console.error(`Error updating plugin UI:`, pluginsError);
-              // Continue even if plugin UI update has errors
-            }
+            this.uiManager.updatePlugins(this.availablePlugins, pluginId);
             
             // Restore rendering if it was active
             if (wasRendering) {
@@ -165,10 +168,10 @@ export class AppCore {
             
             console.log(`Plugin ${pluginId} loaded successfully`);
             this.uiManager.hideLoading();
-            this.uiManager.showNotification(`${plugin.constructor.name} loaded successfully`);
+            this.uiManager.showNotification(`${pluginMetadata.name} loaded successfully`);
           } else {
             this.uiManager.hideLoading();
-            this.uiManager.showError(`Failed to load plugin "${plugin.constructor.name}"`);
+            this.uiManager.showError(`Failed to load plugin "${pluginMetadata.name}"`);
             console.error(`Failed to load plugin ${pluginId}`);
             
             // Restore rendering if it was active
@@ -181,7 +184,7 @@ export class AppCore {
         } catch (loadError) {
           // Show detailed error message to user
           this.uiManager.hideLoading();
-          this.uiManager.showError(`Error loading plugin "${plugin.constructor.name}": ${loadError.message}`);
+          this.uiManager.showError(`Error loading plugin "${pluginMetadata.name}": ${loadError.message}`);
           
           // Log detailed error
           console.error(`Error loading plugin ${pluginId}:`, loadError);
@@ -216,7 +219,7 @@ export class AppCore {
   }
   
   /**
-   * Toggles Fullscreen mode
+   * Toggle Fullscreen mode
    */
   toggleFullscreenMode() {
     const isFullscreen = !this.state.get('isFullscreen', false);
@@ -291,10 +294,10 @@ export class AppCore {
   }
   
   /**
-   * Get the loaded plugin
+   * Get the active plugin
    * @returns {Plugin|null} Loaded plugin instance or null if none
    */
-  getLoadedPlugin() {
+  getActivePlugin() {
     return this.loadedPlugin;
   }
   
@@ -313,7 +316,7 @@ export class AppCore {
       
       // Load default plugin if configured
       const defaultPluginId = this.state.get('defaultPluginId') || 
-                              this.pluginRegistry.getFirstPluginId();
+                              getFirstPluginId(this.availablePlugins);
       
       if (defaultPluginId) {
         return this.loadPlugin(defaultPluginId);
@@ -351,6 +354,7 @@ export class AppCore {
     // Reset state
     this.loadedPlugin = null;
     this.previousPluginId = null;
+    this.availablePlugins = [];
     this.initialized = false;
     
     console.log("Application cleaned up");

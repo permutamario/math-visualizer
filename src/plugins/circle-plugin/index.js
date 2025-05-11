@@ -16,6 +16,8 @@ export default class CirclePlugin extends Plugin {
     if (this.isLoaded) return true;
     
     try {
+      console.log("Loading circle plugin...");
+      
       // Set up default parameters from schema
       const schema = this.getParameterSchema();
       this.parameters = this._getDefaultParametersFromSchema(schema);
@@ -54,6 +56,8 @@ export default class CirclePlugin extends Plugin {
     if (!this.isLoaded) return true;
     
     try {
+      console.log("Unloading circle plugin...");
+      
       // Clean up current visualization
       if (this.currentVisualization) {
         this.currentVisualization.dispose();
@@ -131,9 +135,6 @@ export default class CirclePlugin extends Plugin {
    * Handle parameter changes
    */
   onParameterChanged(parameterId, value) {
-    // Store the previous value for comparison
-    const prevValue = this.parameters[parameterId];
-    
     // Update parameter value
     this.parameters[parameterId] = value;
     
