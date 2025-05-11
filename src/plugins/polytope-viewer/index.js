@@ -63,35 +63,6 @@ export default class PolytopeViewerPlugin extends Plugin {
    * @returns {ParameterBuilder} Parameter builder
    */
   defineParameters() {
-    // Extend ParameterBuilder to support 'advanced' parameter type
-    const addAdvancedMethod = function(builder) {
-      // Add a method to create advanced parameters
-      builder.addAdvanced = function(id, label, defaultValue, options, type) {
-        const param = {
-          id,
-          type: type || 'checkbox',
-          label,
-          default: defaultValue,
-          advanced: true // Mark as advanced parameter
-        };
-        
-        // Add additional properties based on type
-        if (type === 'slider' || type === 'number') {
-          if (options && options.min !== undefined) param.min = options.min;
-          if (options && options.max !== undefined) param.max = options.max;
-          if (options && options.step !== undefined) param.step = options.step;
-        } else if (type === 'dropdown') {
-          param.options = options;
-        }
-        
-        // Add to structural parameters (won't be shown in UI due to 'advanced' flag)
-        this.structural.push(param);
-        return this;
-      };
-      
-      return builder;
-    };
-    
     // Visualization type selector options
     const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
       value: vt.id,
@@ -103,37 +74,16 @@ export default class PolytopeViewerPlugin extends Plugin {
                       (this.visualizationTypes.length > 0 ? 
                        this.visualizationTypes[0].id : '');
     
-    // Create parameter builder with simplified options
+    // Create parameter builder with plugin-specific parameters
     let params = createParameters()
       .addDropdown('visualizationType', 'Polytope Class', currentType, visualizationTypeOptions)
-      .addCheckbox('wireframe', 'Wireframe', false, 'visual')
       .addCheckbox('rotation', 'Auto-rotate', false, 'visual')
-      .addSlider('opacity', 'Opacity', 1, { min: 0.1, max: 1, step: 0.1 }, 'visual')
-      .addDropdown('colorPalette', 'Color Palette', 'default', [
-        { value: 'default', label: 'Default' },
-        { value: 'pastel', label: 'Pastel' },
-        { value: 'blues', label: 'Blues' },
-        { value: 'greens', label: 'Greens' },
-        { value: 'reds', label: 'Reds' },
-        { value: 'rainbow', label: 'Rainbow' },
-        { value: 'sequential', label: 'Sequential' },
-        { value: 'diverging', label: 'Diverging' }
-      ], 'visual');
+      .addCheckbox('showEdges', 'Show Edges', true, 'visual');
     
-    // Extend the parameter builder with advanced parameter support
-    params = addAdvancedMethod(params);
-    
-    // Add advanced parameters - these won't show in the UI
-    params.addAdvanced('showEdges', 'Show Edges', true, null, 'checkbox')
-          .addAdvanced('showVertices', 'Show Vertices', false, null, 'checkbox')
-          .addAdvanced('vertexSize', 'Vertex Size', 0.05, { min: 0.01, max: 0.2, step: 0.01 }, 'slider')
-          .addAdvanced('faceColor', 'Face Color', '#3498db', null, 'color')
-          .addAdvanced('edgeColor', 'Edge Color', '#2c3e50', null, 'color')
-          .addAdvanced('vertexColor', 'Vertex Color', '#e74c3c', null, 'color')
-          .addAdvanced('usePalette', 'Use Color Palette', 'true', [
-            { value: 'none', label: 'Single Color' },
-            { value: 'true', label: 'Use Palette' }
-          ], 'dropdown');
+    // Add standard parameters from the core
+    if (this.core && this.core.getStandardParameters) {
+      params.addStandardParameters(this.core, this.constructor.renderingType);
+    }
     
     // Add visualization-specific parameters if available
     if (this.currentVisualization) {
@@ -166,23 +116,22 @@ export default class PolytopeViewerPlugin extends Plugin {
           }
         }
         
-        // Add visualization-specific visual parameters (still hidden in UI)
+        // Add visualization-specific visual parameters
         if (vizParams.visual && vizParams.visual.length > 0) {
           for (const param of vizParams.visual) {
-            // Add as advanced parameters
             switch(param.type) {
               case 'checkbox':
-                params.addAdvanced(param.id, param.label, param.default, null, 'checkbox');
+                params.addCheckbox(param.id, param.label, param.default, 'visual');
                 break;
               case 'slider':
-                params.addAdvanced(param.id, param.label, param.default, { 
+                params.addSlider(param.id, param.label, param.default, { 
                   min: param.min, 
                   max: param.max, 
                   step: param.step 
-                }, 'slider');
+                }, 'visual');
                 break;
               case 'color':
-                params.addAdvanced(param.id, param.label, param.default, null, 'color');
+                params.addColor(param.id, param.label, param.default, 'visual');
                 break;
               // Add other types as needed
             }
@@ -245,8 +194,8 @@ export default class PolytopeViewerPlugin extends Plugin {
       // Mark as loaded
       this.isLoaded = true;
       
-      // Give parameters to UI (filtering out advanced ones)
-      this.giveParametersFiltered(true);
+      // Give parameters to UI
+      this.giveParameters(true);
       
       // Update actions
       if (this.core && this.core.uiManager) {
@@ -262,34 +211,6 @@ export default class PolytopeViewerPlugin extends Plugin {
       // Ensure clean state on failure
       await this.unload();
       return false;
-    }
-  }
-  
-  /**
-   * Give parameters to the UI manager, filtering out advanced parameters
-   * @param {boolean} rebuild - Whether to rebuild the entire UI
-   */
-  giveParametersFiltered(rebuild = false) {
-    if (!this.core || !this.core.uiManager) {
-      console.warn(`Cannot give parameters: UI manager not available in plugin ${this.constructor.id}`);
-      return;
-    }
-    
-    if (rebuild) {
-      // Get schema
-      const fullSchema = this.defineParameters().build();
-      
-      // Filter out advanced parameters
-      const filteredSchema = {
-        structural: fullSchema.structural.filter(param => !param.advanced),
-        visual: fullSchema.visual.filter(param => !param.advanced)
-      };
-      
-      // Build controls from filtered schema
-      this.core.uiManager.buildControlsFromSchema(filteredSchema, this.parameters);
-    } else {
-      // Just update control values (all parameters including advanced ones)
-      this.core.uiManager.updateControls(this.parameters);
     }
   }
 
@@ -349,7 +270,7 @@ export default class PolytopeViewerPlugin extends Plugin {
       this.currentVisualization.update(paramUpdate);
       
       // Update UI with changed parameters
-      this.giveParametersFiltered(false);
+      this.giveParameters(false);
       
       // Request a render update
       if (this.core && this.core.renderingManager) {
@@ -421,7 +342,7 @@ export default class PolytopeViewerPlugin extends Plugin {
       }
       
       // Now that initialization is complete, update UI with new schema
-      this.giveParametersFiltered(true);
+      this.giveParameters(true);
       
       // Request a render
       if (this.core && this.core.renderingManager) {
@@ -450,11 +371,8 @@ export default class PolytopeViewerPlugin extends Plugin {
   preserveCommonParameters(currentParams) {
     // Parameters that should be preserved across visualization switches
     const commonParamIds = [
-      'wireframe', 'rotation', 'opacity', 'colorPalette',
-      // Include advanced parameters
-      'showEdges', 'showVertices', 'vertexSize', 
-      'faceColor', 'edgeColor', 'vertexColor',
-      'usePalette'
+      'renderMode', 'opacity', 'colorPalette', 'rotation',
+      'showEdges', 'wireframe'
     ];
     
     const preserved = {};
@@ -493,7 +411,7 @@ export default class PolytopeViewerPlugin extends Plugin {
       }
       
       // Update UI
-      this.giveParametersFiltered(false);
+      this.giveParameters(false);
       
       // Request render
       if (this.core && this.core.renderingManager) {
@@ -531,5 +449,50 @@ export default class PolytopeViewerPlugin extends Plugin {
     }
     
     return super.executeAction(actionId, ...args);
+  }
+  
+  /**
+   * Discover visualizations from manifest file
+   * @returns {Promise<boolean>} Whether discovery was successful
+   */
+  async discoverVisualizations() {
+    try {
+      const response = await fetch('src/plugins/polytope-viewer/polytope_manifest.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load manifest: ${response.statusText}`);
+      }
+      
+      const visualizations = await response.json();
+      
+      // Process the manifest data
+      for (const viz of visualizations) {
+        try {
+          // Only add if not already in visualizationTypes
+          if (!this.visualizationTypes.some(v => v.name === viz.name)) {
+            // Dynamically import the visualization class
+            const module = await import(`./visualizations/${viz.file}`);
+            
+            // Get the class name from the file name
+            const className = viz.file.replace('.js', '');
+            
+            // Add to visualization types
+            this.visualizationTypes.push({
+              id: className.toLowerCase(),
+              name: viz.name,
+              class: module[className]
+            });
+            
+            console.log(`Discovered visualization: ${viz.name}`);
+          }
+        } catch (error) {
+          console.warn(`Could not load visualization ${viz.name}:`, error);
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.warn("Error discovering visualizations from manifest:", error);
+      return false;
+    }
   }
 }

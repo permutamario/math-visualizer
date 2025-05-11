@@ -131,6 +131,46 @@ export class Plugin {
     // Default empty schema
     return createParameters();
   }
+
+  /**
+ * Add standard parameters from the core
+ * @param {AppCore} core - Core application reference
+ * @param {string} renderingType - '2d' or '3d'
+ * @returns {ParameterBuilder} This builder for chaining
+ */
+addStandardParameters(core, renderingType = '2d') {
+  if (!core || !core.getStandardParameters) {
+    console.warn('Cannot add standard parameters: core reference invalid or missing getStandardParameters method');
+    return this;
+  }
+  
+  const standardParams = core.getStandardParameters(renderingType);
+  
+  // Add each standard parameter based on its type
+  Object.values(standardParams).forEach(param => {
+    switch (param.type) {
+      case 'dropdown':
+        this.addDropdown(param.id, param.label, param.default, param.options, param.category);
+        break;
+      case 'slider':
+        this.addSlider(param.id, param.label, param.default, {
+          min: param.min,
+          max: param.max,
+          step: param.step
+        }, param.category);
+        break;
+      case 'checkbox':
+        this.addCheckbox(param.id, param.label, param.default, param.category);
+        break;
+      case 'color':
+        this.addColor(param.id, param.label, param.default, param.category);
+        break;
+      // Add other types as needed
+    }
+  });
+  
+  return this;
+}
   
   /**
    * Handle parameter changes

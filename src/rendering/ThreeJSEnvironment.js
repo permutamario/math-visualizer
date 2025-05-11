@@ -293,11 +293,50 @@ render(visualization, parameters) {
     this.updateControls(delta);
   }
   
+  // Check if we should apply render mode
+  if (parameters.renderMode && this.core.renderModeManager && 
+      visualization.state && visualization.state.meshGroup) {
+    
+    // Check if render mode or related parameters have changed
+    const renderModeChanged = this.lastRenderMode !== parameters.renderMode;
+    const opacityChanged = this.lastOpacity !== parameters.opacity;
+    const paletteChanged = this.lastColorPalette !== parameters.colorPalette;
+    
+    if (renderModeChanged || opacityChanged || paletteChanged || !this.renderedOnce) {
+      // Apply or update the render mode
+      this.core.renderModeManager.applyRenderMode(
+        this.scene,
+        visualization.state.meshGroup,
+        parameters.renderMode,
+        {
+          opacity: parameters.opacity,
+          colorPalette: this.core.colorSchemeManager.getPalette(
+            parameters.colorPalette || 'default'
+          )
+        }
+      );
+      
+      // Store current values to detect changes
+      this.lastRenderMode = parameters.renderMode;
+      this.lastOpacity = parameters.opacity;
+      this.lastColorPalette = parameters.colorPalette;
+      this.renderedOnce = true;
+    }
+  }
+  
   // Call visualization's 3D render method
   visualization.render3D(THREE, this.scene, parameters);
   
   // Render the scene
   this.renderer.render(this.scene, this.camera);
+}
+
+/**
+ * Get the scene
+ * @returns {THREE.Scene} The current scene
+ */
+getScene() {
+  return this.scene;
 }
   /**
    * Check if WebGL is available
