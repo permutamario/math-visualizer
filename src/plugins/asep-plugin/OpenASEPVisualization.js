@@ -80,12 +80,15 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     const firstBox = this.state.boxes[0];
     const lastBox = this.state.boxes[this.state.boxes.length - 1];
     
+    // Get portal color from parameters or palette
+    const portalColor = this.getColorFromPalette(parameters, 'portalColor', 5);
+
     // Create left portal (entry)
     this.state.leftPortal = {
       x: firstBox.x - boxSize,
       y: firstBox.y,
       size: boxSize * 0.8,
-      color: parameters.portalColor || '#9C27B0',
+      color: portalColor,
       entryRate: parameters.entryRate || 0.5
     };
     
@@ -94,7 +97,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       x: lastBox.x + boxSize,
       y: lastBox.y,
       size: boxSize * 0.8,
-      color: parameters.portalColor || '#9C27B0',
+      color: portalColor,
       exitRate: parameters.exitRate || 0.5
     };
   }
@@ -206,6 +209,16 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * Generate a new particle from the left portal
    */
   generateNewParticleFromLeft() {
+    // Get particle color from palette or fallback to parameter
+    let particleColor;
+    const parameters = this.plugin.parameters;
+    if (parameters.colorPalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
+      const palette = this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette);
+      particleColor = palette[0];
+    } else {
+      particleColor = parameters.particleColor || '#3498db';
+    }
+
     // Find the highest ID to create a new unique ID
     const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
     
@@ -217,8 +230,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       jumpProgress: 0,
       startPosition: -1,
       targetPosition: 0,
-      color: this.plugin.parameters.particleColor,
-      originalColor: this.plugin.parameters.particleColor,
+      color: particleColor,
+      originalColor: particleColor,
       radius: this.state.particleRadius,
       jumpSpeed: 2.0,
       jumpState: 'entering',
@@ -297,9 +310,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     }
     
     // Update portal colors if provided
-    if (parameters.portalColor !== undefined) {
-      if (this.state.leftPortal) this.state.leftPortal.color = parameters.portalColor;
-      if (this.state.rightPortal) this.state.rightPortal.color = parameters.portalColor;
+    if (parameters.portalColor !== undefined || parameters.colorPalette !== undefined) {
+      const portalColor = this.getColorFromPalette(parameters, 'portalColor', 5);
+      if (this.state.leftPortal) this.state.leftPortal.color = portalColor;
+      if (this.state.rightPortal) this.state.rightPortal.color = portalColor;
     }
   }
   
@@ -401,7 +415,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Visualization parameters
    */
   drawOpenBoxes(ctx, parameters) {
-    const boxColor = parameters.boxColor;
+    const boxColor = this.getColorFromPalette(parameters, 'boxColor', 2);
     const boxSize = this.state.boxSize;
     const showLabels = parameters.showLabels === true;
     
@@ -459,7 +473,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    */
   drawParticles(ctx, parameters) {
     const boxSize = this.state.boxSize;
-    const jumpColor = parameters.jumpColor;
+    // Get jump color from parameters or palette
+    const jumpColor = this.getColorFromPalette(parameters, 'jumpColor', 4);
     
     // Draw each particle
     this.state.particles.forEach(particle => {
@@ -609,6 +624,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             this.state.particleCount--;
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
+            // Get particle color from parameters
+            const particleColor = this.getColorFromPalette(this.plugin.parameters, 'particleColor', 0);
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
             this.state.particles.push({
@@ -618,8 +635,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
               jumpProgress: 0,
               startPosition: i,
               targetPosition: i,
-              color: this.plugin.parameters.particleColor,
-              originalColor: this.plugin.parameters.particleColor,
+              color: particleColor,
+              originalColor: particleColor,
               radius: this.state.particleRadius,
               jumpSpeed: 2.0,
               jumpState: 'none',

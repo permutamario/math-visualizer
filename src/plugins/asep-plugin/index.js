@@ -65,11 +65,28 @@ export default class ASEPPlugin extends Plugin {
     params
       .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 5, step: 0.1 })
       .addCheckbox('isPaused', 'Pause Simulation', false, 'structural')
-      .addColor('particleColor', 'Particle Color', '#3498db')
-      .addColor('jumpColor', 'Jump Color', '#ff5722')
-      .addColor('boxColor', 'Box Color', '#2c3e50')
-      .addColor('portalColor', 'Portal Color (Open)', '#9C27B0', 'visual')
       .addCheckbox('showLabels', 'Show Labels', false);
+    
+    // Add color parameters from core
+    if (this.core && this.core.colorSchemeManager) {
+      params.addDropdown('colorPalette', 'Color Palette', 'default', 
+        this.core.colorSchemeManager.getPaletteNames().map(name => ({
+          value: name, 
+          label: name
+        })), 'visual');
+    } else {
+      // Fallback if core is not available
+      params.addColor('particleColor', 'Particle Color', '#3498db', 'visual');
+    }
+      
+    // Add jump and box colors
+    params.addColor('jumpColor', 'Jump Color', '#ff5722', 'visual')
+          .addColor('boxColor', 'Box Color', '#2c3e50', 'visual');
+    
+    // Add portal color for open model
+    if (modelType === 'open') {
+      params.addColor('portalColor', 'Portal Color (Open)', '#9C27B0', 'visual');
+    }
       
     return params;
   }
