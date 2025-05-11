@@ -1,4 +1,4 @@
-// src/ui/DesktopLayout.js - Modified version with plugin selector button
+// src/ui/DesktopLayout.js
 
 import { EventEmitter } from '../core/EventEmitter.js';
 
@@ -45,7 +45,7 @@ export class DesktopLayout extends EventEmitter {
       this.createPluginSelector();
 
       // Create fullscreen button
-    this.createFullscreenButton();
+      this.createFullscreenButton();
     
       
       // Add document click listener for closing plugin list
@@ -278,25 +278,41 @@ export class DesktopLayout extends EventEmitter {
   }
   
   /**
- * Toggle fullscreen mode
- * @returns {boolean} New fullscreen state
- */
-toggleFullscreenMode() {
-  const isFullscreen = !this.state.get('isFullscreen', false);
-  this.state.set('isFullscreen', isFullscreen);
-  
-  // Update body class - actual UI changes are handled by CSS
-  if (isFullscreen) {
-    document.body.classList.add('fullscreen-mode');
-  } else {
-    document.body.classList.remove('fullscreen-mode');
+   * Create the fullscreen button
+   */
+  createFullscreenButton() {
+    // First check if button already exists and remove it
+    const existingButton = document.getElementById('desktop-fullscreen-button');
+    if (existingButton && existingButton.parentNode) {
+      existingButton.parentNode.removeChild(existingButton);
+    }
+    
+    const button = document.createElement('button');
+    button.id = 'desktop-fullscreen-button';
+    button.className = 'fullscreen-button';
+    button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+    button.title = 'Toggle Fullscreen Mode';
+    
+    // Handle click
+    button.addEventListener('click', () => {
+      document.body.classList.toggle('fullscreen-mode');
+      
+      // Update button text based on state
+      if (document.body.classList.contains('fullscreen-mode')) {
+        button.innerHTML = '<span class="fullscreen-icon">⤢</span>';
+        button.title = 'Exit Fullscreen Mode';
+      } else {
+        button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
+        button.title = 'Enter Fullscreen Mode';
+      }
+      
+      // Emit action event
+      this.emit('action', 'toggle-fullscreen');
+    });
+    
+    document.body.appendChild(button);
   }
   
-  // Emit event for any listeners
-  this.events.emit('fullscreenToggled', isFullscreen);
-  
-  return isFullscreen;
-}
   /**
    * Build UI controls from schema
    * @param {ParameterSchema} schema - Parameter schema
@@ -450,37 +466,6 @@ toggleFullscreenMode() {
     // Update export panel
     this.updateExportPanel(actions);
   }
-
-/**
- * Create the fullscreen button
- */
-createFullscreenButton() {
-  const button = document.createElement('button');
-  button.id = 'desktop-fullscreen-button';
-  button.className = 'fullscreen-button';
-  button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
-  button.title = 'Toggle Fullscreen Mode';
-  
-  // Handle click
-  button.addEventListener('click', () => {
-    document.body.classList.toggle('fullscreen-mode');
-    
-    // Update button text based on state
-    if (document.body.classList.contains('fullscreen-mode')) {
-      button.innerHTML = '<span class="fullscreen-icon">⤢</span>';
-      button.title = 'Exit Fullscreen Mode';
-    } else {
-      button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
-      button.title = 'Enter Fullscreen Mode';
-    }
-    
-    // Emit action event
-    this.emit('action', 'toggle-fullscreen');
-  });
-  
-  document.body.appendChild(button);
-  this.fullscreenButton = button;
-}
   
   /**
    * Update export panel with actions
@@ -599,17 +584,20 @@ createFullscreenButton() {
     // Remove plugin selector
     if (this.pluginSelectorButton && this.pluginSelectorButton.parentNode) {
       this.pluginSelectorButton.parentNode.removeChild(this.pluginSelectorButton);
+      this.pluginSelectorButton = null;
     }
     
     if (this.pluginList && this.pluginList.parentNode) {
       this.pluginList.parentNode.removeChild(this.pluginList);
+      this.pluginList = null;
     }
     
-     // Remove fullscreen button
-  if (this.fullscreenButton && this.fullscreenButton.parentNode) {
-    this.fullscreenButton.parentNode.removeChild(this.fullscreenButton);
-  }
-  
+    // Remove fullscreen button
+    const fullscreenButton = document.getElementById('desktop-fullscreen-button');
+    if (fullscreenButton && fullscreenButton.parentNode) {
+      fullscreenButton.parentNode.removeChild(fullscreenButton);
+    }
+    
     // Remove document click listener
     document.removeEventListener('click', this.handleDocumentClick);
     
@@ -620,9 +608,10 @@ createFullscreenButton() {
     this.controls = {};
     this.actions = [];
     this.initialized = false;
+    
     // Remove fullscreen mode if active
-  document.body.classList.remove('fullscreen-mode');
-  
+    document.body.classList.remove('fullscreen-mode');
+    
     console.log("Desktop layout disposed");
   }
 }
