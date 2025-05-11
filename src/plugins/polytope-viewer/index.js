@@ -75,7 +75,7 @@ export default class PolytopeViewerPlugin extends Plugin {
           }
           
           const id = name.toLowerCase();
-	const className = file.replace(/\.js$/, '');
+          const className = file.replace(/\.js$/, '');
           
           // Build the correct path - assuming all files are in the same directory as the plugin
           const importPath = `/math-visualizer/src/plugins/polytope-viewer/visualizations/` + file;
@@ -119,7 +119,6 @@ export default class PolytopeViewerPlugin extends Plugin {
       throw error; // Re-throw to indicate initialization failure
     }
   }
-
 
   /**
    * Initialize the default visualization
@@ -315,12 +314,21 @@ export default class PolytopeViewerPlugin extends Plugin {
         this.core.uiManager.buildControlsFromSchema(paramSchema, this.parameters);
       }
       
-      // Request render
+      // Request render - the camera position will be reset in the initialization
       if (this.core && this.core.renderingManager) {
         this.core.renderingManager.requestRender();
       }
     } catch (error) {
       console.error("Error changing visualization type:", error);
+    }
+  }
+  
+  /**
+   * Reset camera to optimal viewing position
+   */
+  resetCamera() {
+    if (this.currentVisualization && typeof this.currentVisualization.resetCamera === 'function') {
+      this.currentVisualization.resetCamera();
     }
   }
   
@@ -331,6 +339,14 @@ export default class PolytopeViewerPlugin extends Plugin {
     // Default actions from parent
     const baseActions = super.getActions();
     
+    // Add reset camera action
+    const pluginActions = [
+      {
+        id: 'reset-camera',
+        label: 'Reset Camera'
+      }
+    ];
+    
     // Common actions from visualization base class
     let commonActions = [];
     if (this.currentVisualization && 
@@ -339,14 +355,20 @@ export default class PolytopeViewerPlugin extends Plugin {
     }
     
     // Combine all actions
-    return [...baseActions, ...commonActions];
+    return [...baseActions, ...pluginActions, ...commonActions];
   }
   
   /**
    * Execute an action
    */
   executeAction(actionId, ...args) {
-    // Try parent actions first
+    // Handle plugin-specific actions
+    if (actionId === 'reset-camera') {
+      this.resetCamera();
+      return true;
+    }
+    
+    // Try parent actions
     const handled = super.executeAction(actionId, ...args);
     if (handled) return true;
     

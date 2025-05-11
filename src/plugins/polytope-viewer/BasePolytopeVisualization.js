@@ -1,5 +1,6 @@
 // src/plugins/polytope-viewer/BasePolytopeVisualization.js
 import { Visualization } from '../../core/Visualization.js';
+import { PolytopeUtils } from './PolytopeUtils.js';
 
 /**
  * Base class for all polytope visualizations
@@ -18,7 +19,8 @@ export class BasePolytopeVisualization extends Visualization {
       edges: null,       // Edge wireframe
       vertices: null,    // Vertex spheres
       extraMesh: null,   // Extra visualization elements
-      isAnimating: false // Animation state
+      isAnimating: false, // Animation state
+      maxRadius: 1.0     // Maximum radius of the polytope
     };
   }
 
@@ -124,6 +126,10 @@ export class BasePolytopeVisualization extends Visualization {
       {
         id: 'toggle-polytope-edges',
         label: 'Toggle Edges'
+      },
+      {
+        id: 'reset-polytope-camera',
+        label: 'Reset Camera'
       }
     ];
   }
@@ -139,7 +145,53 @@ export class BasePolytopeVisualization extends Visualization {
     // Clean up any existing meshes
     this.cleanupMeshes();
     
+    // Reset the camera position based on the polytope
+    this.resetCamera();
+    
     return true;
+  }
+
+  /**
+   * Reset the camera to optimal viewing position
+   */
+  resetCamera() {
+    if (!this.plugin || !this.plugin.core || !this.plugin.core.renderingManager) {
+      return;
+    }
+
+    // Get the current environment
+    const environment = this.plugin.core.renderingManager.getCurrentEnvironment();
+    if (!environment || !environment.camera || !environment.controls) {
+      return;
+    }
+
+    // Calculate optimal camera distance as 2x the maximum radius
+    const cameraDistance = this.state.maxRadius * 2;
+
+    // If using ThreeJSEnvironment with camera controls
+    if (typeof environment.getCamera === 'function' && 
+        typeof environment.getControls === 'function') {
+      
+      const camera = environment.getCamera();
+      const controls = environment.getControls();
+
+      // Position camera
+      if (camera) {
+        // Reset camera position
+        camera.position.set(0, 0, cameraDistance);
+        camera.lookAt(0, 0, 0);
+      }
+
+      // Reset controls if available
+      if (controls && typeof controls.setLookAt === 'function') {
+        controls.setLookAt(0, 0, cameraDistance, 0, 0, 0);
+      }
+
+      // Request a render update
+      if (this.plugin.core.renderingManager.requestRender) {
+        this.plugin.core.renderingManager.requestRender();
+      }
+    }
   }
   
   /**
@@ -151,6 +203,22 @@ export class BasePolytopeVisualization extends Visualization {
   getVertices(THREE, parameters) {
     console.warn("BasePolytopeVisualization.getVertices() must be implemented by subclasses");
     return [];
+  }
+
+  /**
+   * Process the vertices (center and normalize)
+   * @param {Object} THREE - THREE.js library
+   * @param {Array<THREE.Vector3>} vertices - Original vertices
+   * @returns {Array<THREE.Vector3>} Processed vertices
+   */
+  processVertices(THREE, vertices) {
+    // Center and normalize the vertices
+    const centeredVertices = PolytopeUtils.centerVertices(THREE, vertices);
+    
+    // Calculate the maximum radius from the center
+    this.state.maxRadius = PolytopeUtils.calculateMaxDistance(THREE, centeredVertices);
+    
+    return centeredVertices;
   }
   
   /**
@@ -192,6 +260,10 @@ export class BasePolytopeVisualization extends Visualization {
           this.plugin.updateParameter('showEdges', !parameters.showEdges);
         }
         return true;
+
+      case 'reset-polytope-camera':
+        this.resetCamera();
+        return true;
     }
     
     return false;
@@ -229,7 +301,10 @@ export class BasePolytopeVisualization extends Visualization {
         this.state.meshGroup = new THREE.Group();
         
         // Get vertices from subclass
-        const vertices = this.getVertices(THREE, parameters);
+        let vertices = this.getVertices(THREE, parameters);
+        
+        // Process the vertices (center and normalize)
+        vertices = this.processVertices(THREE, vertices);
         
         // Create the polytope from vertices
         this.createPolytope(THREE, vertices, parameters);
@@ -240,6 +315,9 @@ export class BasePolytopeVisualization extends Visualization {
           this.state.extraMesh = extraMesh;
           this.state.meshGroup.add(extraMesh);
         }
+        
+        // Reset camera position after creating the polytope
+        this.resetCamera();
       } catch (error) {
         console.error("Error creating polytope:", error);
         
@@ -373,6 +451,9 @@ export class BasePolytopeVisualization extends Visualization {
     if (needsRebuild) {
       // Clean up existing meshes
       this.cleanupMeshes();
+      
+      // Reset the camera on rebuild (will be called during next render)
+      this.resetCamera();
     }
   }
   
