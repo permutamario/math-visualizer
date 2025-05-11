@@ -368,15 +368,16 @@ export class AppCore {
   }
 
   /**
-   * Update UI based on plugin parameters
-   * @param {Plugin} plugin - The plugin whose parameters to use
-   * @param {boolean} rebuild - Whether to rebuild the entire UI
-   */
-  updatePluginParameters(plugin, rebuild = false) {
-    if (!plugin || !this.uiManager) return;
-    
-    // Get schema if rebuilding
-    const schema = rebuild ? plugin.defineParameters().build() : null;
+ * Update UI based on plugin parameters
+ * @param {Plugin} plugin - The plugin whose parameters to use
+ * @param {boolean} rebuild - Whether to rebuild the entire UI
+ */
+updatePluginParameters(plugin, rebuild = false) {
+  if (!plugin || !this.uiManager) return;
+  
+  try {
+    // Get merged schema that includes visualization parameters if rebuilding
+    const schema = rebuild ? plugin.getMergedParameterSchema() : null;
     
     // Update UI based on current plugin state
     if (rebuild) {
@@ -389,8 +390,17 @@ export class AppCore {
     if (this.renderingManager) {
       this.renderingManager.requestRender();
     }
+  } catch (error) {
+    console.error('Error updating plugin parameters:', error);
+    // Fall back to just using the plugin's direct parameters
+    if (rebuild) {
+      const fallbackSchema = plugin.defineParameters().build();
+      this.uiManager.buildControlsFromSchema(fallbackSchema, plugin.parameters);
+    } else {
+      this.uiManager.updateControls(plugin.parameters);
+    }
   }
-  
+}
   /**
    * Execute an action
    * @param {string} actionId - ID of the action to execute
