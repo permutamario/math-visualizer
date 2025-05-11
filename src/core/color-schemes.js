@@ -1,5 +1,7 @@
-{
-  "schemes": {
+// src/core/color-schemes.js
+
+export default {
+  schemes: {
     "light": {
       "id": "light",
       "name": "Light Theme",
@@ -35,4 +37,4 @@
       }
     }
   }
-}
+};

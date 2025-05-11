@@ -1,6 +1,6 @@
 // src/core/ColorSchemeManager.js
 
-import colorSchemesData from './color-schemes.json';
+import colorSchemesData from './color-schemes.js';
 
 /**
  * Manages color schemes for the application
@@ -17,7 +17,7 @@ export class ColorSchemeManager {
     // Default active scheme
     this.activeScheme = 'light';
     
-    // Load schemes from JSON data
+    // Load schemes from JS data
     this.schemes = colorSchemesData.schemes;
   }
   
@@ -68,10 +68,7 @@ export class ColorSchemeManager {
     }
   }
   
-  /**
-   * Get all available color schemes
-   * @returns {Array<Object>} Array of scheme metadata
-   */
+  // Rest of the methods remain the same...
   getSchemes() {
     return Object.values(this.schemes).map(scheme => ({
       id: scheme.id,
@@ -79,72 +76,36 @@ export class ColorSchemeManager {
     }));
   }
   
-  /**
-   * Get the active color scheme
-   * @returns {Object} Active color scheme
-   */
   getActiveScheme() {
     return this.schemes[this.activeScheme];
   }
   
-  /**
-   * Get the background color from the active scheme
-   * @returns {string} Background color
-   */
   getBackgroundColor() {
     return this.schemes[this.activeScheme].background;
   }
   
-  /**
-   * Get the text color from the active scheme
-   * @returns {string} Text color
-   */
   getTextColor() {
     return this.schemes[this.activeScheme].text;
   }
   
-  /**
-   * Get the accent color from the active scheme
-   * @returns {string} Accent color
-   */
   getAccentColor() {
     return this.schemes[this.activeScheme].accent;
   }
   
-  /**
-   * Get all palette names from the active scheme
-   * @returns {Array<string>} Array of palette names
-   */
   getPaletteNames() {
     return Object.keys(this.schemes[this.activeScheme].palettes);
   }
   
-  /**
-   * Get a palette by name from the active scheme
-   * @param {string} paletteName - Name of the palette (e.g., 'default', 'rainbow')
-   * @returns {Array<string>} Color palette
-   */
   getPalette(paletteName = 'default') {
     const palettes = this.schemes[this.activeScheme].palettes;
     return palettes[paletteName] || palettes.default;
   }
   
-  /**
-   * Get a color from a named palette
-   * @param {string} paletteName - Name of the palette
-   * @param {number} index - Index in the palette
-   * @returns {string} Color from palette
-   */
   getColorFromPalette(paletteName = 'default', index = 0) {
     const palette = this.getPalette(paletteName);
     return palette[index % palette.length];
   }
   
-  /**
-   * Set the active color scheme
-   * @param {string} schemeId - ID of the scheme to activate
-   * @returns {boolean} Whether the scheme was successfully activated
-   */
   setActiveScheme(schemeId) {
     if (!this.schemes[schemeId]) {
       console.error(`Color scheme '${schemeId}' not found`);
@@ -174,12 +135,6 @@ export class ColorSchemeManager {
     return true;
   }
   
-  /**
-   * Get a sequential palette of a given length by interpolating between colors
-   * @param {string} paletteName - Name of the base palette to interpolate
-   * @param {number} length - Number of colors needed
-   * @returns {Array<string>} Array of interpolated colors
-   */
   getInterpolatedPalette(paletteName = 'default', length = 10) {
     const basePalette = this.getPalette(paletteName);
     
@@ -212,13 +167,6 @@ export class ColorSchemeManager {
     return result;
   }
   
-  /**
-   * Interpolate between two colors
-   * @param {string} color1 - First color (hex or rgb)
-   * @param {string} color2 - Second color (hex or rgb)
-   * @param {number} t - Interpolation factor (0-1)
-   * @returns {string} Interpolated color
-   */
   interpolateColor(color1, color2, t) {
     // Helper to parse a color string to RGB components
     const parseColor = (color) => {

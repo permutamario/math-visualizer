@@ -172,11 +172,101 @@ function addSpecialStyles() {
       justify-content: center;
       z-index: 1002;
     }
+    
+    /* Dropdown option styling */
+    select {
+      color: var(--text-color);
+      background-color: var(--control-bg);
+      border: 1px solid var(--control-border);
+      border-radius: 4px;
+    }
+    
+    select option {
+      color: var(--text-color);
+      background-color: var(--control-bg);
+    }
+    
+    /* Firefox specific dropdown styling */
+    @-moz-document url-prefix() {
+      select {
+        color: var(--text-color);
+        background-color: var(--control-bg);
+      }
+      
+      select option {
+        color: var(--text-color);
+        background-color: var(--control-bg);
+      }
+    }
+    
+    /* Safari specific dropdown styling */
+    @media screen and (-webkit-min-device-pixel-ratio:0) {
+      select {
+        -webkit-appearance: none;
+        padding-right: 25px;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='5'><path fill='%23666' d='M0,0 L10,0 L5,5 Z'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+      }
+    }
+    
+    /* Mobile specific dropdown styling */
+    .mobile-header select,
+    .mobile-options-menu select {
+      color: var(--text-color);
+      background-color: var(--control-bg);
+    }
+    
+    .mobile-header select option,
+    .mobile-options-menu select option {
+      color: var(--text-color);
+      background-color: var(--control-bg);
+    }
+    
+    /* Input focus styles */
+    input:focus, select:focus {
+      outline: 2px solid var(--control-focus);
+      outline-offset: 1px;
+    }
+    
+    /* Dark mode specific adjustments */
+    body[data-theme="dark"] select {
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='5'><path fill='%23ccc' d='M0,0 L10,0 L5,5 Z'/></svg>");
+    }
+    
+    /* High contrast mode support */
+    @media (forced-colors: active) {
+      .theme-toggle,
+      .mobile-theme-toggle,
+      select,
+      input[type="range"],
+      input[type="checkbox"] {
+        forced-color-adjust: none;
+      }
+    }
   `;
   
   document.head.appendChild(style);
+  
+  // Add data-theme attribute to body when theme changes
+  document.addEventListener('DOMContentLoaded', () => {
+    const root = document.documentElement;
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && 
+            mutation.attributeName === 'style' && 
+            root.style.getPropertyValue('--background-color')) {
+          // Check if we're in dark mode based on background color
+          const bgColor = root.style.getPropertyValue('--background-color').trim();
+          const isDark = bgColor.startsWith('#1') || bgColor.startsWith('#2') || bgColor.startsWith('#3');
+          document.body.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        }
+      });
+    });
+    
+    observer.observe(root, { attributes: true });
+  });
 }
-
 /**
  * Apply theme colors based on color scheme
  * @param {Object} colorScheme - Color scheme to apply
