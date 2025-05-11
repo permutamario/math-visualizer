@@ -31,6 +31,7 @@ export class RenderingManager {
     this.animate = this.animate.bind(this);
     this.render = this.render.bind(this);
     this.handleResize = this.handleResize.bind(this);
+    this.updateBackgroundColors = this.updateBackgroundColors.bind(this);
   }
 
   /**
@@ -91,6 +92,17 @@ export class RenderingManager {
       
       // Listen for window resize
       window.addEventListener('resize', this.handleResize);
+      
+      // Subscribe to color scheme changes if available
+      if (this.core && this.core.events && this.core.colorSchemeManager) {
+        this.core.events.on('colorSchemeChanged', this.updateBackgroundColors);
+        
+        // Also set initial colors from current scheme
+        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+        if (currentScheme) {
+          this.updateBackgroundColors(currentScheme);
+        }
+      }
       
       console.log("RenderingManager initialized successfully");
       return true;
@@ -192,6 +204,15 @@ export class RenderingManager {
       this.resizeCanvas();
       this.currentEnvironment.handleResize();
       
+      // Apply current color scheme if available
+      if (this.core && this.core.colorSchemeManager) {
+        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+        if (currentScheme && this.currentEnvironment && 
+            typeof this.currentEnvironment.updateBackgroundColor === 'function') {
+          this.currentEnvironment.updateBackgroundColor(currentScheme);
+        }
+      }
+      
       // Request a render to ensure the new environment is rendered
       this.requestRender();
       
@@ -200,6 +221,28 @@ export class RenderingManager {
     } catch (error) {
       console.error(`Error setting environment to ${type}:`, error);
       return false;
+    }
+  }
+  
+  /**
+   * Update background colors in all rendering environments
+   * @param {Object} colorScheme - Color scheme to apply
+   */
+  updateBackgroundColors(colorScheme) {
+    if (!colorScheme) return;
+    
+    console.log(`Updating rendering background colors to match theme: ${colorScheme.id}`);
+    
+    // Update both environments if they exist and have the method
+    Object.values(this.environments).forEach(env => {
+      if (env && typeof env.updateBackgroundColor === 'function') {
+        env.updateBackgroundColor(colorScheme);
+      }
+    });
+    
+    // Request a render to show the changes if we're currently rendering
+    if (this.rendering || this.currentEnvironment) {
+      this.requestRender();
     }
   }
   
@@ -430,8 +473,11 @@ export class RenderingManager {
       }
     });
     
-    // Remove resize listener
+    // Remove resize listener and color scheme listener
     window.removeEventListener('resize', this.handleResize);
+    if (this.core && this.core.events) {
+      this.core.events.off('colorSchemeChanged', this.updateBackgroundColors);
+    }
     
     console.log("Rendering manager cleaned up");
   }

@@ -35,6 +35,9 @@ export class Canvas2DEnvironment {
       keys: {}
     };
     
+    // Background color
+    this.backgroundColor = '#f5f5f5'; // Default light mode background
+    
     // Bind event handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -57,6 +60,14 @@ export class Canvas2DEnvironment {
       
       if (!this.ctx) {
         throw new Error("Could not get 2D context from canvas");
+      }
+      
+      // Get initial background color from color scheme if available
+      if (this.core && this.core.colorSchemeManager) {
+        const scheme = this.core.colorSchemeManager.getActiveScheme();
+        if (scheme && scheme.background) {
+          this.backgroundColor = scheme.background;
+        }
       }
       
       this.initialized = true;
@@ -100,24 +111,24 @@ export class Canvas2DEnvironment {
    * Deactivate the 2D environment
    * @returns {boolean} Whether deactivation was successful
    */
-deactivate() {
-  if (!this.active) return true;
-  
-  // Remove event listeners
-  this.canvas.removeEventListener('mousedown', this.handleMouseDown);
-  window.removeEventListener('mousemove', this.handleMouseMove);
-  window.removeEventListener('mouseup', this.handleMouseUp);
-  this.canvas.removeEventListener('wheel', this.handleWheel);
-  window.removeEventListener('keydown', this.handleKeyDown);
-  window.removeEventListener('keyup', this.handleKeyUp);
-  
-  // Reset cursor style
-  this.canvas.style.cursor = '';
-  
-  this.active = false;
-  console.log("2D canvas environment deactivated");
-  return true;
-}
+  deactivate() {
+    if (!this.active) return true;
+    
+    // Remove event listeners
+    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+    window.removeEventListener('mousemove', this.handleMouseMove);
+    window.removeEventListener('mouseup', this.handleMouseUp);
+    this.canvas.removeEventListener('wheel', this.handleWheel);
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
+    
+    // Reset cursor style
+    this.canvas.style.cursor = '';
+    
+    this.active = false;
+    console.log("2D canvas environment deactivated");
+    return true;
+  }
   
   /**
    * Handle window resize
@@ -125,6 +136,22 @@ deactivate() {
   handleResize() {
     // Nothing special needed for 2D environment
     console.log("2D environment handling resize");
+  }
+  
+  /**
+   * Update background color based on color scheme
+   * @param {Object} colorScheme - Color scheme to apply
+   */
+  updateBackgroundColor(colorScheme) {
+    if (colorScheme && colorScheme.background) {
+      this.backgroundColor = colorScheme.background;
+      console.log(`2D canvas background updated to ${this.backgroundColor}`);
+      
+      // Request a render to show the change
+      if (this.core && this.core.renderingManager) {
+        this.core.renderingManager.requestRender();
+      }
+    }
   }
   
   /**
@@ -169,8 +196,9 @@ deactivate() {
   render(visualization, parameters) {
     if (!this.active || !this.ctx) return;
     
-    // Clear canvas
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // Clear canvas with the background color
+    this.ctx.fillStyle = this.backgroundColor;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
     // Set up camera transformations
     this.ctx.save();
@@ -197,38 +225,37 @@ deactivate() {
     this.ctx.restore();
   }
 
-
-/*
-* Dispose. Remove data. Used for tear down
-*/
-dispose() {
-  // Properly deactivate first
-  this.deactivate();
-  
-  // Clear any stored state
-  this.ctx = null;
-  
-  // Reset camera and interaction state
-  this.camera = {
-    x: 0,
-    y: 0,
-    scale: 1,
-    rotation: 0
-  };
-  
-  this.interaction = {
-    isDragging: false,
-    lastX: 0,
-    lastY: 0,
-    keys: {}
-  };
-  
-  // Reset initialization flag
-  this.initialized = false;
-  this.active = false;
-  
-  console.log("2D canvas environment disposed");
-}
+  /*
+  * Dispose. Remove data. Used for tear down
+  */
+  dispose() {
+    // Properly deactivate first
+    this.deactivate();
+    
+    // Clear any stored state
+    this.ctx = null;
+    
+    // Reset camera and interaction state
+    this.camera = {
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0
+    };
+    
+    this.interaction = {
+      isDragging: false,
+      lastX: 0,
+      lastY: 0,
+      keys: {}
+    };
+    
+    // Reset initialization flag
+    this.initialized = false;
+    this.active = false;
+    
+    console.log("2D canvas environment disposed");
+  }
   
   // Event handlers
   
@@ -360,7 +387,7 @@ dispose() {
       this.camera.scale = newScale;
       
       // Request render
-      if (this.core.renderingManager && this.core.renderingManager.requestRender) {
+      if (this.core && this.core.renderingManager) {
         this.core.renderingManager.requestRender();
       }
     }
@@ -430,7 +457,7 @@ dispose() {
     };
     
     // Request render
-    if (this.core.renderingManager && this.core.renderingManager.requestRender) {
+    if (this.core && this.core.renderingManager) {
       this.core.renderingManager.requestRender();
     }
   }

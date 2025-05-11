@@ -1,6 +1,5 @@
 // src/plugins/polytope-viewer/BasePolytopeVisualization.js
 import { Visualization } from '../../core/Visualization.js';
-import { PolytopeUtils } from './PolytopeUtils.js';
 
 /**
  * Base class for all polytope visualizations
@@ -15,23 +14,16 @@ export class BasePolytopeVisualization extends Visualization {
     // Store state
     this.state = {
       meshGroup: null,   // Group containing all meshes
-      solid: null,       // Main polytope mesh
-      edges: null,       // Edge wireframe
-      vertices: null,    // Vertex spheres
-      extraMesh: null,   // Extra visualization elements
-      isAnimating: false, // Animation state
       maxRadius: 1.0     // Maximum radius of the polytope
     };
   }
 
   /**
-   * Get base parameters (common to all polytope visualizations)
-   * @returns {Object} Parameter schema with structural and visual parameters
+   * Get base parameters common to all polytopes
    */
-  getBaseParameters() {
+  static getBaseParameters() {
     return {
-      structural: [
-      ],
+      structural: [],
       visual: [
         {
           id: 'wireframe',
@@ -39,8 +31,7 @@ export class BasePolytopeVisualization extends Visualization {
           label: 'Wireframe',
           default: false
         },
-
-	{
+        {
           id: 'rotation',
           type: 'checkbox',
           label: 'Auto-rotate',
@@ -99,10 +90,10 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Get visualization-specific parameters - to be overridden by subclasses
-   * @returns {Object} Parameter schema with structural and visual parameters
+   * Get specific parameters for this visualization
+   * Override in subclasses
    */
-  getVisualizationParameters() {
+  static getParameters() {
     return {
       structural: [],
       visual: []
@@ -110,230 +101,52 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Get common actions for all polytope visualizations
-   * @returns {Array<Object>} Common action definitions
-   */
-  getCommonActions() {
-    return [
-      {
-        id: 'toggle-polytope-rotation',
-        label: 'Toggle Rotation'
-      },
-      {
-        id: 'toggle-polytope-wireframe',
-        label: 'Toggle Wireframe'
-      },
-      {
-        id: 'toggle-polytope-edges',
-        label: 'Toggle Edges'
-      },
-      {
-        id: 'reset-polytope-camera',
-        label: 'Reset Camera'
-      }
-    ];
-  }
-
-  /**
-   * Initialize the visualization
-   * @param {Object} parameters - Parameter values
-   */
-  async initialize(parameters) {
-    // Set animation state based on parameters
-    this.state.isAnimating = parameters.rotation || false;
-    
-    // Clean up any existing meshes
-    this.cleanupMeshes();
-    
-    // Reset the camera position based on the polytope
-    this.resetCamera();
-    
-    return true;
-  }
-
-  /**
-   * Reset the camera to optimal viewing position
-   */
-  resetCamera() {
-    if (!this.plugin || !this.plugin.core || !this.plugin.core.renderingManager) {
-      return;
-    }
-
-    // Get the current environment
-    const environment = this.plugin.core.renderingManager.getCurrentEnvironment();
-    if (!environment || !environment.camera || !environment.controls) {
-      return;
-    }
-
-    // Calculate optimal camera distance as 2x the maximum radius
-    const cameraDistance = this.state.maxRadius * 2;
-
-    // If using ThreeJSEnvironment with camera controls
-    if (typeof environment.getCamera === 'function' && 
-        typeof environment.getControls === 'function') {
-      
-      const camera = environment.getCamera();
-      const controls = environment.getControls();
-
-      // Position camera
-      if (camera) {
-        // Reset camera position
-        camera.position.set(0, 0, cameraDistance);
-        camera.lookAt(0, 0, 0);
-      }
-
-      // Reset controls if available
-      if (controls && typeof controls.setLookAt === 'function') {
-        controls.setLookAt(0, 0, cameraDistance, 0, 0, 0);
-      }
-
-      // Request a render update
-      if (this.plugin.core.renderingManager.requestRender) {
-        this.plugin.core.renderingManager.requestRender();
-      }
-    }
-  }
-  
-  /**
-   * Get the vertices for this polytope - must be implemented by subclasses
-   * @param {Object} THREE - THREE.js library
-   * @param {Object} parameters - Visualization parameters
-   * @returns {Array<THREE.Vector3>} Array of vertices
+   * Get the vertices for this polytope
+   * Override in subclasses
    */
   getVertices(THREE, parameters) {
-    console.warn("BasePolytopeVisualization.getVertices() must be implemented by subclasses");
+    // Default implementation returns empty array
     return [];
   }
 
   /**
-   * Process the vertices (center and normalize)
-   * @param {Object} THREE - THREE.js library
-   * @param {Array<THREE.Vector3>} vertices - Original vertices
-   * @returns {Array<THREE.Vector3>} Processed vertices
+   * Initialize the visualization
    */
-  processVertices(THREE, vertices) {
-    // Center and normalize the vertices
-    const centeredVertices = PolytopeUtils.centerVertices(THREE, vertices);
-    
-    // Calculate the maximum radius from the center
-    this.state.maxRadius = PolytopeUtils.calculateMaxDistance(THREE, centeredVertices);
-    
-    return centeredVertices;
-  }
-  
-  /**
-   * Get any extra meshes for this polytope - optional for subclasses
-   * @param {Object} THREE - THREE.js library
-   * @param {Object} parameters - Visualization parameters
-   * @returns {THREE.Object3D|null} Extra mesh or null
-   */
-  getExtraMesh(THREE, parameters) {
-    return null;
-  }
-  
-  /**
-   * Handle common action execution
-   * @param {string} actionId - Action ID
-   * @param {Object} parameters - Current parameters
-   * @returns {boolean} Whether the action was handled
-   */
-  executeCommonAction(actionId, parameters) {
-    switch (actionId) {
-      case 'toggle-polytope-rotation':
-        // Update parameter in plugin
-        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
-          this.plugin.updateParameter('rotation', !parameters.rotation);
-        }
-        
-        // Update animation state directly
-        this.state.isAnimating = !parameters.rotation;
-        return true;
-        
-      case 'toggle-polytope-wireframe':
-        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
-          this.plugin.updateParameter('wireframe', !parameters.wireframe);
-        }
-        return true;
-        
-      case 'toggle-polytope-edges':
-        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
-          this.plugin.updateParameter('showEdges', !parameters.showEdges);
-        }
-        return true;
-
-      case 'reset-polytope-camera':
-        this.resetCamera();
-        return true;
-    }
-    
-    return false;
+  async initialize(parameters) {
+    this.state.isAnimating = parameters.rotation || false;
+    this.cleanupMeshes();
+    return true;
   }
 
   /**
    * Render the visualization in 3D
-   * @param {Object} THREE - THREE.js library
-   * @param {THREE.Scene} scene - THREE.js scene
-   * @param {Object} parameters - Current parameters
    */
-  async render3D(THREE, scene, parameters) {
-    // Check if ConvexGeometry is available globally
-    if (!window.ConvexGeometry) {
-      console.error("ConvexGeometry not available. Make sure it's loaded in index.html.");
-      
-      // Create a simple error mesh
-      const errorMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true })
-      );
-      scene.add(errorMesh);
-      return;
-    }
-    
+  render3D(THREE, scene, parameters) {
     // Remove existing mesh if present
     if (this.state.meshGroup && this.state.meshGroup.parent) {
       scene.remove(this.state.meshGroup);
     }
     
-    // Create new meshes if needed
-    if (!this.state.meshGroup) {
-      try {
-        // Create mesh group
-        this.state.meshGroup = new THREE.Group();
-        
-        // Get vertices from subclass
-        let vertices = this.getVertices(THREE, parameters);
-        
-        // Process the vertices (center and normalize)
-        vertices = this.processVertices(THREE, vertices);
-        
-        // Create the polytope from vertices
-        this.createPolytope(THREE, vertices, parameters);
-        
-        // Get any extra mesh from subclass
-        const extraMesh = this.getExtraMesh(THREE, parameters);
-        if (extraMesh) {
-          this.state.extraMesh = extraMesh;
-          this.state.meshGroup.add(extraMesh);
-        }
-        
-        // Reset camera position after creating the polytope
-        this.resetCamera();
-      } catch (error) {
-        console.error("Error creating polytope:", error);
-        
-        // Create a fallback error indicator
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshBasicMaterial({ 
-          color: 0xff0000,
-          wireframe: true 
-        });
-        const errorMesh = new THREE.Mesh(geometry, material);
-        
-        // Clear state and add error mesh
-        this.cleanupMeshes();
-        this.state.meshGroup = new THREE.Group();
-        this.state.meshGroup.add(errorMesh);
-      }
+    // Create new mesh
+    this.state.meshGroup = new THREE.Group();
+    
+    try {
+      // Get vertices from the subclass
+      const vertices = this.getVertices(THREE, parameters);
+      
+      // Create the polytope from vertices
+      this.createPolytope(THREE, vertices, parameters);
+      
+    } catch (error) {
+      console.error("Error creating polytope:", error);
+      
+      // Create a fallback error indicator
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ 
+        color: 0xff0000,
+        wireframe: true 
+      });
+      this.state.meshGroup.add(new THREE.Mesh(geometry, material));
     }
     
     // Add the mesh group to the scene
@@ -342,258 +155,135 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Create a polytope from vertices
-   * @param {Object} THREE - THREE.js library
-   * @param {Array<THREE.Vector3>} vertices - Array of vertices
-   * @param {Object} parameters - Visualization parameters
    */
   createPolytope(THREE, vertices, parameters) {
-    try {
-      // Check if we have enough vertices
-      if (!vertices || vertices.length < 4) {
-        throw new Error("Not enough vertices to create a polytope");
-      }
-      
-      // Create convex hull geometry using global ConvexGeometry
-      const hullGeometry = new window.ConvexGeometry(vertices);
-      
-      // Create materials
-      const faceMaterial = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(parameters.faceColor || '#3498db'),
-        wireframe: parameters.wireframe || false,
-        transparent: (parameters.opacity || 1) < 1,
-        opacity: parameters.opacity || 1,
-        side: THREE.DoubleSide,
-        flatShading: true
-      });
-      
+    if (!vertices || vertices.length < 4) {
+      throw new Error("Not enough vertices to create a polytope");
+    }
+    
+    // Process the vertices to center them
+    vertices = this.centerVertices(THREE, vertices);
+    
+    // Create convex hull geometry using global ConvexGeometry
+    const hullGeometry = new window.ConvexGeometry(vertices);
+    
+    // Create materials
+    const faceMaterial = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(parameters.faceColor || '#3498db'),
+      wireframe: parameters.wireframe || false,
+      transparent: (parameters.opacity || 1) < 1,
+      opacity: parameters.opacity || 1,
+      side: THREE.DoubleSide,
+      flatShading: true
+    });
+    
+    // Create the main polytope mesh
+    const solid = new THREE.Mesh(hullGeometry, faceMaterial);
+    this.state.meshGroup.add(solid);
+    
+    // Add edges if needed
+    if (parameters.showEdges) {
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: parameters.edgeColor || '#2c3e50',
         linewidth: 1
       });
       
+      const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
+      const edges = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+      this.state.meshGroup.add(edges);
+    }
+    
+    // Add vertices if needed
+    if (parameters.showVertices) {
       const vertexMaterial = new THREE.MeshBasicMaterial({
         color: parameters.vertexColor || '#e74c3c'
       });
       
-      // Create the main polytope mesh
-      this.state.solid = new THREE.Mesh(hullGeometry, faceMaterial);
-      this.state.meshGroup.add(this.state.solid);
-      
-      // Create edges
-      const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
-      this.state.edges = new THREE.LineSegments(edgesGeometry, edgeMaterial);
-      this.state.edges.visible = parameters.showEdges || false;
-      this.state.meshGroup.add(this.state.edges);
-      
-      // Create vertex spheres
-      this.state.vertices = new THREE.Group();
-      
-      // Use a shared sphere geometry for all vertices
+      const vertexSize = parameters.vertexSize || 0.05;
       const sphereGeometry = new THREE.SphereGeometry(1, 16, 16);
       
       // Add a sphere at each vertex position
-      const vertexSize = parameters.vertexSize || 0.05;
-      
       vertices.forEach(vertex => {
         const sphere = new THREE.Mesh(sphereGeometry, vertexMaterial);
         sphere.position.copy(vertex);
         sphere.scale.set(vertexSize, vertexSize, vertexSize);
-        this.state.vertices.add(sphere);
+        this.state.meshGroup.add(sphere);
       });
-      
-      // Set vertex visibility
-      this.state.vertices.visible = parameters.showVertices || false;
-      
-      // Add vertices to the mesh group
-      this.state.meshGroup.add(this.state.vertices);
-      
-    } catch (error) {
-      console.error("Error creating polytope from vertices:", error);
-      throw error;
     }
   }
-  
+
   /**
-   * Update animation state
-   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * Center vertices around the origin
+   */
+  centerVertices(THREE, vertices) {
+    if (!vertices || vertices.length === 0) return vertices;
+    
+    // Calculate the center
+    const center = new THREE.Vector3();
+    vertices.forEach(v => center.add(v));
+    center.divideScalar(vertices.length);
+    
+    // Center the vertices
+    return vertices.map(v => new THREE.Vector3(
+      v.x - center.x,
+      v.y - center.y,
+      v.z - center.z
+    ));
+  }
+
+  /**
+   * Update animation
    */
   animate(deltaTime) {
-    // Update rotation if animation is enabled
+    // Only animate if rotation is enabled
     if (this.state.isAnimating && this.state.meshGroup) {
       this.state.meshGroup.rotation.y += 0.5 * deltaTime;
       this.state.meshGroup.rotation.x += 0.2 * deltaTime;
-      return true; // Request continuous rendering
+      return true;
     }
-    
     return false;
   }
-  
+
   /**
-   * Update the visualization with new parameters
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
+   * Handle parameter updates
    */
-  update(parameters, prevParameters = null) {
-    // Update animation state
+  update(parameters) {
     if (parameters.rotation !== undefined) {
       this.state.isAnimating = parameters.rotation;
     }
-    
-    // Update materials
-    this.updateMaterials(parameters);
-    
-    // Update vertex and edge visibility
-    this.updateMeshVisibility(parameters);
-    
-    // Check if we need to rebuild the mesh entirely
-    const needsRebuild = this.shouldRebuildOnUpdate(parameters, prevParameters);
-    
-    if (needsRebuild) {
-      // Clean up existing meshes
-      this.cleanupMeshes();
-      
-      // Reset the camera on rebuild (will be called during next render)
-      this.resetCamera();
-    }
   }
-  
-  /**
-   * Determine if the polytope should be rebuilt after a parameter change
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
-   * @returns {boolean} Whether to rebuild the polytope
-   */
-  shouldRebuildOnUpdate(parameters, prevParameters) {
-    return false;
-  }
-  
-  /**
-   * Update materials with new parameters
-   * @param {Object} parameters - New parameters
-   */
-  updateMaterials(parameters) {
-    // Update solid material
-    if (this.state.solid && this.state.solid.material) {
-      const material = this.state.solid.material;
-      
-      // Update color
-      if (parameters.faceColor !== undefined) {
-        material.color.set(parameters.faceColor);
-      }
-      
-      // Update opacity
-      if (parameters.opacity !== undefined) {
-        material.opacity = parameters.opacity;
-        material.transparent = parameters.opacity < 1;
-      }
-      
-      // Update wireframe
-      if (parameters.wireframe !== undefined) {
-        material.wireframe = parameters.wireframe;
-      }
-    }
-    
-    // Update edge material
-    if (this.state.edges && this.state.edges.material) {
-      if (parameters.edgeColor !== undefined) {
-        this.state.edges.material.color.set(parameters.edgeColor);
-      }
-    }
-    
-    // Update vertex material
-    if (this.state.vertices && this.state.vertices.children) {
-      if (parameters.vertexColor !== undefined) {
-        this.state.vertices.children.forEach(vertex => {
-          if (vertex.material) {
-            vertex.material.color.set(parameters.vertexColor);
-          }
-        });
-      }
-    }
-  }
-  
-  /**
-   * Update mesh visibility and size based on parameters
-   * @param {Object} parameters - New parameters
-   */
-  updateMeshVisibility(parameters) {
-    // Update vertex visibility
-    if (this.state.vertices) {
-      if (parameters.showVertices !== undefined) {
-        this.state.vertices.visible = parameters.showVertices;
-      }
-      
-      // Update vertex size
-      if (parameters.vertexSize !== undefined && this.state.vertices.children) {
-        const size = parameters.vertexSize;
-        this.state.vertices.children.forEach(vertex => {
-          vertex.scale.set(size, size, size);
-        });
-      }
-    }
-    
-    // Update edges visibility
-    if (this.state.edges && parameters.showEdges !== undefined) {
-      this.state.edges.visible = parameters.showEdges;
-    }
-  }
-  
+
   /**
    * Clean up meshes and resources
    */
   cleanupMeshes() {
+    if (!this.state.meshGroup) return;
+    
     // Remove mesh group from scene
-    if (this.state.meshGroup && this.state.meshGroup.parent) {
+    if (this.state.meshGroup.parent) {
       this.state.meshGroup.parent.remove(this.state.meshGroup);
     }
     
     // Dispose of geometries and materials
-    const disposeMesh = (mesh) => {
-      if (!mesh) return;
-      
-      if (mesh.geometry) {
-        mesh.geometry.dispose();
-      }
-      
-      if (mesh.material) {
-        // Handle array of materials
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach(material => material.dispose());
+    this.state.meshGroup.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(material => material.dispose());
         } else {
-          mesh.material.dispose();
+          child.material.dispose();
         }
       }
-      
-      // Handle children recursively
-      if (mesh.children && mesh.children.length > 0) {
-        [...mesh.children].forEach(child => {
-          disposeMesh(child);
-        });
-      }
-    };
+    });
     
-    // Dispose of main meshes
-    disposeMesh(this.state.solid);
-    disposeMesh(this.state.edges);
-    disposeMesh(this.state.vertices);
-    disposeMesh(this.state.extraMesh);
-    
-    // Reset state
     this.state.meshGroup = null;
-    this.state.solid = null;
-    this.state.edges = null;
-    this.state.vertices = null;
-    this.state.extraMesh = null;
   }
-  
+
   /**
-   * Clean up resources when visualization is no longer needed
+   * Clean up resources
    */
   dispose() {
-    // Clean up meshes
     this.cleanupMeshes();
-    
-    // Reset animation state
     this.state.isAnimating = false;
     this.isAnimating = false;
   }

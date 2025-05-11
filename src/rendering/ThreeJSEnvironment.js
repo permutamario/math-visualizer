@@ -1,5 +1,8 @@
 // src/rendering/ThreeJSEnvironment.js
 
+// THREE.js is imported globally in index.html
+// This environment uses the global THREE object
+
 /**
  * 3D rendering environment using THREE.js
  */
@@ -30,11 +33,12 @@ export class ThreeJSEnvironment {
   
   // Render target for offscreen rendering
   this.renderTarget = null;
+
+  // Background color - default to light theme
+  this.backgroundColor = '#f5f5f5';
   
   // Bind methods
   this.handleResize = this.handleResize.bind(this);
-  
-  console.log("ThreeJSEnvironment instance created");
 }
   
   /**
@@ -47,7 +51,7 @@ export class ThreeJSEnvironment {
   try {
     // Ensure THREE.js is available
     if (typeof THREE === 'undefined') {
-      throw new Error("THREE.js is not available. Make sure it is loaded before initializing 3D environment.");
+      throw new Error("THREE.js is not available. Make sure it's loaded before initializing 3D environment.");
     }
     
     // Check WebGL support
@@ -84,9 +88,17 @@ export class ThreeJSEnvironment {
     
     console.log(`Initializing 3D environment with size ${width}x${height}`);
     
+    // Get initial background color from color scheme if available
+    if (this.core && this.core.colorSchemeManager) {
+      const scheme = this.core.colorSchemeManager.getActiveScheme();
+      if (scheme && scheme.background) {
+        this.backgroundColor = scheme.background;
+      }
+    }
+    
     // Create scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xf5f5f5);
+    this.scene.background = new THREE.Color(this.backgroundColor);
     
     // Create camera
     this.camera = new THREE.PerspectiveCamera(
@@ -244,7 +256,30 @@ handleResize() {
     this.renderer.render(this.scene, this.camera);
   }
 }
- /**
+
+/**
+ * Update background color based on color scheme
+ * @param {Object} colorScheme - Color scheme to apply
+ */
+updateBackgroundColor(colorScheme) {
+  if (!colorScheme || !colorScheme.background) return;
+  
+  // Update the stored background color
+  this.backgroundColor = colorScheme.background;
+  
+  // Update THREE.js scene background if it exists
+  if (this.scene) {
+    this.scene.background = new THREE.Color(this.backgroundColor);
+    console.log(`3D scene background updated to ${this.backgroundColor}`);
+    
+    // Force a render to show the change if active
+    if (this.active && this.renderer && this.camera) {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+}
+
+/**
  * Render a visualization
  * @param {Visualization} visualization - Visualization to render
  * @param {Object} parameters - Current parameters
