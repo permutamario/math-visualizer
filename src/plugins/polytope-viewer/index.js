@@ -82,7 +82,30 @@ export default class PolytopeViewerPlugin extends Plugin {
     
     // Add standard parameters from the core
     if (this.core && this.core.getStandardParameters) {
-      params.addStandardParameters(this.core, this.constructor.renderingType);
+      const standardParams = this.core.getStandardParameters(this.constructor.renderingType);
+      
+      // Add standard parameters manually based on their type
+      Object.values(standardParams).forEach(param => {
+        switch (param.type) {
+          case 'dropdown':
+            params.addDropdown(param.id, param.label, param.default, param.options, param.category);
+            break;
+          case 'slider':
+            params.addSlider(param.id, param.label, param.default, {
+              min: param.min,
+              max: param.max,
+              step: param.step
+            }, param.category);
+            break;
+          case 'checkbox':
+            params.addCheckbox(param.id, param.label, param.default, param.category);
+            break;
+          case 'color':
+            params.addColor(param.id, param.label, param.default, param.category);
+            break;
+          // Add other types as needed
+        }
+      });
     }
     
     // Add visualization-specific parameters if available
@@ -170,14 +193,6 @@ export default class PolytopeViewerPlugin extends Plugin {
     
     try {
       console.log("Loading polytope-viewer plugin...");
-      
-      // Try to discover more visualizations from manifest
-      try {
-        await this.discoverVisualizations();
-      } catch (error) {
-        console.warn("Could not discover visualizations from manifest:", error);
-        // Continue with hard-coded visualizations
-      }
       
       // Set up default parameters from parameter builder
       const schema = this.defineParameters().build();
@@ -449,50 +464,5 @@ export default class PolytopeViewerPlugin extends Plugin {
     }
     
     return super.executeAction(actionId, ...args);
-  }
-  
-  /**
-   * Discover visualizations from manifest file
-   * @returns {Promise<boolean>} Whether discovery was successful
-   */
-  async discoverVisualizations() {
-    try {
-      const response = await fetch('src/plugins/polytope-viewer/polytope_manifest.json');
-      if (!response.ok) {
-        throw new Error(`Failed to load manifest: ${response.statusText}`);
-      }
-      
-      const visualizations = await response.json();
-      
-      // Process the manifest data
-      for (const viz of visualizations) {
-        try {
-          // Only add if not already in visualizationTypes
-          if (!this.visualizationTypes.some(v => v.name === viz.name)) {
-            // Dynamically import the visualization class
-            const module = await import(`./visualizations/${viz.file}`);
-            
-            // Get the class name from the file name
-            const className = viz.file.replace('.js', '');
-            
-            // Add to visualization types
-            this.visualizationTypes.push({
-              id: className.toLowerCase(),
-              name: viz.name,
-              class: module[className]
-            });
-            
-            console.log(`Discovered visualization: ${viz.name}`);
-          }
-        } catch (error) {
-          console.warn(`Could not load visualization ${viz.name}:`, error);
-        }
-      }
-      
-      return true;
-    } catch (error) {
-      console.warn("Error discovering visualizations from manifest:", error);
-      return false;
-    }
   }
 }
