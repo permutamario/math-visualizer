@@ -1,0 +1,497 @@
+/* Layout and responsive design CSS */
+
+/* === DESKTOP LAYOUT (min-width: 600px) === */
+@media (min-width: 600px) {
+  /* === CONTROL PANELS === */
+  .control-panel {
+    position: fixed;
+    width: 300px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px var(--overlay-light);
+    padding: 20px;
+    font-family: sans-serif;
+    z-index: 1000;
+    overflow-y: auto;
+  }
+  
+  /* Visual panel (left side, below logo) */
+  #visual-panel {
+    top: 90px;  /* Positioned below the logo */
+    left: 20px;
+    max-height: calc(40vh - 90px);
+  }
+  
+  /* Export panel (left side, below visual panel) */
+  #export-panel {
+    top: calc(40vh + 40px);  /* Positioned below visual panel */
+    left: 20px;
+    max-height: calc(30vh);
+  }
+  
+  /* Structural panel (right side) */
+  #structural-panel {
+    top: 90px;  /* Aligned with top */
+    right: 20px;
+    max-height: calc(100vh - 40px);
+  }
+  
+  /* Debug panel (right bottom) */
+  #debug-panel {
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--warning-color);
+    border: 1px solid var(--border-color);
+  }
+  
+  #debug-panel h3 {
+    color: var(--text-color);
+  }
+  
+  #debug-log-display {
+    background-color: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    padding: 5px;
+    font-size: 11px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-family: monospace;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+  }
+  
+  /* Section headers */
+  .control-panel h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color);
+    font-size: 16px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+  }
+  
+  /* Fullscreen mode */
+  body.fullscreen-mode .control-panel {
+    display: none;
+  }
+  
+  body.fullscreen-mode .plugin-selector-button {
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  
+  body.fullscreen-mode .plugin-selector-button:hover {
+    opacity: 1;
+  }
+}
+
+/* === MOBILE LAYOUT (max-width: 599px) === */
+@media (max-width: 599px) {
+  body.mobile-device {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Oxygen, Ubuntu, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    background-color: var(--background-color);
+  }
+  
+  /* Title header */
+  .mobile-header-title {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background-color: var(--control-bg); /* Changed from overlay-bg to control-bg */
+    color: var(--text-color); /* Changed from white to text-color */
+    z-index: 1000;
+    padding: 6px 12px;
+    font-size: 12px;
+    text-align: center;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--border-color); /* Added border for better separation */
+    box-shadow: 0 1px 3px var(--overlay-light);
+    box-sizing: border-box;
+  }
+  
+  /* Main header with controls */
+  .mobile-header {
+    position: absolute;
+    top: 30px;
+    left: 0;
+    right: 0;
+    background-color: var(--control-bg); /* Changed from overlay-bg to control-bg */
+    color: var(--text-color); /* Changed from white to text-color */
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px;
+    gap: 10px;
+    max-height: 35vh;
+    overflow-y: auto;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px var(--overlay-light);
+    box-sizing: border-box;
+  }
+  
+  /* === Shared styling for all control rows === */
+  .mobile-header .control {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+    width: 100%;
+  }
+  
+  /* === Label to the left === */
+  .mobile-header label {
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color); /* Changed from white to text-color */
+    margin: 0;
+    white-space: nowrap;
+  }
+  
+  /* === Input elements to the right === */
+  .mobile-header select,
+  .mobile-header input[type="text"],
+  .mobile-header input[type="color"],
+  .mobile-header input[type="number"],
+  .mobile-header input[type="range"] {
+    flex: 1 1 auto;
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 9px;
+    border: 1px solid var(--control-border);
+    background-color: var(--background-secondary);
+    color: var(--text-color);
+    height: 30px;
+    width: 100%;
+  }
+  
+  /* Make sliders take up all available space */
+  .mobile-header input[type="range"] {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .mobile-header input[type="color"] {
+    padding: 2px;
+  }
+  
+  /* === Checkbox styling === */
+  .mobile-header .checkbox-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .mobile-header .checkbox-container input[type="checkbox"] {
+    transform: scale(1.2);
+  }
+  
+  /* === Button (e.g., Compute) === */
+  .mobile-header button {
+    font-size: 13px;
+    padding: 6px 10px;
+    height: 32px;
+    border-radius: 4px;
+    background-color: var(--accent-color); /* Ensuring accent-color is used */
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  
+  .mobile-header button:active {
+    background-color: var(--control-focus);
+  }
+  
+  /* === Vector input + compute button as vertical stack if needed === */
+  .mobile-header .control.vector-input {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .mobile-header .control.vector-input > div {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+  }
+  
+  /* Vector row: input and button inline */
+  .mobile-header .control > div {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+  }
+  
+  /* === FULLSCREEN === */
+  body.mobile-device #viewer-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100vh;
+    touch-action: pan-y pinch-zoom;
+    z-index: 0;
+  }
+  
+  /* === BUTTONS === */
+  /* Bottom control bar */
+  .mobile-control-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+  }
+  
+  /* Plugin/logo button (bottom center) */
+  #mobile-plugin-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: var(--control-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 8px var(--overlay-light);
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+  }
+  
+  #mobile-plugin-button:active {
+    background-color: var(--control-active);
+    transform: scale(0.96);
+  }
+  
+  #mobile-plugin-button-icon {
+    width: 36px;
+    height: 36px;
+    background-color: var(--accent-color); /* Changed from white to accent-color */
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+    mask-size: cover;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+    -webkit-mask-size: cover;
+  }
+  
+  /* Options button and export button */
+  #mobile-options-button,
+  #mobile-export-button {
+    padding: 12px 24px;
+    background-color: var(--control-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 3px 8px var(--overlay-light);
+    transition: background-color 0.2s, transform 0.2s;
+  }
+  
+  #mobile-options-button:active,
+  #mobile-export-button:active {
+    background-color: var(--control-active);
+    transform: scale(0.96);
+  }
+  
+  /* === SLIDING OPTIONS MENUS === */
+  .mobile-options-menu {
+    position: fixed;
+    bottom: 70px;
+    background: var(--control-bg); /* Changed from background-secondary to control-bg */
+    border-radius: 10px;
+    box-shadow: 0 4px 20px var(--overlay-light);
+    padding: 14px 16px;
+    z-index: 1000;
+    max-height: 60vh;
+    overflow-y: auto;
+    transform-origin: bottom center;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+  }
+  
+  /* Position the visual menu */
+  #mobile-visual-menu {
+    left: 20px;
+    right: auto;
+    width: 280px;
+  }
+  
+  /* Position the export menu */
+  #mobile-export-menu {
+    left: auto;
+    right: 20px;
+    width: 200px;
+  }
+  
+  /* Position the plugin menu */
+  #mobile-plugin-menu {
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    max-width: 320px;
+  }
+  
+  .mobile-options-menu.hidden {
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  /* Special case for plugin menu */
+  #mobile-plugin-menu.hidden {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .mobile-options-menu .control {
+    margin-bottom: 14px;
+  }
+  
+  .mobile-options-menu .checkbox-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .mobile-options-menu label {
+    font-weight: 500;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: var(--text-color);
+  }
+  
+  .mobile-options-menu input[type="range"] {
+    width: 100%;
+    height: 32px;
+    background-color: transparent;
+    padding: 0;
+  }
+  
+  /* Slider styling */
+  .mobile-options-menu input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+  }
+  
+  .mobile-options-menu input[type="range"]::-webkit-slider-thumb {
+    height: 18px;
+    width: 18px;
+    margin-top: -6px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    border: none;
+  }
+  
+  /* Compact select box */
+  .mobile-options-menu select,
+  .mobile-options-menu input[type="color"],
+  .mobile-options-menu input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 13px;
+    border-radius: 4px;
+    border: 1px solid var(--control-border);
+    background-color: var(--background-secondary);
+    color: var(--text-color);
+  }
+  
+  .mobile-options-menu input[type="color"] {
+    height: 40px;
+    padding: 2px;
+  }
+  
+  /* Buttons */
+  .mobile-options-menu button {
+    padding: 10px 12px;
+    font-size: 13px;
+    border-radius: 4px;
+    background-color: var(--accent-color); /* Changed from text-color to accent-color */
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+  
+  .mobile-options-menu button:active {
+    background-color: var(--control-focus); /* Use control-focus for active state */
+    transform: scale(0.98);
+  }
+  
+  .export-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .export-buttons button {
+    width: 100%;
+    font-size: 13px;
+    padding: 10px;
+  }
+  
+  /* Menu header */
+  .mobile-options-menu h3 {
+    margin: 0 0 10px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 16px;
+    color: var(--text-color);
+  }
+  
+  /* Fullscreen mode for mobile */
+  body.mobile-device.fullscreen-mode .mobile-header,
+  body.mobile-device.fullscreen-mode .mobile-header-title,
+  body.mobile-device.fullscreen-mode .mobile-control-bar, 
+  body.mobile-device.fullscreen-mode .mobile-theme-toggle {
+    display: none;
+  }
+  
+  body.mobile-device.fullscreen-mode #mobile-plugin-button {
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  
+  body.mobile-device.fullscreen-mode #mobile-plugin-button:hover {
+    opacity: 1;
+  }
+}
+
+/* Mobile-specific plugin list styles */
+body.mobile-device #mobile-plugin-menu {
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 320px;
+  background-color: var(--background-secondary);
+  color: var(--text-color);
+}
+
+body.mobile-device #mobile-plugin-menu.hidden {
+  transform: translate(-50%, 20px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.mobile-device .plugin-list-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+  background-color: var(--background-secondary);
+}

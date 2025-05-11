@@ -23,7 +23,7 @@ export class Plugin {
     
     // Plugin state
     this.parameters = {};
-    this.isActive = false;
+    this.isLoaded = false;
     this.currentVisualization = null;
     this.visualizations = new Map();
     
@@ -34,43 +34,49 @@ export class Plugin {
   }
 
   /**
-   * Initialize the plugin
-   * Called when the plugin is first loaded, before activation
-   * Lightweight initialization only
-   */
-  async initialize() {
-    // Set default parameters
-    const schema = this.getParameterSchema();
-    this.parameters = this._getDefaultParametersFromSchema(schema);
-    return true;
-  }
-
-  /**
-   * Activate the plugin
+   * Load the plugin
    * Called when the plugin is selected by the user
-   * Initialize resources, set up visualizations
+   * Sets up all resources, parameters, and visualizations
    */
-  async activate() {
-    if (this.isActive) return true;
+  async load() {
+    if (this.isLoaded) return true;
     
     try {
+      // Initialize default parameters
+      const schema = this.getParameterSchema();
+      this.parameters = this._getDefaultParametersFromSchema(schema);
+      
       // Initialize default visualization
       await this._initializeDefaultVisualization();
-      this.isActive = true;
+      
+      // Mark as loaded
+      this.isLoaded = true;
+      
+      // Give parameters to the UI manager
+      this.giveParameters(true);
+      
+      // Update actions
+      if (this.core && this.core.uiManager) {
+        const actions = this.getActions();
+        this.core.uiManager.updateActions(actions);
+      }
+      
       return true;
     } catch (error) {
-      console.error(`Error activating plugin ${this.constructor.id}:`, error);
+      console.error(`Error loading plugin ${this.constructor.id}:`, error);
+      // Clean up any partial state in case of failure
+      await this.unload();
       return false;
     }
   }
 
   /**
-   * Deactivate the plugin
-   * Called when another plugin is activated
-   * Clean up resources, dispose visualizations
+   * Unload the plugin
+   * Called when another plugin is selected
+   * Cleans up all resources and returns to a fresh state
    */
-  async deactivate() {
-    if (!this.isActive) return true;
+  async unload() {
+    if (!this.isLoaded) return true;
     
     try {
       // Clean up current visualization
@@ -79,11 +85,41 @@ export class Plugin {
         this.currentVisualization = null;
       }
       
-      this.isActive = false;
+      // Clear all visualizations
+      this.visualizations.clear();
+      
+      // Clear parameters
+      this.parameters = {};
+      
+      // Mark as unloaded
+      this.isLoaded = false;
+      
       return true;
     } catch (error) {
-      console.error(`Error deactivating plugin ${this.constructor.id}:`, error);
+      console.error(`Error unloading plugin ${this.constructor.id}:`, error);
       return false;
+    }
+  }
+  
+  /**
+   * Give parameters to the UI manager
+   * Controls whether to rebuild the UI or just update values
+   * @param {boolean} rebuild - Whether to rebuild the entire UI
+   */
+  giveParameters(rebuild = false) {
+    if (!this.core || !this.core.uiManager) {
+      console.warn(`Cannot give parameters: UI manager not available in plugin ${this.constructor.id}`);
+      return;
+    }
+    
+    if (rebuild) {
+      // Get schema and build controls from scratch
+      const schema = this.getParameterSchema();
+console.log("Parameters", this.parameters);
+      this.core.uiManager.buildControlsFromSchema(schema, this.parameters);
+    } else {
+      // Just update control values
+      this.core.uiManager.updateControls(this.parameters);
     }
   }
   
@@ -112,6 +148,9 @@ export class Plugin {
     if (this.currentVisualization) {
       this.currentVisualization.update(this.parameters);
     }
+    
+    // Update the UI with the new parameter value
+    this.giveParameters(false);
   }
   
   /**
@@ -150,8 +189,8 @@ export class Plugin {
         const schema = this.getParameterSchema();
         this.parameters = this._getDefaultParametersFromSchema(schema);
         
-        // Update UI
-        this.core.uiManager.updateControls(this.parameters);
+        // Update UI with rebuilt controls
+        this.giveParameters(true);
         
         // Update visualization
         if (this.currentVisualization) {
@@ -192,6 +231,9 @@ export class Plugin {
     // Set and initialize the new visualization
     this.currentVisualization = this.visualizations.get(visualizationId);
     await this.currentVisualization.initialize(this.parameters);
+    
+    // Update UI to reflect any visualization-specific parameters
+    this.giveParameters(true);
     
     return true;
   }

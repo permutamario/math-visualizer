@@ -1,4 +1,4 @@
-// src/plugins/asep-plugin/index.js - Updated to handle model-specific parameters
+// src/plugins/asep-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
 import { ClosedASEPVisualization } from './ClosedASEPVisualization.js';
 import { OpenASEPVisualization } from './OpenASEPVisualization.js';
@@ -14,41 +14,130 @@ export default class ASEPPlugin extends Plugin {
     super(core);
     
     // Initialize the visualization map - but don't create instances yet
-    this.visualizations = new Map();
+    this.visualizationTypes = [
+      {
+        id: 'closed',
+        name: 'Closed Linear',
+        class: ClosedASEPVisualization
+      },
+      {
+        id: 'open',
+        name: 'Open Boundary',
+        class: OpenASEPVisualization
+      },
+      {
+        id: 'circular',
+        name: 'Circular',
+        class: CircularASEPVisualization
+      }
+    ];
   }
 
+  /**
+   * Load the plugin
+   * Called when the plugin is selected
+   */
+  async load() {
+    if (this.isLoaded) return true;
+    
+    try {
+      console.log("Loading ASEP plugin...");
+      
+      // Set up default parameters from schema
+      const schema = this.getParameterSchema();
+      this.parameters = this._getDefaultParametersFromSchema(schema);
+      
+      // Initialize default visualization
+      await this._initializeDefaultVisualization();
+      
+      // Mark as loaded
+      this.isLoaded = true;
+      
+      // Give parameters to UI
+      this.giveParameters(true);
+      
+      // Update actions
+      if (this.core && this.core.uiManager) {
+        const actions = this.getActions();
+        this.core.uiManager.updateActions(actions);
+      }
+      
+      console.log("ASEP plugin loaded successfully");
+      return true;
+    } catch (error) {
+      console.error(`Error loading ASEPPlugin:`, error);
+      
+      // Ensure clean state on failure
+      await this.unload();
+      return false;
+    }
+  }
+
+  /**
+   * Unload the plugin
+   * Called when another plugin is selected
+   */
+  async unload() {
+    if (!this.isLoaded) return true;
+    
+    try {
+      console.log("Unloading ASEP plugin...");
+      
+      // Clean up current visualization
+      if (this.currentVisualization) {
+        this.currentVisualization.dispose();
+        this.currentVisualization = null;
+      }
+      
+      // Clear all visualizations
+      this.visualizations.clear();
+      
+      // Clear parameters
+      this.parameters = {};
+      
+      // Mark as unloaded
+      this.isLoaded = false;
+      
+      console.log("ASEP plugin unloaded successfully");
+      return true;
+    } catch (error) {
+      console.error(`Error unloading ASEPPlugin:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Initialize the default visualization
+   * @private
+   */
   async _initializeDefaultVisualization() {
-    // Create all visualization types
-    const closedViz = new ClosedASEPVisualization(this);
-    const openViz = new OpenASEPVisualization(this);
-    const circularViz = new CircularASEPVisualization(this);
-    
-    // Register all visualizations
-    this.registerVisualization('closed', closedViz);
-    this.registerVisualization('open', openViz);
-    this.registerVisualization('circular', circularViz);
-    
-    // Get model type from parameters
+    // Get model type from parameters, defaulting to closed
     const modelType = this.parameters.modelType || 'closed';
     
-    // Set initial visualization based on model type
-    switch (modelType) {
-      case 'open':
-        this.currentVisualization = openViz;
-        break;
-      case 'circular':
-        this.currentVisualization = circularViz;
-        break;
-      case 'closed':
-      default:
-        this.currentVisualization = closedViz;
-        break;
+    // Find visualization info
+    const vizInfo = this.visualizationTypes.find(vt => vt.id === modelType) || 
+                   this.visualizationTypes[0];
+    
+    // Create all visualization instances
+    for (const vizType of this.visualizationTypes) {
+      const visualization = new vizType.class(this);
+      this.registerVisualization(vizType.id, visualization);
     }
     
-    // Initialize the visualization
-    await this.currentVisualization.initialize(this.parameters);
+    // Set current visualization
+    this.currentVisualization = this.visualizations.get(vizInfo.id);
+    
+    // Initialize with current parameters
+    if (this.currentVisualization) {
+      await this.currentVisualization.initialize(this.parameters);
+    }
+    
+    return true;
   }
 
+  /**
+   * Get parameter schema
+   */
   getParameterSchema() {
     // Common parameters for all models
     const commonParams = [
@@ -56,11 +145,10 @@ export default class ASEPPlugin extends Plugin {
         id: 'modelType',
         type: 'dropdown',
         label: 'Model Type',
-        options: [
-          { value: 'closed', label: 'Closed Linear' },
-          { value: 'open', label: 'Open Boundary' },
-          { value: 'circular', label: 'Circular' }
-        ],
+        options: this.visualizationTypes.map(vt => ({
+          value: vt.id,
+          label: vt.name
+        })),
         default: 'closed'
       },
       {
@@ -104,35 +192,30 @@ export default class ASEPPlugin extends Plugin {
     // Model-specific parameters
     let specificParams = [];
     
-    // Add model-specific parameters
-    switch (this.parameters.modelType) {
-      case 'open':
-        specificParams = [
-          {
-            id: 'entryRate',
-            type: 'slider',
-            label: 'Entry Rate (Open)',
-            min: 0,
-            max: 5,
-            step: 0.1,
-            default: 0.5
-          },
-          {
-            id: 'exitRate',
-            type: 'slider',
-            label: 'Exit Rate (Open)',
-            min: 0,
-            max: 5,
-            step: 0.1,
-            default: 0.5
-          }
-        ];
-        break;
-      case 'circular':
-      case 'closed':
-      default:
-        // No additional params for closed and circular models
-        break;
+    // Add model-specific parameters based on current model type
+    const currentType = this.parameters?.modelType || 'closed';
+    
+    if (currentType === 'open') {
+      specificParams = [
+        {
+          id: 'entryRate',
+          type: 'slider',
+          label: 'Entry Rate (Open)',
+          min: 0,
+          max: 5,
+          step: 0.1,
+          default: 0.5
+        },
+        {
+          id: 'exitRate',
+          type: 'slider',
+          label: 'Exit Rate (Open)',
+          min: 0,
+          max: 5,
+          step: 0.1,
+          default: 0.5
+        }
+      ];
     }
     
     // Combine common and specific parameters
@@ -193,13 +276,11 @@ export default class ASEPPlugin extends Plugin {
       ]
     };
   }
-  
+
   /**
    * Handle parameter changes
-   * @param {string} parameterId - ID of the changed parameter
-   * @param {any} value - New parameter value
    */
-  onParameterChanged(parameterId, value) {
+  async onParameterChanged(parameterId, value) {
     // Update parameter value
     this.parameters[parameterId] = value;
     
@@ -208,20 +289,14 @@ export default class ASEPPlugin extends Plugin {
       const newViz = this.visualizations.get(value);
       
       if (newViz && newViz !== this.currentVisualization) {
-        // Deactivate current visualization if needed
-        if (this.currentVisualization) {
-          this.currentVisualization.dispose();
-        }
-        
-        // Set and initialize the new visualization
+        // Set the new visualization as current
         this.currentVisualization = newViz;
-        this.currentVisualization.initialize(this.parameters);
+        
+        // Initialize the visualization with current parameters
+        await this.currentVisualization.initialize(this.parameters);
         
         // Update the parameter schema to reflect the new model type
-        if (this.core && this.core.uiManager) {
-          const paramSchema = this.getParameterSchema();
-          this.core.uiManager.buildControlsFromSchema(paramSchema, this.parameters);
-        }
+        this.giveParameters(true);
       }
     } 
     // Handle pause toggle
@@ -231,11 +306,19 @@ export default class ASEPPlugin extends Plugin {
     // Handle structural parameter changes that require reinitializing
     else if (['numBoxes', 'numParticles'].includes(parameterId) && this.currentVisualization) {
       // Reinitialize visualization with updated parameters
-      this.currentVisualization.initialize(this.parameters);
+      await this.currentVisualization.initialize(this.parameters);
     } 
     else if (this.currentVisualization) {
       // For other parameters, just update without reinitializing
       this.currentVisualization.update(this.parameters);
+    }
+    
+    // Update UI (in case parameters affect UI state)
+    this.giveParameters(false);
+    
+    // Request rendering update if needed
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
     }
   }
   
@@ -258,7 +341,6 @@ export default class ASEPPlugin extends Plugin {
   
   /**
    * Execute an action
-   * @param {string} actionId - ID of the action to execute
    */
   executeAction(actionId, ...args) {
     switch (actionId) {
@@ -269,8 +351,11 @@ export default class ASEPPlugin extends Plugin {
           this.currentVisualization.update({ isPaused: this.parameters.isPaused });
           
           // Update UI to reflect the new state
-          if (this.core && this.core.uiManager) {
-            this.core.uiManager.updateControls(this.parameters);
+          this.giveParameters(false);
+          
+          // Request render update
+          if (this.core && this.core.renderingManager) {
+            this.core.renderingManager.requestRender();
           }
         }
         return true;
@@ -278,6 +363,11 @@ export default class ASEPPlugin extends Plugin {
       case 'restart-simulation':
         if (this.currentVisualization) {
           this.currentVisualization.initialize(this.parameters);
+          
+          // Request render update
+          if (this.core && this.core.renderingManager) {
+            this.core.renderingManager.requestRender();
+          }
         }
         return true;
         
