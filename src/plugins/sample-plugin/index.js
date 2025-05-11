@@ -1,4 +1,4 @@
-// src/plugins/parametermerge-index/index.js
+// src/plugins/sample-plugin/index.js
 
 import { Plugin } from '../../core/Plugin.js';
 import { createParameters } from '../../ui/ParameterBuilder.js';
