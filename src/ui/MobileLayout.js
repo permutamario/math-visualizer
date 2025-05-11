@@ -1,19 +1,18 @@
 // src/ui/MobileLayout.js
 
-import { EventEmitter } from '../core/EventEmitter.js';
+import { BaseLayout } from './BaseLayout.js';
+import * as layoutUtils from './layoutUtils.js';
 
 /**
  * Mobile UI layout
  */
-export class MobileLayout extends EventEmitter {
+export class MobileLayout extends BaseLayout {
   /**
    * Create a new MobileLayout
    * @param {UIManager} uiManager - Reference to the UI manager
    */
   constructor(uiManager) {
-    super();
-    this.uiManager = uiManager;
-    this.builder = uiManager.uiBuilder;
+    super(uiManager);
     this.headerTitle = null;
     this.header = null;
     this.controlBar = null;
@@ -23,17 +22,12 @@ export class MobileLayout extends EventEmitter {
     this.visualMenu = null;
     this.exportMenu = null;
     this.pluginMenu = null;
-    this.controls = {};
-    this.actions = [];
-    this.plugins = [];
-    this.initialized = false;
+    this.themeToggleButton = null;
     
     // Bind methods
-    this.handleParameterChange = this.handleParameterChange.bind(this);
     this.toggleVisualMenu = this.toggleVisualMenu.bind(this);
     this.toggleExportMenu = this.toggleExportMenu.bind(this);
     this.togglePluginMenu = this.togglePluginMenu.bind(this);
-    this.handleOutsideClick = this.handleOutsideClick.bind(this);
   }
   
   /**
@@ -44,19 +38,21 @@ export class MobileLayout extends EventEmitter {
     if (this.initialized) return true;
     
     try {
+      // Call parent initialize first
+      await super.initialize();
+      
       // Add mobile-device class to body
       document.body.classList.add('mobile-device');
       
       // Create UI elements
       this.createUIElements();
-
+      
       // Create fullscreen button
       this.createFullscreenButton();
       
-      // Add document click listener for closing menus
-      document.addEventListener('click', this.handleOutsideClick);
+      // Create theme toggle button
+      this.createThemeToggleButton();
       
-      this.initialized = true;
       console.log("Mobile layout initialized");
       return true;
     } catch (error) {
@@ -130,6 +126,11 @@ export class MobileLayout extends EventEmitter {
     if (this.pluginMenu && this.pluginMenu.parentNode) {
       this.pluginMenu.parentNode.removeChild(this.pluginMenu);
     }
+    
+    // Remove theme toggle button
+    if (this.themeToggleButton && this.themeToggleButton.parentNode) {
+      this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
+    }
   }
   
   /**
@@ -164,56 +165,38 @@ export class MobileLayout extends EventEmitter {
     header.style.color = 'var(--text-color)';
     
     // Placeholder for structural controls - will be filled when schema is provided
-    const placeholder = document.createElement('p');
-    placeholder.textContent = 'No structural parameters available.';
-    placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = 'var(--text-secondary)';
-    placeholder.style.padding = '8px';
-    placeholder.style.textAlign = 'center';
-    header.appendChild(placeholder);
+    header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
     
     return header;
   }
-
+  
   /**
    * Create the fullscreen button
    */
   createFullscreenButton() {
-    // First check if button already exists and remove it
-    const existingButton = document.getElementById('mobile-fullscreen-button');
-    if (existingButton && existingButton.parentNode) {
-      existingButton.parentNode.removeChild(existingButton);
-    }
-    
-    const button = document.createElement('button');
-    button.id = 'mobile-fullscreen-button';
-    button.className = 'mobile-fullscreen-button';
-    button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
-    button.title = 'Toggle Fullscreen Mode';
-    
-    // Set text color
-    button.style.color = 'var(--text-color)';
-    
-    // Handle click
-    button.addEventListener('click', () => {
-      document.body.classList.toggle('fullscreen-mode');
-      
-      // Update button position and appearance based on state
-      if (document.body.classList.contains('fullscreen-mode')) {
-        button.classList.add('fullscreen-active');
-        button.innerHTML = '<span class="fullscreen-icon">⤢</span>';
-        button.title = 'Exit Fullscreen Mode';
-      } else {
-        button.classList.remove('fullscreen-active');
-        button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
-        button.title = 'Enter Fullscreen Mode';
-      }
-      
-      // Emit action event
+    const button = layoutUtils.createFullscreenButton(true, (isFullscreen) => {
+      // Notify that fullscreen mode was toggled
       this.emit('action', 'toggle-fullscreen');
     });
     
     document.body.appendChild(button);
+  }
+  
+  /**
+   * Create the theme toggle button
+   */
+  createThemeToggleButton() {
+    // Remove any existing button
+    if (this.themeToggleButton && this.themeToggleButton.parentNode) {
+      this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
+    }
+    
+    // Create new button
+    this.themeToggleButton = layoutUtils.createThemeToggleButton(this.uiManager.core, true);
+    
+    if (this.themeToggleButton) {
+      document.body.appendChild(this.themeToggleButton);
+    }
   }
   
   /**
@@ -228,7 +211,6 @@ export class MobileLayout extends EventEmitter {
     this.optionsButton = document.createElement('button');
     this.optionsButton.id = 'mobile-options-button';
     this.optionsButton.textContent = 'Options';
-    // Set the correct background and text colors
     this.optionsButton.style.backgroundColor = 'var(--control-bg)';
     this.optionsButton.style.color = 'var(--text-color)';
     this.optionsButton.addEventListener('click', this.toggleVisualMenu);
@@ -236,12 +218,10 @@ export class MobileLayout extends EventEmitter {
     // Create plugin button
     this.pluginButton = document.createElement('div');
     this.pluginButton.id = 'mobile-plugin-button';
-    // Set the correct background color
     this.pluginButton.style.backgroundColor = 'var(--control-bg)';
     
     const pluginIcon = document.createElement('div');
     pluginIcon.id = 'mobile-plugin-button-icon';
-    // Set the correct background color
     pluginIcon.style.backgroundColor = 'var(--accent-color)';
     this.pluginButton.appendChild(pluginIcon);
     this.pluginButton.addEventListener('click', this.togglePluginMenu);
@@ -250,7 +230,6 @@ export class MobileLayout extends EventEmitter {
     this.exportButton = document.createElement('button');
     this.exportButton.id = 'mobile-export-button';
     this.exportButton.textContent = 'Export';
-    // Set the correct background and text colors
     this.exportButton.style.backgroundColor = 'var(--control-bg)';
     this.exportButton.style.color = 'var(--text-color)';
     this.exportButton.addEventListener('click', this.toggleExportMenu);
@@ -282,11 +261,7 @@ export class MobileLayout extends EventEmitter {
     menu.appendChild(title);
     
     // Placeholder content - will be filled when schema is provided
-    const placeholder = document.createElement('p');
-    placeholder.textContent = 'No visual parameters available.';
-    placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = 'var(--text-secondary)';
-    menu.appendChild(placeholder);
+    menu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
     
     return menu;
   }
@@ -310,11 +285,7 @@ export class MobileLayout extends EventEmitter {
     menu.appendChild(title);
     
     // Placeholder content - will be filled when actions are provided
-    const placeholder = document.createElement('p');
-    placeholder.textContent = 'No export options available.';
-    placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = 'var(--text-secondary)';
-    menu.appendChild(placeholder);
+    menu.appendChild(layoutUtils.createPlaceholder('No export options available.'));
     
     return menu;
   }
@@ -434,15 +405,12 @@ export class MobileLayout extends EventEmitter {
   
   /**
    * Build UI controls from schema
-   * @param {ParameterSchema} schema - Parameter schema
+   * @param {Object} schema - Parameter schema
    * @param {Object} values - Current parameter values
    */
   buildControls(schema, values) {
-    // Store controls and their values
-    this.controls = {
-      schema,
-      values: { ...values }
-    };
+    // Call parent method to store controls and values
+    super.buildControls(schema, values);
     
     // Update header with structural controls
     this.updateHeaderControls(schema, values);
@@ -453,7 +421,7 @@ export class MobileLayout extends EventEmitter {
   
   /**
    * Update header with structural controls
-   * @param {ParameterSchema} schema - Parameter schema
+   * @param {Object} schema - Parameter schema
    * @param {Object} values - Current parameter values
    */
   updateHeaderControls(schema, values) {
@@ -464,36 +432,18 @@ export class MobileLayout extends EventEmitter {
     
     // Check if we have structural parameters
     if (!schema.structural || schema.structural.length === 0) {
-      const message = document.createElement('p');
-      message.textContent = 'No structural parameters available.';
-      message.style.fontStyle = 'italic';
-      message.style.color = 'var(--text-secondary)';
-      message.style.padding = '8px';
-      message.style.textAlign = 'center';
-      this.header.appendChild(message);
+      this.header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.structural.forEach(param => {
-      const control = this.builder.createControl(
+      const control = layoutUtils.createControl(
+        this.builder,
         param,
         values[param.id],
         (value) => this.handleParameterChange(param.id, value)
       );
-      
-      // Ensure labels have correct color
-      const labels = control.querySelectorAll('label');
-      labels.forEach(label => {
-        label.style.color = 'var(--text-color)';
-      });
-      
-      // Ensure any buttons use accent color
-      const buttons = control.querySelectorAll('button');
-      buttons.forEach(button => {
-        button.style.backgroundColor = 'var(--accent-color)';
-        button.style.color = 'white';
-      });
       
       this.header.appendChild(control);
     });
@@ -501,7 +451,7 @@ export class MobileLayout extends EventEmitter {
   
   /**
    * Update visual menu with controls
-   * @param {ParameterSchema} schema - Parameter schema
+   * @param {Object} schema - Parameter schema
    * @param {Object} values - Current parameter values
    */
   updateVisualMenu(schema, values) {
@@ -512,101 +462,30 @@ export class MobileLayout extends EventEmitter {
     
     // Check if we have visual parameters
     if (!schema.visual || schema.visual.length === 0) {
-      const message = document.createElement('p');
-      message.textContent = 'No visual parameters available.';
-      message.style.fontStyle = 'italic';
-      message.style.color = 'var(--text-secondary)';
-      this.visualMenu.appendChild(message);
+      this.visualMenu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.visual.forEach(param => {
-      const control = this.builder.createControl(
+      const control = layoutUtils.createControl(
+        this.builder,
         param,
         values[param.id],
         (value) => this.handleParameterChange(param.id, value)
       );
       
-      // Ensure labels have correct color
-      const labels = control.querySelectorAll('label');
-      labels.forEach(label => {
-        label.style.color = 'var(--text-color)';
-      });
-      
-      // Ensure any buttons use accent color
-      const buttons = control.querySelectorAll('button');
-      buttons.forEach(button => {
-        button.style.backgroundColor = 'var(--accent-color)';
-        button.style.color = 'white';
-      });
-      
       this.visualMenu.appendChild(control);
-    });
-  }
-  
-/**
- * Update control values
- * @param {Object} values - New parameter values
- */
-updateControls(values) {
-  // Just update UI elements without storing values
-  this.updateControlElements(values);
-}
-  
-  /**
-   * Update control elements with new values
-   * @param {Object} values - New parameter values
-   */
-  updateControlElements(values) {
-    // Update each control element
-    Object.entries(values).forEach(([id, value]) => {
-      // Try both with and without -mobile suffix
-      let element = document.getElementById(id);
-      if (!element) {
-        element = document.getElementById(`${id}-mobile`);
-      }
-      
-      if (!element) return;
-      
-      // Update based on element type
-      switch (element.type) {
-        case 'range':
-        case 'number':
-        case 'text':
-          element.value = value;
-          
-          // Update value display for sliders
-          if (element.type === 'range') {
-            const valueDisplay = element.parentElement.querySelector('.value-display');
-            if (valueDisplay) {
-              valueDisplay.textContent = value;
-            }
-          }
-          break;
-          
-        case 'checkbox':
-          element.checked = value;
-          break;
-          
-        case 'color':
-          element.value = value;
-          break;
-          
-        case 'select-one':
-          element.value = value;
-          break;
-      }
     });
   }
   
   /**
    * Update available actions
-   * @param {Array<Action>} actions - Available actions
+   * @param {Array<Object>} actions - Available actions
    */
   updateActions(actions) {
-    // Store actions
-    this.actions = [...actions];
+    // Call parent method to store actions
+    super.updateActions(actions);
     
     // Update export menu
     this.updateExportMenu(actions);
@@ -614,7 +493,7 @@ updateControls(values) {
   
   /**
    * Update export menu with actions
-   * @param {Array<Action>} actions - Available actions
+   * @param {Array<Object>} actions - Available actions
    */
   updateExportMenu(actions) {
     // Clear existing controls (except the title)
@@ -624,11 +503,7 @@ updateControls(values) {
     
     // Check if we have actions
     if (!actions || actions.length === 0) {
-      const message = document.createElement('p');
-      message.textContent = 'No export options available.';
-      message.style.fontStyle = 'italic';
-      message.style.color = 'var(--text-secondary)';
-      this.exportMenu.appendChild(message);
+      this.exportMenu.appendChild(layoutUtils.createPlaceholder('No export options available.'));
       return;
     }
     
@@ -638,7 +513,7 @@ updateControls(values) {
     
     // Create buttons for each action
     actions.forEach(action => {
-      const button = this.builder.createButton(
+      const button = layoutUtils.createButton(
         `${action.id}-mobile`,
         action.label,
         () => {
@@ -649,10 +524,6 @@ updateControls(values) {
           this.emit('action', action.id);
         }
       );
-      
-      // Ensure button uses accent color
-      button.style.backgroundColor = 'var(--accent-color)';
-      button.style.color = 'white';
       
       buttonContainer.appendChild(button);
     });
@@ -666,9 +537,8 @@ updateControls(values) {
    * @param {string} activePluginId - Currently active plugin ID
    */
   updatePlugins(plugins, activePluginId) {
-    // Store plugins and active ID
-    this.plugins = [...plugins];
-    this.activePluginId = activePluginId;
+    // Call parent method to store plugins and active ID
+    super.updatePlugins(plugins, activePluginId);
     
     // Update plugin menu
     this.updatePluginMenu(plugins, activePluginId);
@@ -704,10 +574,7 @@ updateControls(values) {
     
     // Check if we have plugins
     if (!plugins || plugins.length === 0) {
-      const message = document.createElement('p');
-      message.textContent = 'No visualizations available.';
-      message.style.fontStyle = 'italic';
-      message.style.color = 'var(--text-secondary)';
+      const message = layoutUtils.createPlaceholder('No visualizations available.');
       message.style.padding = '10px 16px';
       itemsContainer.appendChild(message);
       return;
@@ -715,28 +582,8 @@ updateControls(values) {
     
     // Create items for each plugin
     plugins.forEach(plugin => {
-      const item = document.createElement('div');
-      item.className = 'plugin-list-item';
-      if (plugin.id === activePluginId) {
-        item.classList.add('active');
-      }
-      
-      const title = document.createElement('div');
-      title.className = 'plugin-list-item-title';
-      title.textContent = plugin.name;
-      title.style.color = 'var(--text-color)';
-      
-      const description = document.createElement('div');
-      description.className = 'plugin-list-item-description';
-      description.textContent = plugin.description;
-      description.style.color = 'var(--text-secondary)';
-      
-      item.appendChild(title);
-      item.appendChild(description);
-      
-      // Add click handler
-      item.addEventListener('click', () => {
-        this.emit('pluginSelect', plugin.id);
+      const item = layoutUtils.createPluginListItem(plugin, activePluginId, (pluginId) => {
+        this.emit('pluginSelect', pluginId);
         this.pluginMenu.classList.add('hidden');
       });
       
@@ -745,93 +592,23 @@ updateControls(values) {
   }
   
   /**
-   * Handle window resize
-   */
-  handleResize() {
-    // Nothing special needed for mobile layout
-  }
-  
-  /**
-   * Handle parameter change
-   * @param {string} parameterId - Parameter ID
-   * @param {any} value - New value
-   */
-  handleParameterChange(parameterId, value) {
-    // Update stored value
-    this.controls.values[parameterId] = value;
-    
-    // Emit change event
-    this.emit('parameterChange', parameterId, value);
-  }
-  
-  /**
-   * Show error message
-   * @param {string} message - Error message
-   */
-  showError(message) {
-    this.builder.createNotification(message, 5000);
-  }
-  
-  /**
-   * Show notification message
-   * @param {string} message - Notification message
-   * @param {number} duration - Duration in milliseconds
-   */
-  showNotification(message, duration = 3000) {
-    this.builder.createNotification(message, duration);
-  }
-  
-  /**
-   * Show loading indicator
-   * @param {string} message - Loading message
-   */
-  showLoading(message = 'Loading...') {
-    // Remove any existing loading indicator
-    this.hideLoading();
-    
-    // Create and store the loading indicator
-    this.loadingIndicator = this.builder.createLoadingIndicator(message);
-    document.body.appendChild(this.loadingIndicator);
-  }
-  
-  /**
-   * Hide loading indicator
-   */
-  hideLoading() {
-    if (this.loadingIndicator && this.loadingIndicator.parentNode) {
-      this.loadingIndicator.parentNode.removeChild(this.loadingIndicator);
-      this.loadingIndicator = null;
-    }
-  }
-  
-  /**
    * Clean up resources
    */
   dispose() {
+    // Call parent dispose
+    super.dispose();
+    
     // Remove UI elements
     this.removeUIElements();
     
-    // Remove any loading indicator
-    this.hideLoading();
-
     // Remove fullscreen button
     const fullscreenButton = document.getElementById('mobile-fullscreen-button');
     if (fullscreenButton && fullscreenButton.parentNode) {
       fullscreenButton.parentNode.removeChild(fullscreenButton);
     }
     
-    // Remove document click listener
-    document.removeEventListener('click', this.handleOutsideClick);
-    
     // Remove mobile-device class from body
     document.body.classList.remove('mobile-device');
-    
-    // Reset state
-    this.controls = {};
-    this.actions = [];
-    this.plugins = [];
-    this.activePluginId = null;
-    this.initialized = false;
     
     // Remove fullscreen mode if active
     document.body.classList.remove('fullscreen-mode');

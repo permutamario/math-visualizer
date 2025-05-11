@@ -178,104 +178,101 @@ updateControls(values) {
            window.innerWidth < 768;
   }
   
-  /**
-   * Handle window resize
-   * @private
-   */
-  _handleResize() {
-    // Check if layout should change
-    const isMobileNow = this._detectMobile();
+  // Modified part of UIManager.js - _handleResize method
+
+/**
+ * Handle window resize
+ * @private
+ */
+_handleResize() {
+  // Check if layout should change
+  const isMobileNow = this._detectMobile();
+  
+  if (isMobileNow !== this.isMobile) {
+    console.log(`Layout changing from ${this.isMobile ? 'mobile' : 'desktop'} to ${isMobileNow ? 'mobile' : 'desktop'}`);
     
-    if (isMobileNow !== this.isMobile) {
-      console.log(`Layout changing from ${this.isMobile ? 'mobile' : 'desktop'} to ${isMobileNow ? 'mobile' : 'desktop'}`);
-      
-      // Clean up theme toggle buttons and fullscreen buttons before changing layout
-      this._cleanupUI();
-      
-      // Layout needs to change
-      this.isMobile = isMobileNow;
-      
-      // Clean up old layout
-      if (this.layout) {
-        this.layout.dispose();
-      }
-      
-      // Create new layout
-      if (this.isMobile) {
-        this.layout = new MobileLayout(this);
-      } else {
-        this.layout = new DesktopLayout(this);
-      }
-      
-      // Initialize new layout
-      this.layout.initialize();
-      
-      // Register layout event handlers
-      this.layout.on('parameterChange', (parameterId, value) => {
-        this.emit('parameterChange', parameterId, value);
-      });
-      
-      this.layout.on('action', (actionId, ...args) => {
-        this.emit('action', actionId, ...args);
-      });
-      
-      this.layout.on('pluginSelect', (pluginId) => {
-        this.emit('pluginSelect', pluginId);
-      });
-      
-      // Rebuild controls
-      if (this.controls.schema) {
-        this.layout.buildControls(this.controls.schema, this.controls.values);
-      }
-      
-      // Re-create theme toggle buttons after layout change
-      this.createThemeToggleButtons();
-      
-      console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
-    } else {
-      // Just notify layout of resize
-      this.layout.handleResize();
+    // Clean up any global elements before changing layout
+    this._cleanupUI();
+    
+    // Update flag
+    this.isMobile = isMobileNow;
+    
+    // Clean up old layout
+    if (this.layout) {
+      this.layout.dispose();
     }
+    
+    // Create new layout
+    if (this.isMobile) {
+      this.layout = new MobileLayout(this);
+    } else {
+      this.layout = new DesktopLayout(this);
+    }
+    
+    // Initialize new layout
+    this.layout.initialize();
+    
+    // Register layout event handlers
+    this._registerLayoutEvents();
+    
+    // Rebuild controls if we have a schema
+    if (this.controls.schema) {
+      this.layout.buildControls(this.controls.schema, this.controls.values);
+    }
+    
+    console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
+  } else {
+    // Just notify layout of resize
+    this.layout.handleResize();
+  }
+}
+
+/**
+ * Register event handlers for the layout
+ * @private
+ */
+_registerLayoutEvents() {
+  // Register standard events
+  this.layout.on('parameterChange', (parameterId, value) => {
+    this.emit('parameterChange', parameterId, value);
+  });
+  
+  this.layout.on('action', (actionId, ...args) => {
+    this.emit('action', actionId, ...args);
+  });
+  
+  this.layout.on('pluginSelect', (pluginId) => {
+    this.emit('pluginSelect', pluginId);
+  });
+}
+
+/**
+ * Clean up UI elements that might cause duplicates
+ * @private
+ */
+_cleanupUI() {
+  // Remove theme toggle buttons
+  const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
+  existingDesktopButtons.forEach(button => {
+    if (button.parentNode) button.parentNode.removeChild(button);
+  });
+  
+  const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
+  existingMobileButtons.forEach(button => {
+    if (button.parentNode) button.parentNode.removeChild(button);
+  });
+  
+  // Remove any fullscreen buttons
+  const desktopFullscreenBtn = document.getElementById('desktop-fullscreen-button');
+  if (desktopFullscreenBtn) {
+    desktopFullscreenBtn.parentNode.removeChild(desktopFullscreenBtn);
   }
   
-  /**
-   * Clean up UI elements that might cause duplicates
-   * @private
-   */
-  _cleanupUI() {
-    // Remove theme toggle buttons
-    if (this.themeToggleButton && this.themeToggleButton.parentNode) {
-      this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
-      this.themeToggleButton = null;
-    }
-    
-    if (this.mobileThemeToggleButton && this.mobileThemeToggleButton.parentNode) {
-      this.mobileThemeToggleButton.parentNode.removeChild(this.mobileThemeToggleButton);
-      this.mobileThemeToggleButton = null;
-    }
-    
-    // Remove any fullscreen buttons
-    const desktopFullscreenBtn = document.getElementById('desktop-fullscreen-button');
-    if (desktopFullscreenBtn) {
-      desktopFullscreenBtn.parentNode.removeChild(desktopFullscreenBtn);
-    }
-    
-    const mobileFullscreenBtn = document.getElementById('mobile-fullscreen-button');
-    if (mobileFullscreenBtn) {
-      mobileFullscreenBtn.parentNode.removeChild(mobileFullscreenBtn);
-    }
-    
-    // Remove any stray theme toggle buttons
-    const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
-    existingDesktopButtons.forEach(button => {
-      if (button.parentNode) button.parentNode.removeChild(button);
-    });
-    
-    const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
-    existingMobileButtons.forEach(button => {
-      if (button.parentNode) button.parentNode.removeChild(button);
-    });
+  const mobileFullscreenBtn = document.getElementById('mobile-fullscreen-button');
+  if (mobileFullscreenBtn) {
+    mobileFullscreenBtn.parentNode.removeChild(mobileFullscreenBtn);
   }
+}
   
   /**
    * Update the UI theme based on the color scheme
