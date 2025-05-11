@@ -6,6 +6,7 @@ import { RenderingManager } from '../rendering/RenderingManager.js';
 import { StateManager } from './StateManager.js';
 import { EventEmitter } from './EventEmitter.js';
 import { ColorSchemeManager } from './ColorSchemeManager.js';
+import { RenderModeManager } from '../rendering/RenderModeManager.js';
 
 /**
  * Main application controller
@@ -78,6 +79,55 @@ export class AppCore {
       }
       return false;
     }
+  }
+  
+  /**
+   * Get standard visual parameters based on rendering type
+   * @param {string} renderingType - '2d' or '3d'
+   * @returns {Object} Standard parameter definitions
+   */
+  getStandardParameters(renderingType = '2d') {
+    const standardParams = {};
+    
+    // Add color palette parameter for all rendering types
+    if (this.colorSchemeManager) {
+      standardParams.colorPalette = {
+        id: 'colorPalette',
+        type: 'dropdown',
+        label: 'Color Palette',
+        options: this.colorSchemeManager.getPaletteNames().map(name => ({
+          value: name, 
+          label: name
+        })),
+        default: 'default',
+        category: 'visual'
+      };
+    }
+    
+    // Add 3D-specific parameters
+    if (renderingType === '3d' && this.renderModeManager) {
+      standardParams.renderMode = {
+        id: 'renderMode',
+        type: 'dropdown',
+        label: 'Render Style',
+        options: this.renderModeManager.getAvailableModes(),
+        default: 'standard',
+        category: 'visual'
+      };
+      
+      standardParams.opacity = {
+        id: 'opacity',
+        type: 'slider',
+        label: 'Opacity',
+        min: 0.1,
+        max: 1.0,
+        step: 0.1,
+        default: 1.0,
+        category: 'visual'
+      };
+    }
+    
+    return standardParams;
   }
   
   /**
@@ -222,53 +272,6 @@ export class AppCore {
       return false;
     }
   }
-
-  /**
- * Get standard visual parameters based on rendering type
- * @param {string} renderingType - '2d' or '3d'
- * @returns {Object} Standard parameter definitions
- */
-getStandardParameters(renderingType = '2d') {
-  const standardParams = {
-    // Color palette for all rendering types
-    colorPalette: {
-      id: 'colorPalette',
-      type: 'dropdown',
-      label: 'Color Palette',
-      options: this.colorSchemeManager.getPaletteNames().map(name => ({
-        value: name, 
-        label: name
-      })),
-      default: 'default',
-      category: 'visual'
-    }
-  };
-  
-  // Add 3D-specific parameters
-  if (renderingType === '3d') {
-    standardParams.renderMode = {
-      id: 'renderMode',
-      type: 'dropdown',
-      label: 'Render Style',
-      options: this.renderModeManager.getAvailableModes(),
-      default: 'standard',
-      category: 'visual'
-    };
-    
-    standardParams.opacity = {
-      id: 'opacity',
-      type: 'slider',
-      label: 'Opacity',
-      min: 0.1,
-      max: 1.0,
-      step: 0.1,
-      default: 1.0,
-      category: 'visual'
-    };
-  }
-  
-  return standardParams;
-}
   
   /**
    * Toggle Fullscreen mode
@@ -333,7 +336,7 @@ getStandardParameters(renderingType = '2d') {
     if (!this.loadedPlugin) return;
     
     try {
-      // Directly update the plugin with the parameter change
+      // Update parameter value and notify the plugin
       this.loadedPlugin.onParameterChanged(parameterId, value);
       
       // Request render
