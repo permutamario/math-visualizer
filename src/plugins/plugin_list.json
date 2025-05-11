@@ -1,6 +1,3 @@
 [
-  "circle-plugin",
-  "platonic-solids",
-  "asep-plugin",
-  "polytope-viewer"
+  "circle-plugin"
 ]
