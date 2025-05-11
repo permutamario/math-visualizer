@@ -24,6 +24,7 @@ export async function main() {
     await app.start();
     
     // Hide loading screen
+    await new Promise(resolve => setTimeout(resolve, 2000));	//Show it off a little
     hideLoadingScreen();
     
     console.log("Math Visualization Framework initialized successfully");
