@@ -1,5 +1,3 @@
-// src/ui/ParameterBuilder.js
-
 /**
  * Builder class for creating parameter schemas with a fluent interface
  */
@@ -10,6 +8,7 @@ export class ParameterBuilder {
   constructor() {
     this.structural = [];
     this.visual = [];
+    this.advanced = []; // New category for advanced parameters
   }
 
   /**
@@ -18,7 +17,7 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {number} defaultValue - Default value
    * @param {Object} options - Options like min, max, step
-   * @param {string} [category='structural'] - 'structural' or 'visual'
+   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addSlider(id, label, defaultValue, options = {}, category = 'structural') {
@@ -34,6 +33,8 @@ export class ParameterBuilder {
 
     if (category === 'visual') {
       this.visual.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.structural.push(param);
     }
@@ -46,7 +47,7 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {boolean} defaultValue - Default value
-   * @param {string} [category='visual'] - 'structural' or 'visual'
+   * @param {string} [category='visual'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addCheckbox(id, label, defaultValue, category = 'visual') {
@@ -59,6 +60,8 @@ export class ParameterBuilder {
 
     if (category === 'structural') {
       this.structural.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.visual.push(param);
     }
@@ -71,7 +74,7 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {string} defaultValue - Default color value
-   * @param {string} [category='visual'] - 'structural' or 'visual'
+   * @param {string} [category='visual'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addColor(id, label, defaultValue, category = 'visual') {
@@ -84,6 +87,8 @@ export class ParameterBuilder {
 
     if (category === 'structural') {
       this.structural.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.visual.push(param);
     }
@@ -97,7 +102,7 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {string} defaultValue - Default selected value
    * @param {Array} options - Array of options (strings or {value, label} objects)
-   * @param {string} [category='structural'] - 'structural' or 'visual'
+   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addDropdown(id, label, defaultValue, options, category = 'structural') {
@@ -111,6 +116,8 @@ export class ParameterBuilder {
 
     if (category === 'visual') {
       this.visual.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.structural.push(param);
     }
@@ -124,7 +131,7 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {number} defaultValue - Default value
    * @param {Object} options - Options like min, max, step
-   * @param {string} [category='structural'] - 'structural' or 'visual'
+   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addNumber(id, label, defaultValue, options = {}, category = 'structural') {
@@ -141,6 +148,8 @@ export class ParameterBuilder {
 
     if (category === 'visual') {
       this.visual.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.structural.push(param);
     }
@@ -153,7 +162,7 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {string} defaultValue - Default value
-   * @param {string} [category='structural'] - 'structural' or 'visual'
+   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
   addText(id, label, defaultValue, category = 'structural') {
@@ -166,6 +175,8 @@ export class ParameterBuilder {
 
     if (category === 'visual') {
       this.visual.push(param);
+    } else if (category === 'advanced') {
+      this.advanced.push(param);
     } else {
       this.structural.push(param);
     }
@@ -173,15 +184,20 @@ export class ParameterBuilder {
     return this;
   }
 
-  
-
   /**
    * Build the parameter schema
-   * @returns {Object} Parameter schema with structural and visual sections
+   * @returns {Object} Parameter schema with structural, visual, and advanced sections
    */
   build() {
+    // For backward compatibility, we add advanced parameters to structural
+    // but mark them with a flag that the UI manager can use to filter them out
+    const structuralWithAdvanced = [
+      ...this.structural,
+      ...this.advanced.map(param => ({...param, advanced: true}))
+    ];
+
     return {
-      structural: this.structural,
+      structural: structuralWithAdvanced,
       visual: this.visual
     };
   }

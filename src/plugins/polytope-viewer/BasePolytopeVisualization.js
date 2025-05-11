@@ -93,10 +93,8 @@ export class BasePolytopeVisualization extends Visualization {
     
     const hullGeometry = new window.ConvexGeometry(centeredVertices);
     
-    // Check if we should use a palette
-    const usePalette = parameters.usePalette === 'true';
-    
-    if (usePalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
+    // Always use palette mode
+    if (this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
       // We will use face-based materials with palette colors
       
       // Get the selected palette from color scheme manager
@@ -182,7 +180,7 @@ export class BasePolytopeVisualization extends Visualization {
       hullGeometry.dispose();
       
     } else {
-      // Use standard single-color material for the entire polytope
+      // Fallback to single color if colorSchemeManager is not available
       const faceMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(parameters.faceColor || '#3498db'),
         wireframe: parameters.wireframe || false,
@@ -420,8 +418,56 @@ export class BasePolytopeVisualization extends Visualization {
       this.state.isRotating = parameters.rotation;
     }
     
+    // Handle color palette changes
+    if (parameters.colorPalette !== undefined && 
+        this.state.faceMeshes && 
+        this.state.faceMeshes.length > 0 &&
+        this.plugin && 
+        this.plugin.core && 
+        this.plugin.core.colorSchemeManager) {
+      
+      const colorSchemeManager = this.plugin.core.colorSchemeManager;
+      const palette = colorSchemeManager.getPalette(parameters.colorPalette || 'default');
+      
+      // Update each face mesh with a color from the palette
+      this.state.faceMeshes.forEach((faceMesh, i) => {
+        const colorIndex = i % palette.length;
+        const faceColor = palette[colorIndex];
+        
+        // Update material color
+        if (faceMesh.material) {
+          faceMesh.material.color.set(faceColor);
+        }
+      });
+    }
+    
+    // Update wireframe setting if changed
+    if (parameters.wireframe !== undefined && 
+        this.state.faceMeshes && 
+        this.state.faceMeshes.length > 0) {
+      
+      this.state.faceMeshes.forEach(faceMesh => {
+        if (faceMesh.material) {
+          faceMesh.material.wireframe = parameters.wireframe;
+        }
+      });
+    }
+    
+    // Update opacity if changed
+    if (parameters.opacity !== undefined && 
+        this.state.faceMeshes && 
+        this.state.faceMeshes.length > 0) {
+      
+      this.state.faceMeshes.forEach(faceMesh => {
+        if (faceMesh.material) {
+          faceMesh.material.transparent = parameters.opacity < 1;
+          faceMesh.material.opacity = parameters.opacity;
+        }
+      });
+    }
+    
     // Let specific implementations handle their own parameters
-    this.handleParameterUpdate(parameters);
+    this.handleVisSpecificParameters(parameters);
     
     // Request a render if needed
     if (this.plugin && this.plugin.core && this.plugin.core.renderingManager) {
@@ -434,74 +480,9 @@ export class BasePolytopeVisualization extends Visualization {
    * Override in subclasses to handle specific parameters
    * @param {Object} parameters - Updated parameters (only changed ones)
    */
-  handleParameterUpdate(parameters) {
-    // Handle color palette changes
-    if ((parameters.usePalette !== undefined || 
-        parameters.colorPalette !== undefined ||
-        parameters.wireframe !== undefined ||
-        parameters.opacity !== undefined ||
-        parameters.faceColor !== undefined) &&
-        this.state.faceMeshes && 
-        this.state.faceMeshes.length > 0) {
-      
-      if (parameters.usePalette === 'true' || 
-          (this.plugin.parameters.usePalette === 'true' && parameters.colorPalette)) {
-        
-        // Get the selected palette from color scheme manager
-        const colorSchemeManager = this.plugin.core.colorSchemeManager;
-        const palette = colorSchemeManager.getPalette(
-          parameters.colorPalette || this.plugin.parameters.colorPalette || 'default'
-        );
-        
-        // Update each face mesh with a color from the palette
-        this.state.faceMeshes.forEach((faceMesh, i) => {
-          const colorIndex = i % palette.length;
-          const faceColor = palette[colorIndex];
-          
-          // Update material color
-          if (faceMesh.material) {
-            faceMesh.material.color.set(faceColor);
-            
-            // Update other properties if they've changed
-            if (parameters.wireframe !== undefined) {
-              faceMesh.material.wireframe = parameters.wireframe;
-            }
-            
-            if (parameters.opacity !== undefined) {
-              faceMesh.material.transparent = parameters.opacity < 1;
-              faceMesh.material.opacity = parameters.opacity;
-            }
-          }
-        });
-      } else if (parameters.usePalette === 'none') {
-        // Switch back to single color
-        const faceColor = parameters.faceColor || this.plugin.parameters.faceColor || '#3498db';
-        
-        // Update each face mesh with the single color
-        this.state.faceMeshes.forEach(faceMesh => {
-          if (faceMesh.material) {
-            faceMesh.material.color.set(faceColor);
-            
-            // Update other properties if they've changed
-            if (parameters.wireframe !== undefined) {
-              faceMesh.material.wireframe = parameters.wireframe;
-            }
-            
-            if (parameters.opacity !== undefined) {
-              faceMesh.material.transparent = parameters.opacity < 1;
-              faceMesh.material.opacity = parameters.opacity;
-            }
-          }
-        });
-      } else if (parameters.faceColor !== undefined && this.plugin.parameters.usePalette !== 'true') {
-        // Update single color when not in palette mode
-        this.state.faceMeshes.forEach(faceMesh => {
-          if (faceMesh.material) {
-            faceMesh.material.color.set(parameters.faceColor);
-          }
-        });
-      }
-    }
+  handleVisSpecificParameters(parameters) {
+    // Default implementation does nothing
+    // This is to be overridden by subclasses
   }
 
   /**
