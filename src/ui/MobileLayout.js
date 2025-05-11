@@ -298,8 +298,14 @@ export class MobileLayout extends BaseLayout {
   
   /**
    * Open the selection window
+   * @param {Event} event - Click event
    */
-  openSelectionWindow() {
+  openSelectionWindow(event) {
+    // Stop event propagation to prevent the event from immediately closing the window
+    if (event) {
+      event.stopPropagation();
+    }
+    
     // Close any open menus
     this.visualMenu.classList.add('hidden');
     this.exportMenu.classList.add('hidden');

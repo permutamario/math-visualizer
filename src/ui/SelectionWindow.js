@@ -146,7 +146,7 @@ export class SelectionWindow {
     return card;
   }
   
-  /**
+  
    * Show the selection window
    */
   show() {
@@ -159,11 +159,7 @@ export class SelectionWindow {
     if (this.element && !this.visible) {
       this.element.classList.remove('hidden');
       
-      // Add global event listeners
-      document.addEventListener('keydown', this.handleKeyDown);
-      document.addEventListener('click', this.handleOutsideClick);
-      
-      // Mark as visible
+      // Mark as visible immediately to prevent race conditions
       this.visible = true;
       
       // Prevent body scrolling while modal is open
@@ -173,6 +169,13 @@ export class SelectionWindow {
       setTimeout(() => {
         if (this.element) {
           this.element.classList.add('visible');
+          
+          // Add event listeners after a short delay to prevent immediate closing
+          setTimeout(() => {
+            // Add global event listeners
+            document.addEventListener('keydown', this.handleKeyDown);
+            document.addEventListener('click', this.handleOutsideClick);
+          }, 100);
         }
       }, 10); // Short delay for the CSS transition to work
     }
@@ -270,11 +273,18 @@ export class SelectionWindow {
     }
   }
   
-  /**
+   /**
    * Handle clicks outside the window content
    * @param {MouseEvent} event - Mouse event
    */
   handleOutsideClick(event) {
+    // Make sure we're not handling the same click that opened the window
+    // by checking if the click target is the button that opens the window
+    if (event.target.closest('.plugin-selector-button') || 
+        event.target.closest('#mobile-plugin-button')) {
+      return;
+    }
+    
     if (this.element && this.visible) {
       const windowContent = this.element.querySelector('.selection-window-content');
       if (windowContent && !windowContent.contains(event.target)) {

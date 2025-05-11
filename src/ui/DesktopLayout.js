@@ -119,7 +119,16 @@ export class DesktopLayout extends BaseLayout {
   /**
    * Open the selection window
    */
-  openSelectionWindow() {
+  /**
+   * Open the selection window
+   * @param {Event} event - Click event
+   */
+  openSelectionWindow(event) {
+    // Stop event propagation to prevent the event from immediately closing the window
+    if (event) {
+      event.stopPropagation();
+    }
+    
     if (this.selectionWindow) {
       // Update plugins and active ID before showing
       this.selectionWindow.update(this.plugins, this.activePluginId);
