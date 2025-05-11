@@ -12,6 +12,9 @@ export class Visualization {
   constructor(plugin) {
     this.plugin = plugin;
     
+    // Flag for animation state
+    this.isAnimating = false;
+    
     // Validate that this is not instantiated directly
     if (this.constructor === Visualization) {
       throw new Error("Visualization is an abstract class and cannot be instantiated directly");
@@ -21,6 +24,7 @@ export class Visualization {
   /**
    * Initialize the visualization with parameters
    * @param {Object} parameters - Parameter values
+   * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
     // Default implementation does nothing
@@ -31,9 +35,8 @@ export class Visualization {
   /**
    * Update the visualization with new parameters
    * @param {Object} parameters - New parameter values
-   * @param {Object} prevParameters - Previous parameter values (optional)
    */
-  update(parameters, prevParameters = null) {
+  update(parameters) {
     // Default implementation does nothing
     // Should be overridden by subclasses
   }
@@ -70,10 +73,12 @@ export class Visualization {
   /**
    * Update animation state
    * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * @returns {boolean} Whether a render is needed on the next frame
    */
   animate(deltaTime) {
     // Default implementation does nothing
     // Should be overridden by subclasses that use animation
+    return this.isAnimating;
   }
   
   /**

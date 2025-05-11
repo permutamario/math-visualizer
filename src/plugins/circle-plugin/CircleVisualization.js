@@ -30,10 +30,10 @@ export class CircleVisualization extends Visualization {
 
   /**
    * Update the visualization
-   * @param {Object} parameters - Visualization parameters
+   * @param {Object} parameters - Changed parameters only
    */
   update(parameters) {
-    // Update state
+    // Update state for each changed parameter
     if (parameters.radius !== undefined) {
       this.state.lastRadius = parameters.radius;
     }
@@ -57,7 +57,7 @@ export class CircleVisualization extends Visualization {
    * @param {Object} parameters - Current parameters
    */
   render2D(ctx, parameters) {
-    // Get the current parameters, falling back to state values if not provided
+    // Use current parameters if provided, otherwise use state values
     const radius = parameters.radius !== undefined ? parameters.radius : this.state.lastRadius;
     const fillColor = parameters.fillColor || this.state.lastColor;
     const hasStroke = parameters.stroke !== undefined ? parameters.stroke : this.state.hasStroke;
@@ -109,6 +109,5 @@ export class CircleVisualization extends Visualization {
    */
   dispose() {
     // Nothing to clean up for this simple visualization
-    // But we implement the method to satisfy the interface
   }
 }

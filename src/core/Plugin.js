@@ -43,7 +43,7 @@ export class Plugin {
     
     try {
       // Initialize default parameters
-      const schema = this.getParameterSchema();
+      const schema = this.defineParameters().build();
       this.parameters = this._getDefaultParametersFromSchema(schema);
       
       // Initialize default visualization
@@ -57,7 +57,7 @@ export class Plugin {
       
       // Update actions
       if (this.core && this.core.uiManager) {
-        const actions = this.getActions();
+        const actions = this.defineActions();
         this.core.uiManager.updateActions(actions);
       }
       
@@ -114,8 +114,7 @@ export class Plugin {
     
     if (rebuild) {
       // Get schema and build controls from scratch
-      const schema = this.getParameterSchema();
-console.log("Parameters", this.parameters);
+      const schema = this.defineParameters().build();
       this.core.uiManager.buildControlsFromSchema(schema, this.parameters);
     } else {
       // Just update control values
@@ -124,15 +123,13 @@ console.log("Parameters", this.parameters);
   }
   
   /**
-   * Get the parameter schema for this plugin
-   * Should be overridden by subclasses
-   * @returns {ParameterSchema} Schema defining parameters and UI controls
+   * Define parameters for this plugin
+   * @returns {ParameterBuilder} Parameter builder for fluent interface
    */
-  getParameterSchema() {
-    return {
-      structural: [],
-      visual: []
-    };
+  defineParameters() {
+    // Subclasses should override this
+    // Default empty schema
+    return createParameters();
   }
   
   /**
@@ -146,7 +143,7 @@ console.log("Parameters", this.parameters);
     
     // If we have a current visualization, update it
     if (this.currentVisualization) {
-      this.currentVisualization.update(this.parameters);
+      this.currentVisualization.update({ [parameterId]: value });
     }
     
     // Update the UI with the new parameter value
@@ -154,10 +151,10 @@ console.log("Parameters", this.parameters);
   }
   
   /**
-   * Get available actions for this plugin
-   * @returns {Action[]} List of available actions
+   * Define available actions for this plugin
+   * @returns {Array<Action>} List of available actions
    */
-  getActions() {
+  defineActions() {
     return [
       {
         id: "export-png",
@@ -180,13 +177,13 @@ console.log("Parameters", this.parameters);
     // Handle common actions
     switch (actionId) {
       case "export-png":
-        // Default implementation for PNG export
+        // Export as PNG
         this.core.renderingManager.exportAsPNG();
         return true;
         
       case "reset-parameters":
         // Reset to default parameters
-        const schema = this.getParameterSchema();
+        const schema = this.defineParameters().build();
         this.parameters = this._getDefaultParametersFromSchema(schema);
         
         // Update UI with rebuilt controls
@@ -284,3 +281,6 @@ console.log("Parameters", this.parameters);
     return defaults;
   }
 }
+
+// Import the parameter builder at the top level
+import { createParameters } from '../ui/ParameterBuilder.js';

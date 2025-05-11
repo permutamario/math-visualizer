@@ -3,7 +3,6 @@
 import { discoverPlugins, getFirstPluginId } from './PluginDiscovery.js';
 import { UIManager } from '../ui/UIManager.js';
 import { RenderingManager } from '../rendering/RenderingManager.js';
-import { ParameterManager } from './ParameterManager.js';
 import { StateManager } from './StateManager.js';
 import { EventEmitter } from './EventEmitter.js';
 import { ColorSchemeManager } from './ColorSchemeManager.js';
@@ -20,7 +19,6 @@ export class AppCore {
     // Create core components
     this.events = new EventEmitter();
     this.state = new StateManager();
-    this.parameterManager = new ParameterManager(this);
     this.renderingManager = new RenderingManager(this);
     this.uiManager = new UIManager(this);
     this.colorSchemeManager = new ColorSchemeManager(this);
@@ -157,8 +155,12 @@ export class AppCore {
             
             // Update UI with currently active plugin
             this.uiManager.updatePlugins(this.availablePlugins, pluginId);
+            
+            // Update actions
+            const actions = this.loadedPlugin.defineActions();
+            this.uiManager.updateActions(actions);
 
-this.exposeDebugInfo(); //Expose to debugger.
+            this.exposeDebugInfo(); //Expose to debugger.
             
             // Restore rendering if it was active
             if (wasRendering) {
@@ -240,39 +242,39 @@ this.exposeDebugInfo(); //Expose to debugger.
     return isFullscreen;
   }
 
-/**
- * Expose debug information
- * Makes the app, current plugin info, and parameterSchema available in the console
- */
-exposeDebugInfo() {
-  try {
-    // Create debug object with core app reference
-    window.__debugInfo = {
-      app: this,
-      currentPlugin: null,
-      parameterSchema: null
-    };
-    
-    // Add current plugin info if available
-    if (this.loadedPlugin) {
-      window.__debugInfo.currentPlugin = {
-        id: this.loadedPlugin.constructor.id,
-        name: this.loadedPlugin.constructor.name,
-        parameters: this.loadedPlugin.parameters,
-        instance: this.loadedPlugin
+  /**
+   * Expose debug information
+   * Makes the app, current plugin info, and parameters available in the console
+   */
+  exposeDebugInfo() {
+    try {
+      // Create debug object with core app reference
+      window.__debugInfo = {
+        app: this,
+        currentPlugin: null,
+        parameterSchema: null
       };
       
-      // Add parameter schema
-      window.__debugInfo.parameterSchema = this.loadedPlugin.getParameterSchema();
+      // Add current plugin info if available
+      if (this.loadedPlugin) {
+        window.__debugInfo.currentPlugin = {
+          id: this.loadedPlugin.constructor.id,
+          name: this.loadedPlugin.constructor.name,
+          parameters: this.loadedPlugin.parameters,
+          instance: this.loadedPlugin
+        };
+        
+        // Add parameter schema
+        window.__debugInfo.parameterSchema = this.loadedPlugin.defineParameters().build();
+      }
+      
+      console.log('Debug info exposed. Access via window.__debugInfo');
+      return window.__debugInfo;
+    } catch (error) {
+      console.error('Error exposing debug info:', error);
+      return null;
     }
-    
-    console.log('Debug info exposed. Access via window.__debugInfo');
-    return window.__debugInfo;
-  } catch (error) {
-    console.error('Error exposing debug info:', error);
-    return null;
   }
-}
   
   /**
    * Handle parameter changes from UI
@@ -283,15 +285,8 @@ exposeDebugInfo() {
     if (!this.loadedPlugin) return;
     
     try {
-      // Validate parameter value
-      const validValue = this.parameterManager.validateParameterValue(
-        parameterId, 
-        value, 
-        this.loadedPlugin.getParameterSchema()
-      );
-      
-      // Update the plugin
-      this.loadedPlugin.onParameterChanged(parameterId, validValue);
+      // Directly update the plugin with the parameter change
+      this.loadedPlugin.onParameterChanged(parameterId, value);
       
       // Request render
       this.renderingManager.requestRender();

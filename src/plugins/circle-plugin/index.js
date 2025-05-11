@@ -1,12 +1,39 @@
 // src/plugins/circle-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
 import { CircleVisualization } from './CircleVisualization.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 
 export default class CirclePlugin extends Plugin {
   static id = "circle-plugin";
   static name = "Circle Test";
   static description = "A simple circle visualization";
   static renderingType = "2d";
+
+  /**
+   * Define parameters for this plugin
+   * @returns {ParameterBuilder} Parameter builder
+   */
+  defineParameters() {
+    return createParameters()
+      .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
+      .addColor('fillColor', 'Fill Color', '#3498db')
+      .addCheckbox('stroke', 'Show Outline', true)
+      .addColor('strokeColor', 'Outline Color', '#000000');
+  }
+  
+  /**
+   * Define available actions for this plugin
+   * @returns {Array<Action>} List of available actions
+   */
+  defineActions() {
+    return [
+      ...super.defineActions(),
+      {
+        id: 'randomize-color',
+        label: 'Randomize Color'
+      }
+    ];
+  }
 
   /**
    * Load the plugin
@@ -18,8 +45,8 @@ export default class CirclePlugin extends Plugin {
     try {
       console.log("Loading circle plugin...");
       
-      // Set up default parameters from schema
-      const schema = this.getParameterSchema();
+      // Set up default parameters from parameter builder
+      const schema = this.defineParameters().build();
       this.parameters = this._getDefaultParametersFromSchema(schema);
       
       // Initialize default visualization
@@ -33,7 +60,7 @@ export default class CirclePlugin extends Plugin {
       
       // Update actions
       if (this.core && this.core.uiManager) {
-        const actions = this.getActions();
+        const actions = this.defineActions();
         this.core.uiManager.updateActions(actions);
       }
       
@@ -93,54 +120,17 @@ export default class CirclePlugin extends Plugin {
   }
 
   /**
-   * Get parameter schema
-   */
-  getParameterSchema() {
-    return {
-      structural: [
-        {
-          id: 'radius',
-          type: 'slider',
-          label: 'Radius',
-          min: 10,
-          max: 200,
-          step: 5,
-          default: 100
-        }
-      ],
-      visual: [
-        {
-          id: 'fillColor',
-          type: 'color',
-          label: 'Fill Color',
-          default: '#3498db'
-        },
-        {
-          id: 'stroke',
-          type: 'checkbox',
-          label: 'Show Outline',
-          default: true
-        },
-        {
-          id: 'strokeColor',
-          type: 'color',
-          label: 'Outline Color',
-          default: '#000000'
-        }
-      ]
-    };
-  }
-
-  /**
    * Handle parameter changes
+   * @param {string} parameterId - ID of the changed parameter
+   * @param {any} value - New parameter value 
    */
   onParameterChanged(parameterId, value) {
     // Update parameter value
     this.parameters[parameterId] = value;
     
-    // Update visualization
+    // Update visualization with just the changed parameter
     if (this.currentVisualization) {
-      this.currentVisualization.update(this.parameters);
+      this.currentVisualization.update({ [parameterId]: value });
     }
     
     // Update UI
@@ -153,20 +143,10 @@ export default class CirclePlugin extends Plugin {
   }
 
   /**
-   * Get custom actions
-   */
-  getActions() {
-    return [
-      ...super.getActions(),
-      {
-        id: 'randomize-color',
-        label: 'Randomize Color'
-      }
-    ];
-  }
-
-  /**
    * Execute an action
+   * @param {string} actionId - ID of the action to execute
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
    */
   executeAction(actionId, ...args) {
     if (actionId === 'randomize-color') {
@@ -176,9 +156,9 @@ export default class CirclePlugin extends Plugin {
       // Update the parameter
       this.parameters.fillColor = randomColor;
       
-      // Update the visualization
+      // Update the visualization with just the changed parameter
       if (this.currentVisualization) {
-        this.currentVisualization.update(this.parameters);
+        this.currentVisualization.update({ fillColor: randomColor });
       }
       
       // Update UI

@@ -1,7 +1,6 @@
 // src/ui/UIManager.js
 
 import { EventEmitter } from '../core/EventEmitter.js';
-import { validateParameterSchema } from '../core/ParameterSchema.js';
 import { UIBuilder } from './UIBuilder.js';
 import { DesktopLayout } from './DesktopLayout.js';
 import { MobileLayout } from './MobileLayout.js';
@@ -97,8 +96,7 @@ export class UIManager extends EventEmitter {
    */
   buildControlsFromSchema(schema, values) {
     try {
-      // Validate schema
-      validateParameterSchema(schema);
+      // No need for schema validation anymore - we trust our parameter builder
       
       // Build controls
       this.layout.buildControls(schema, values);

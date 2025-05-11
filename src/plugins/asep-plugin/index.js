@@ -1,5 +1,6 @@
 // src/plugins/asep-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 import { ClosedASEPVisualization } from './ClosedASEPVisualization.js';
 import { OpenASEPVisualization } from './OpenASEPVisualization.js';
 import { CircularASEPVisualization } from './CircularASEPVisualization.js';
@@ -34,6 +35,64 @@ export default class ASEPPlugin extends Plugin {
   }
 
   /**
+   * Define parameters for this plugin
+   * @returns {ParameterBuilder} Parameter builder
+   */
+  defineParameters() {
+    // Get model type from parameters, defaulting to closed
+    const modelType = this.parameters?.modelType || 'closed';
+    
+    // Create builder and add common parameters
+    const params = createParameters()
+      .addDropdown('modelType', 'Model Type', modelType, 
+        this.visualizationTypes.map(vt => ({
+          value: vt.id,
+          label: vt.name
+        })))
+      .addSlider('numBoxes', 'Number of Sites', 20, { min: 5, max: 50, step: 1 })
+      .addSlider('numParticles', 'Number of Particles', 10, { min: 1, max: 40, step: 1 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 1.0, { min: 0.1, max: 5, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.5, { min: 0, max: 5, step: 0.1 });
+    
+    // Add model-specific parameters
+    if (modelType === 'open') {
+      params
+        .addSlider('entryRate', 'Entry Rate (Open)', 0.5, { min: 0, max: 5, step: 0.1 })
+        .addSlider('exitRate', 'Exit Rate (Open)', 0.5, { min: 0, max: 5, step: 0.1 });
+    }
+    
+    // Add animation parameters
+    params
+      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 5, step: 0.1 })
+      .addCheckbox('isPaused', 'Pause Simulation', false, 'structural')
+      .addColor('particleColor', 'Particle Color', '#3498db')
+      .addColor('jumpColor', 'Jump Color', '#ff5722')
+      .addColor('boxColor', 'Box Color', '#2c3e50')
+      .addColor('portalColor', 'Portal Color (Open)', '#9C27B0', 'visual')
+      .addCheckbox('showLabels', 'Show Labels', false);
+      
+    return params;
+  }
+  
+  /**
+   * Define available actions for this plugin
+   * @returns {Array<Action>} List of available actions
+   */
+  defineActions() {
+    return [
+      ...super.defineActions(),
+      {
+        id: 'toggle-simulation',
+        label: 'Play/Pause Simulation'
+      },
+      {
+        id: 'restart-simulation',
+        label: 'Restart Simulation'
+      }
+    ];
+  }
+
+  /**
    * Load the plugin
    * Called when the plugin is selected
    */
@@ -43,8 +102,8 @@ export default class ASEPPlugin extends Plugin {
     try {
       console.log("Loading ASEP plugin...");
       
-      // Set up default parameters from schema
-      const schema = this.getParameterSchema();
+      // Set up default parameters from parameter builder
+      const schema = this.defineParameters().build();
       this.parameters = this._getDefaultParametersFromSchema(schema);
       
       // Initialize default visualization
@@ -58,7 +117,7 @@ export default class ASEPPlugin extends Plugin {
       
       // Update actions
       if (this.core && this.core.uiManager) {
-        const actions = this.getActions();
+        const actions = this.defineActions();
         this.core.uiManager.updateActions(actions);
       }
       
@@ -69,39 +128,6 @@ export default class ASEPPlugin extends Plugin {
       
       // Ensure clean state on failure
       await this.unload();
-      return false;
-    }
-  }
-
-  /**
-   * Unload the plugin
-   * Called when another plugin is selected
-   */
-  async unload() {
-    if (!this.isLoaded) return true;
-    
-    try {
-      console.log("Unloading ASEP plugin...");
-      
-      // Clean up current visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.dispose();
-        this.currentVisualization = null;
-      }
-      
-      // Clear all visualizations
-      this.visualizations.clear();
-      
-      // Clear parameters
-      this.parameters = {};
-      
-      // Mark as unloaded
-      this.isLoaded = false;
-      
-      console.log("ASEP plugin unloaded successfully");
-      return true;
-    } catch (error) {
-      console.error(`Error unloading ASEPPlugin:`, error);
       return false;
     }
   }
@@ -136,149 +162,9 @@ export default class ASEPPlugin extends Plugin {
   }
 
   /**
-   * Get parameter schema
-   */
-  getParameterSchema() {
-    // Common parameters for all models
-    const commonParams = [
-      {
-        id: 'modelType',
-        type: 'dropdown',
-        label: 'Model Type',
-        options: this.visualizationTypes.map(vt => ({
-          value: vt.id,
-          label: vt.name
-        })),
-        default: 'closed'
-      },
-      {
-        id: 'numBoxes',
-        type: 'slider',
-        label: 'Number of Sites',
-        min: 5,
-        max: 50,
-        step: 1,
-        default: 20
-      },
-      {
-        id: 'numParticles',
-        type: 'slider',
-        label: 'Number of Particles',
-        min: 1,
-        max: 40,
-        step: 1,
-        default: 10
-      },
-      {
-        id: 'rightJumpRate',
-        type: 'slider',
-        label: 'Right Jump Rate',
-        min: 0.1,
-        max: 5,
-        step: 0.1,
-        default: 1.0
-      },
-      {
-        id: 'leftJumpRate',
-        type: 'slider',
-        label: 'Left Jump Rate',
-        min: 0,
-        max: 5,
-        step: 0.1,
-        default: 0.5
-      }
-    ];
-    
-    // Model-specific parameters
-    let specificParams = [];
-    
-    // Add model-specific parameters based on current model type
-    const currentType = this.parameters?.modelType || 'closed';
-    
-    if (currentType === 'open') {
-      specificParams = [
-        {
-          id: 'entryRate',
-          type: 'slider',
-          label: 'Entry Rate (Open)',
-          min: 0,
-          max: 5,
-          step: 0.1,
-          default: 0.5
-        },
-        {
-          id: 'exitRate',
-          type: 'slider',
-          label: 'Exit Rate (Open)',
-          min: 0,
-          max: 5,
-          step: 0.1,
-          default: 0.5
-        }
-      ];
-    }
-    
-    // Combine common and specific parameters
-    const allStructuralParams = [...commonParams, ...specificParams];
-    
-    // Add animation parameters
-    allStructuralParams.push(
-      {
-        id: 'animationSpeed',
-        type: 'slider',
-        label: 'Animation Speed',
-        min: 0.1,
-        max: 5,
-        step: 0.1,
-        default: 1.0
-      },
-      {
-        id: 'isPaused',
-        type: 'checkbox',
-        label: 'Pause Simulation',
-        default: false
-      }
-    );
-    
-    return {
-      structural: allStructuralParams,
-      visual: [
-        {
-          id: 'particleColor',
-          type: 'color',
-          label: 'Particle Color',
-          default: '#3498db'
-        },
-        {
-          id: 'jumpColor',
-          type: 'color',
-          label: 'Jump Color',
-          default: '#ff5722'
-        },
-        {
-          id: 'boxColor',
-          type: 'color',
-          label: 'Box Color',
-          default: '#2c3e50'
-        },
-        {
-          id: 'portalColor',
-          type: 'color',
-          label: 'Portal Color (Open)',
-          default: '#9C27B0'
-        },
-        {
-          id: 'showLabels',
-          type: 'checkbox',
-          label: 'Show Labels',
-          default: false
-        }
-      ]
-    };
-  }
-
-  /**
    * Handle parameter changes
+   * @param {string} parameterId - ID of the changed parameter
+   * @param {any} value - New parameter value 
    */
   async onParameterChanged(parameterId, value) {
     // Update parameter value
@@ -309,38 +195,24 @@ export default class ASEPPlugin extends Plugin {
       await this.currentVisualization.initialize(this.parameters);
     } 
     else if (this.currentVisualization) {
-      // For other parameters, just update without reinitializing
-      this.currentVisualization.update(this.parameters);
+      // For other parameters, just update with the changed parameter
+      this.currentVisualization.update({ [parameterId]: value });
     }
     
-    // Update UI (in case parameters affect UI state)
+    // Update UI
     this.giveParameters(false);
     
-    // Request rendering update if needed
+    // Request rendering update
     if (this.core && this.core.renderingManager) {
       this.core.renderingManager.requestRender();
     }
   }
   
   /**
-   * Get available actions for this plugin
-   */
-  getActions() {
-    return [
-      ...super.getActions(),
-      {
-        id: 'toggle-simulation',
-        label: 'Play/Pause Simulation'
-      },
-      {
-        id: 'restart-simulation',
-        label: 'Restart Simulation'
-      }
-    ];
-  }
-  
-  /**
    * Execute an action
+   * @param {string} actionId - ID of the action to execute
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
    */
   executeAction(actionId, ...args) {
     switch (actionId) {
