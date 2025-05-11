@@ -1,4 +1,4 @@
-// src/core/AppCore.js 
+// src/core/AppCore.js - Modified version to start with no plugin
 
 import { discoverPlugins, getFirstPluginId } from './PluginDiscovery.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -31,10 +31,14 @@ export class AppCore {
     this.availablePlugins = []; // Plugin metadata
     this.initialized = false;
     
+    // Flag to track if this is initial startup
+    this.isInitialStartup = true;
+    
     // Bind methods
     this.loadPlugin = this.loadPlugin.bind(this);
     this.handleParameterChange = this.handleParameterChange.bind(this);
     this.executeAction = this.executeAction.bind(this);
+    this.showPluginSelector = this.showPluginSelector.bind(this);
   }
   
   /**
@@ -274,6 +278,18 @@ export class AppCore {
   }
   
   /**
+   * Show the plugin selector window
+   */
+  showPluginSelector() {
+    if (this.uiManager && this.uiManager.layout) {
+      // Call the appropriate method based on layout type
+      if (typeof this.uiManager.layout.openSelectionWindow === 'function') {
+        this.uiManager.layout.openSelectionWindow();
+      }
+    }
+  }
+  
+  /**
    * Toggle Fullscreen mode
    */
   toggleFullscreenMode() {
@@ -332,53 +348,48 @@ export class AppCore {
    * @param {string} parameterId - ID of the changed parameter
    * @param {any} value - New parameter value
    */
-  /**
- * Handle parameter changes from UI
- * @param {string} parameterId - ID of the changed parameter
- * @param {any} value - New parameter value
- */
-handleParameterChange(parameterId, value) {
-  if (!this.loadedPlugin) return;
-  
-  try {
-    // Update parameter value in the plugin
-    this.loadedPlugin.onParameterChanged(parameterId, value);
+  handleParameterChange(parameterId, value) {
+    if (!this.loadedPlugin) return;
     
-    // Request render
+    try {
+      // Update parameter value in the plugin
+      this.loadedPlugin.onParameterChanged(parameterId, value);
+      
+      // Request render
+      if (this.renderingManager) {
+        this.renderingManager.requestRender();
+      }
+    } catch (error) {
+      console.error(`Error handling parameter change for ${parameterId}:`, error);
+      if (this.uiManager) {
+        this.uiManager.showError(`Error updating parameter "${parameterId}": ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Update UI based on plugin parameters
+   * @param {Plugin} plugin - The plugin whose parameters to use
+   * @param {boolean} rebuild - Whether to rebuild the entire UI
+   */
+  updatePluginParameters(plugin, rebuild = false) {
+    if (!plugin || !this.uiManager) return;
+    
+    // Get schema if rebuilding
+    const schema = rebuild ? plugin.defineParameters().build() : null;
+    
+    // Update UI based on current plugin state
+    if (rebuild) {
+      this.uiManager.buildControlsFromSchema(schema, plugin.parameters);
+    } else {
+      this.uiManager.updateControls(plugin.parameters);
+    }
+    
+    // Request a render update if rendering manager exists
     if (this.renderingManager) {
       this.renderingManager.requestRender();
     }
-  } catch (error) {
-    console.error(`Error handling parameter change for ${parameterId}:`, error);
-    if (this.uiManager) {
-      this.uiManager.showError(`Error updating parameter "${parameterId}": ${error.message}`);
-    }
   }
-}
-
-  /**
- * Update UI based on plugin parameters
- * @param {Plugin} plugin - The plugin whose parameters to use
- * @param {boolean} rebuild - Whether to rebuild the entire UI
- */
-updatePluginParameters(plugin, rebuild = false) {
-  if (!plugin || !this.uiManager) return;
-  
-  // Get schema if rebuilding
-  const schema = rebuild ? plugin.defineParameters().build() : null;
-  
-  // Update UI based on current plugin state
-  if (rebuild) {
-    this.uiManager.buildControlsFromSchema(schema, plugin.parameters);
-  } else {
-    this.uiManager.updateControls(plugin.parameters);
-  }
-  
-  // Request a render update if rendering manager exists
-  if (this.renderingManager) {
-    this.renderingManager.requestRender();
-  }
-}
   
   /**
    * Execute an action
@@ -429,13 +440,18 @@ updatePluginParameters(plugin, rebuild = false) {
       // Start the rendering loop
       this.renderingManager.startRenderLoop();
       
-      // Load default plugin if configured
-      const defaultPluginId = this.state.get('defaultPluginId') || 
-                              getFirstPluginId(this.availablePlugins);
+      // MODIFIED: Don't load a plugin automatically, instead show the "Select a Plugin" message
+      // The RenderingManager will show the message when no plugin is loaded
+      this.renderingManager.requestRender();
       
-      if (defaultPluginId) {
-        return this.loadPlugin(defaultPluginId);
-      }
+      // Show the plugin selector after a short delay to let UI initialize
+      setTimeout(() => {
+        // Only open the selection window if this is the initial startup
+        if (this.isInitialStartup) {
+          this.showPluginSelector();
+          this.isInitialStartup = false;
+        }
+      }, 500);
       
       return true;
     } catch (error) {

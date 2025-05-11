@@ -1,4 +1,4 @@
-// src/rendering/RenderingManager.js
+// src/rendering/RenderingManager.js - Modified version
 
 import { Canvas2DEnvironment } from './Canvas2DEnvironment.js';
 import { ThreeJSEnvironment } from './ThreeJSEnvironment.js';
@@ -32,6 +32,7 @@ export class RenderingManager {
     this.render = this.render.bind(this);
     this.handleResize = this.handleResize.bind(this);
     this.updateBackgroundColors = this.updateBackgroundColors.bind(this);
+    this.renderNoPluginMessage = this.renderNoPluginMessage.bind(this);
   }
 
   /**
@@ -89,6 +90,9 @@ export class RenderingManager {
       console.log("Creating environment instances");
       this.environments['2d'] = this._createEnvironment('2d');
       this.environments['3d'] = this._createEnvironment('3d');
+      
+      // Initialize and activate the 2D environment by default to show the welcome message
+      await this.setEnvironment('2d');
       
       // Listen for window resize
       window.addEventListener('resize', this.handleResize);
@@ -364,7 +368,8 @@ export class RenderingManager {
     
     const activePlugin = this.core.getActivePlugin();
     if (!activePlugin) {
-      console.log("Cannot render: no active plugin");
+      console.log("No active plugin, showing welcome message");
+      this.renderNoPluginMessage();
       return;
     }
     
@@ -376,6 +381,90 @@ export class RenderingManager {
     
     // Render using the current environment
     this.currentEnvironment.render(visualization, activePlugin.parameters);
+  }
+  
+  /**
+   * Render a message when no plugin is loaded
+   */
+  renderNoPluginMessage() {
+    if (!this.currentEnvironment || !this.canvas) return;
+    
+    // Only 2D environment supports this for now
+    if (this.environments['2d'] === this.currentEnvironment) {
+      const ctx = this.currentEnvironment.getContext();
+      if (!ctx) return;
+      
+      // Clear canvas with the background color
+      ctx.fillStyle = this.currentEnvironment.backgroundColor;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      
+      // Set up transformations to center the text
+      ctx.save();
+      
+      // Draw instruction text
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+      
+      ctx.font = '30px sans-serif';
+      ctx.fillStyle = 'var(--text-color)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Select a Plugin', centerX, centerY - 20);
+      
+      // Add a smaller instruction
+      ctx.font = '16px sans-serif';
+      ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
+      
+      // Draw an arrow pointing to the plugin selector button
+      const pluginButton = document.querySelector('.plugin-selector-button') || 
+                           document.getElementById('mobile-plugin-button');
+      
+      if (pluginButton) {
+        const buttonRect = pluginButton.getBoundingClientRect();
+        const canvasRect = this.canvas.getBoundingClientRect();
+        
+        // Calculate relative position
+        const arrowEndX = buttonRect.left + buttonRect.width/2 - canvasRect.left;
+        const arrowEndY = buttonRect.top + buttonRect.height/2 - canvasRect.top;
+        
+        // Draw arrow from center to button
+        const arrowStartX = centerX;
+        const arrowStartY = centerY + 60;
+        
+        ctx.beginPath();
+        ctx.moveTo(arrowStartX, arrowStartY);
+        
+        // Create a curved arrow using bezier
+        const controlX = (arrowStartX + arrowEndX) / 2;
+        const controlY = arrowStartY + 30;
+        
+        ctx.quadraticCurveTo(controlX, controlY, arrowEndX, arrowEndY);
+        
+        ctx.strokeStyle = 'var(--accent-color)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Add arrowhead
+        const angle = Math.atan2(arrowEndY - controlY, arrowEndX - controlX);
+        const arrowSize = 10;
+        
+        ctx.beginPath();
+        ctx.moveTo(arrowEndX, arrowEndY);
+        ctx.lineTo(
+          arrowEndX - arrowSize * Math.cos(angle - Math.PI/6),
+          arrowEndY - arrowSize * Math.sin(angle - Math.PI/6)
+        );
+        ctx.lineTo(
+          arrowEndX - arrowSize * Math.cos(angle + Math.PI/6),
+          arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
+        );
+        ctx.closePath();
+        ctx.fillStyle = 'var(--accent-color)';
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    }
   }
   
   /**
