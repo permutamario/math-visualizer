@@ -1,10 +1,21 @@
 // src/plugins/asep-plugin/ClosedASEPVisualization.js
 import { BaseASEPVisualization } from './BaseASEPVisualization.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Closed linear ASEP model - particles move on a linear lattice with no entrances or exits
  */
 export class ClosedASEPVisualization extends BaseASEPVisualization {
+  /**
+   * Get parameters specific to this visualization
+   * @returns {Array} Array of parameter definitions
+   * @static
+   */
+  static getParameters() {
+    // This visualization doesn't have any additional parameters beyond the base ones
+    return createParameters().build();
+  }
+  
   /**
    * Initialize the visualization with parameters
    * @param {Object} parameters - Parameter values
@@ -63,8 +74,8 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
   scheduleNextJump(particle) {
     if (this.state.isPaused) return;
     
-    const rightRate = this.plugin.parameters.rightJumpRate;
-    const leftRate = this.plugin.parameters.leftJumpRate;
+    const rightRate = this.plugin.pluginParameters.rightJumpRate;
+    const leftRate = this.plugin.pluginParameters.leftJumpRate;
     
     // Determine total rate and waiting time
     const totalRate = rightRate + leftRate;
@@ -133,7 +144,8 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    */
   drawParticles(ctx, parameters) {
     const boxSize = this.state.boxSize;
-    const jumpColor = parameters.jumpColor;
+    // Get jump color from palette
+    const jumpColor = this.getColorFromPalette(parameters, this.state.colorIndices.jump);
     
     // Draw each particle
     this.state.particles.forEach(particle => {
@@ -151,6 +163,7 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
           x = startBox.x;
           y = startBox.y;
           scale = 1.0 - 0.3 * Math.sin(Math.PI * progress); // Shrink when entering
+          
           ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
         } else if (particle.jumpState === 'inside') {
           // Moving from startBox to endBox while inside
@@ -158,6 +171,7 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
           x = startBox.x + (endBox.x - startBox.x) * progress;
           y = startBox.y;
           scale = 0.7; // Consistently smaller while inside
+          
           ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
         } else {
           // Exiting the box
@@ -165,6 +179,7 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
           x = endBox.x;
           y = endBox.y;
           scale = 0.7 + 0.3 * progress; // Grow when exiting
+          
           ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
         }
         
@@ -213,6 +228,9 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
+            // Get particle color from palette
+            const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+            
             this.state.particles.push({
               id: maxId + 1,
               position: i,
@@ -220,8 +238,8 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
               jumpProgress: 0,
               startPosition: i,
               targetPosition: i,
-              color: this.plugin.parameters.particleColor,
-              originalColor: this.plugin.parameters.particleColor,
+              color: particleColor,
+              originalColor: particleColor,
               radius: this.state.particleRadius,
               jumpSpeed: 2.0,
               jumpState: 'none',

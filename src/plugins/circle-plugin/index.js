@@ -1,7 +1,7 @@
 // src/plugins/circle-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
-import { CircleVisualization } from './CircleVisualization.js';
 import { createParameters } from '../../ui/ParameterBuilder.js';
+import { CircleVisualization } from './CircleVisualization.js';
 
 export default class CirclePlugin extends Plugin {
   static id = "circle-plugin";
@@ -9,16 +9,36 @@ export default class CirclePlugin extends Plugin {
   static description = "A simple circle visualization";
   static renderingType = "2d";
 
+  constructor(core) {
+    super(core);
+    
+    // Store visualization types
+    this.visualizationTypes = [
+      {
+        id: 'default',
+        name: 'Circle',
+        class: CircleVisualization
+      }
+    ];
+  }
+
   /**
-   * Define parameters for this plugin
-   * @returns {ParameterBuilder} Parameter builder
+   * Define plugin-level parameters
+   * @returns {Array} Array of parameter definitions
    */
-  defineParameters() {
+  definePluginParameters() {
     return createParameters()
-      .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
-      .addColor('fillColor', 'Fill Color', '#3498db')
-      .addCheckbox('stroke', 'Show Outline', true)
-      .addColor('strokeColor', 'Outline Color', '#000000');
+      .addCheckbox('showLabels', 'Show Labels', false)
+      .build();
+  }
+  
+  /**
+   * Define advanced parameters
+   * @returns {Array} Array of parameter definitions
+   */
+  defineAdvancedParameters() {
+    // No advanced parameters for this simple plugin
+    return [];
   }
   
   /**
@@ -44,10 +64,6 @@ export default class CirclePlugin extends Plugin {
     
     try {
       console.log("Loading circle plugin...");
-      
-      // Set up default parameters from parameter builder
-      const schema = this.defineParameters().build();
-      this.parameters = this._getDefaultParametersFromSchema(schema);
       
       // Initialize default visualization
       await this._initializeDefaultVisualization();
@@ -76,39 +92,6 @@ export default class CirclePlugin extends Plugin {
   }
 
   /**
-   * Unload the plugin
-   * Called when another plugin is selected
-   */
-  async unload() {
-    if (!this.isLoaded) return true;
-    
-    try {
-      console.log("Unloading circle plugin...");
-      
-      // Clean up current visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.dispose();
-        this.currentVisualization = null;
-      }
-      
-      // Clear all visualizations
-      this.visualizations.clear();
-      
-      // Clear parameters
-      this.parameters = {};
-      
-      // Mark as unloaded
-      this.isLoaded = false;
-      
-      console.log("Circle plugin unloaded successfully");
-      return true;
-    } catch (error) {
-      console.error(`Error unloading CirclePlugin:`, error);
-      return false;
-    }
-  }
-
-  /**
    * Initialize the default visualization
    * @private
    */
@@ -116,30 +99,15 @@ export default class CirclePlugin extends Plugin {
     const visualization = new CircleVisualization(this);
     this.registerVisualization('default', visualization);
     this.currentVisualization = visualization;
-    await visualization.initialize(this.parameters);
-  }
-
-  /**
-   * Handle parameter changes
-   * @param {string} parameterId - ID of the changed parameter
-   * @param {any} value - New parameter value 
-   */
-  onParameterChanged(parameterId, value) {
-    // Update parameter value
-    this.parameters[parameterId] = value;
     
-    // Update visualization with just the changed parameter
-    if (this.currentVisualization) {
-      this.currentVisualization.update({ [parameterId]: value });
-    }
+    // Initialize with all parameters
+    await visualization.initialize({
+      ...this.pluginParameters,
+      ...this.visualizationParameters,
+      ...this.advancedParameters
+    });
     
-    // Update UI
-    this.giveParameters(false);
-    
-    // Request render update
-    if (this.core && this.core.renderingManager) {
-      this.core.renderingManager.requestRender();
-    }
+    return true;
   }
 
   /**
@@ -153,21 +121,8 @@ export default class CirclePlugin extends Plugin {
       // Generate a random color
       const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
       
-      // Update the parameter
-      this.parameters.fillColor = randomColor;
-      
-      // Update the visualization with just the changed parameter
-      if (this.currentVisualization) {
-        this.currentVisualization.update({ fillColor: randomColor });
-      }
-      
-      // Update UI
-      this.giveParameters(false);
-      
-      // Request render
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
-      }
+      // Update the parameter in visualization parameters
+      this.updateParameter('fillColor', randomColor, 'visualization', true);
       
       return true;
     }

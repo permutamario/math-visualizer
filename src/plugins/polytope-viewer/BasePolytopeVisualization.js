@@ -22,38 +22,13 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Get common parameters for all polytope visualizations
-   * This is used by the plugin to build the parameter schema
-   * @returns {Object} Parameter schema with structural and visual parameters
-   */
-  static getParameters() {
-    return {
-      structural: [],
-      visual: []
-    };
-  }
-
-  /**
-   * Get the vertices for this polytope
-   * Must be overridden by subclasses
-   * @param {Object} THREE - THREE.js library
-   * @param {Object} parameters - Visualization parameters
-   * @returns {Array} Array of vertices as THREE.Vector3
-   */
-  getVertices(THREE, parameters) {
-    // Default implementation returns empty array
-    // Subclasses must override this method
-    return [];
-  }
-
-  /**
    * Initialize the visualization
    * @param {Object} parameters - Visualization parameters
    * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
     try {
-      // Store rotation state
+      // Store rotation state from plugin parameters
       this.state.isRotating = parameters.rotation || false;
       
       // Clean up any existing meshes
@@ -99,7 +74,7 @@ export class BasePolytopeVisualization extends Visualization {
       const renderModeManager = this.plugin.core.renderModeManager;
       const colorSchemeManager = this.plugin.core.colorSchemeManager;
       
-      // Get the current render mode
+      // Get the current render mode from visualization parameters or advanced parameters
       const renderMode = parameters.renderMode || 'standard';
       
       // Get the selected palette from color scheme manager
@@ -272,7 +247,6 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Extract faces from the geometry
-   * A face is a group of connected triangles with the same normal
    * @param {Object} THREE - THREE.js library
    * @param {THREE.BufferGeometry} geometry - Geometry to extract faces from
    * @returns {Array} Array of faces, each containing triangles
@@ -388,7 +362,7 @@ export class BasePolytopeVisualization extends Visualization {
       // Create new mesh group
       this.state.meshGroup = new THREE.Group();
       
-      // Get vertices from the subclass
+      // Get vertices from the subclass implementation
       const vertices = this.getVertices(THREE, parameters);
       
       // Create the polytope from vertices
@@ -472,8 +446,8 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Handle parameter updates - only the changed parameters are passed
-   * @param {Object} parameters - Updated parameters (only changed ones)
+   * Update the visualization with changed parameters
+   * @param {Object} parameters - Changed parameters only
    */
   update(parameters) {
     // Handle rotation separately
@@ -526,7 +500,7 @@ export class BasePolytopeVisualization extends Visualization {
       }
     }
     
-    // Let specific implementations handle their own parameters
+    // Let subclasses handle their specific parameters
     this.handleVisSpecificParameters(parameters);
     
     // Request a render if needed

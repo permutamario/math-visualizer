@@ -59,10 +59,10 @@ export default class PolytopeViewerPlugin extends Plugin {
   }
 
   /**
-   * Define parameters for this plugin
-   * @returns {ParameterBuilder} Parameter builder
+   * Define plugin-level parameters
+   * @returns {Array} Array of parameter definitions
    */
-  defineParameters() {
+  definePluginParameters() {
     // Visualization type selector options
     const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
       value: vt.id,
@@ -70,100 +70,29 @@ export default class PolytopeViewerPlugin extends Plugin {
     }));
     
     // Current visualization type, defaulting to first one if not set
-    const currentType = this.parameters?.visualizationType || 
+    const currentType = this.pluginParameters?.visualizationType || 
                       (this.visualizationTypes.length > 0 ? 
                        this.visualizationTypes[0].id : '');
     
     // Create parameter builder with plugin-specific parameters
-    let params = createParameters()
+    return createParameters()
       .addDropdown('visualizationType', 'Polytope Class', currentType, visualizationTypeOptions)
-      .addCheckbox('rotation', 'Auto-rotate', false, 'visual')
-      .addCheckbox('showEdges', 'Show Edges', true, 'visual');
-    
-    // Add standard parameters from the core
-    if (this.core && this.core.getStandardParameters) {
-      const standardParams = this.core.getStandardParameters(this.constructor.renderingType);
-      
-      // Add standard parameters manually based on their type
-      Object.values(standardParams).forEach(param => {
-        switch (param.type) {
-          case 'dropdown':
-            params.addDropdown(param.id, param.label, param.default, param.options, param.category);
-            break;
-          case 'slider':
-            params.addSlider(param.id, param.label, param.default, {
-              min: param.min,
-              max: param.max,
-              step: param.step
-            }, param.category);
-            break;
-          case 'checkbox':
-            params.addCheckbox(param.id, param.label, param.default, param.category);
-            break;
-          case 'color':
-            params.addColor(param.id, param.label, param.default, param.category);
-            break;
-          // Add other types as needed
-        }
-      });
-    }
-    
-    // Add visualization-specific parameters if available
-    if (this.currentVisualization) {
-      const vizClass = this.currentVisualization.constructor;
-      
-      // Check if the visualization class has static parameters method
-      if (vizClass && typeof vizClass.getParameters === 'function') {
-        const vizParams = vizClass.getParameters();
-        
-        // Add visualization-specific structural parameters
-        if (vizParams.structural && vizParams.structural.length > 0) {
-          for (const param of vizParams.structural) {
-            // Add to our parameter builder based on type
-            switch(param.type) {
-              case 'dropdown':
-                params.addDropdown(param.id, param.label, param.default, param.options);
-                break;
-              case 'slider':
-                params.addSlider(param.id, param.label, param.default, { 
-                  min: param.min, 
-                  max: param.max, 
-                  step: param.step 
-                });
-                break;
-              case 'text':
-                params.addText(param.id, param.label, param.default);
-                break;
-              // Add other types as needed
-            }
-          }
-        }
-        
-        // Add visualization-specific visual parameters
-        if (vizParams.visual && vizParams.visual.length > 0) {
-          for (const param of vizParams.visual) {
-            switch(param.type) {
-              case 'checkbox':
-                params.addCheckbox(param.id, param.label, param.default, 'visual');
-                break;
-              case 'slider':
-                params.addSlider(param.id, param.label, param.default, { 
-                  min: param.min, 
-                  max: param.max, 
-                  step: param.step 
-                }, 'visual');
-                break;
-              case 'color':
-                params.addColor(param.id, param.label, param.default, 'visual');
-                break;
-              // Add other types as needed
-            }
-          }
-        }
-      }
-    }
-    
-    return params;
+      .addCheckbox('rotation', 'Auto-rotate', false)
+      .addCheckbox('showEdges', 'Show Edges', true)
+      .build();
+  }
+  
+  /**
+   * Define advanced parameters
+   * @returns {Array} Array of parameter definitions
+   */
+  defineAdvancedParameters() {
+    // Add advanced parameters if needed 
+    return createParameters()
+      .addSlider('particleSize', 'Vertex Size', 0.05, { min: 0.01, max: 0.2, step: 0.01 })
+      .addCheckbox('showVertices', 'Show Vertices', false)
+      .addColor('vertexColor', 'Vertex Color', '#e74c3c')
+      .build();
   }
 
   /**
@@ -193,15 +122,6 @@ export default class PolytopeViewerPlugin extends Plugin {
     
     try {
       console.log("Loading polytope-viewer plugin...");
-      
-      // Set up default parameters from parameter builder
-      const schema = this.defineParameters().build();
-      this.parameters = this._getDefaultParametersFromSchema(schema);
-      
-      // Set default visualization type if not already set
-      if (!this.parameters.visualizationType) {
-        this.parameters.visualizationType = this.visualizationTypes[0].id;
-      }
       
       // Initialize default visualization
       await this._initializeDefaultVisualization();
@@ -239,8 +159,8 @@ export default class PolytopeViewerPlugin extends Plugin {
       return false;
     }
     
-    // Get the selected visualization type
-    const selectedType = this.parameters.visualizationType || this.visualizationTypes[0].id;
+    // Get the selected visualization type from plugin parameters, or use first available
+    const selectedType = this.pluginParameters.visualizationType || this.visualizationTypes[0].id;
     
     // Find the visualization info
     const vizInfo = this.visualizationTypes.find(vt => vt.id === selectedType) || 
@@ -251,42 +171,42 @@ export default class PolytopeViewerPlugin extends Plugin {
     this.registerVisualization(vizInfo.id, visualization);
     this.currentVisualization = visualization;
     
-    // Initialize with current parameters
-    await visualization.initialize(this.parameters);
+    // Initialize with all parameters
+    await visualization.initialize({
+      ...this.pluginParameters,
+      ...this.visualizationParameters,
+      ...this.advancedParameters
+    });
     
     return true;
   }
 
   /**
- * Handle parameter changes
- * @param {string} parameterId - ID of the changed parameter
- * @param {any} value - New parameter value 
- */
-async onParameterChanged(parameterId, value) {
-  // Check if we're in the middle of a visualization switch
-  if (this.isSwitchingVisualization) {
-    console.log(`Parameter change for ${parameterId} ignored during visualization switch`);
-    return;
-  }
-  
-  // Special handling for visualization type changes
-  if (parameterId === 'visualizationType') {
-    // First update the parameter
-    this.parameters[parameterId] = value;
+   * Handle parameter changes for visualization type
+   * @param {string} parameterId - ID of the changed parameter
+   * @param {any} value - New parameter value 
+   * @param {string} parameterGroup - Which group the parameter belongs to
+   */
+  onParameterChanged(parameterId, value, parameterGroup = null) {
+    // Check if we're in the middle of a visualization switch
+    if (this.isSwitchingVisualization) {
+      console.log(`Parameter change for ${parameterId} ignored during visualization switch`);
+      return;
+    }
     
-    // Then switch visualization (will handle UI updates internally)
-    await this.switchVisualization(value);
-    return;
+    // Special handling for visualization type changes
+    if (parameterId === 'visualizationType' && parameterGroup === 'plugin') {
+      // First update the parameter using parent method
+      super.onParameterChanged(parameterId, value, parameterGroup);
+      
+      // Then switch visualization
+      this.switchVisualization(value);
+      return;
+    }
+    
+    // For normal parameters, use the parent implementation
+    super.onParameterChanged(parameterId, value, parameterGroup);
   }
-  
-  // For normal parameters, use the base implementation to update state
-  super.onParameterChanged(parameterId, value);
-  
-  // Then update the visualization with just the changed parameter
-  if (this.currentVisualization) {
-    this.currentVisualization.update({ [parameterId]: value });
-  }
-}
   
   /**
    * Switch to a new visualization type
@@ -302,63 +222,14 @@ async onParameterChanged(parameterId, value) {
     console.log(`Switching visualization to ${visualizationType}...`);
     
     try {
-      // Update our parameter tracking
-      this.parameters.visualizationType = visualizationType;
+      // Just use the setVisualization method from the parent class
+      const success = await this.setVisualization(visualizationType);
       
-      // Find visualization info
-      const vizInfo = this.visualizationTypes.find(vt => vt.id === visualizationType);
-      
-      if (!vizInfo) {
-        throw new Error(`Visualization type ${visualizationType} not found`);
+      if (success) {
+        console.log(`Visualization switched to ${visualizationType} successfully`);
+      } else {
+        console.error(`Failed to switch visualization to ${visualizationType}`);
       }
-      
-      // Check if this visualization already exists
-      if (!this.visualizations.has(visualizationType)) {
-        // Create new visualization instance
-        const visualization = new vizInfo.class(this);
-        this.registerVisualization(visualizationType, visualization);
-      }
-      
-      // Save current visualization to dispose later
-      const oldVisualization = this.currentVisualization;
-      
-      // Get the visualization instance
-      this.currentVisualization = this.visualizations.get(visualizationType);
-      
-      // Preserve common parameters across visualizations
-      const commonParams = this.preserveCommonParameters(this.parameters);
-      
-      // Get a fresh set of parameters for the new visualization
-      const schema = this.defineParameters().build();
-      const defaultParams = this._getDefaultParametersFromSchema(schema);
-      
-      // Merge with preserved common parameters
-      const mergedParams = {
-        ...defaultParams,
-        ...commonParams,
-        visualizationType // Ensure this is set correctly
-      };
-      
-      // Update our parameters object with the merged parameters
-      this.parameters = mergedParams;
-      
-      // Initialize with merged parameters - await this to ensure visualization is ready
-      await this.currentVisualization.initialize(this.parameters);
-      
-      // Dispose old visualization now that new one is initialized
-      if (oldVisualization && oldVisualization !== this.currentVisualization) {
-        oldVisualization.dispose();
-      }
-      
-      // Now that initialization is complete, update UI with new schema
-      this.giveParameters(true);
-      
-      // Request a render
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
-      }
-      
-      console.log(`Visualization switched to ${visualizationType} successfully`);
     } catch (error) {
       console.error(`Error switching visualization to ${visualizationType}:`, error);
       
@@ -373,47 +244,39 @@ async onParameterChanged(parameterId, value) {
   }
   
   /**
-   * Preserve common parameters when switching visualizations
-   * @param {Object} currentParams - Current parameter values
-   * @returns {Object} Common parameters to preserve
+   * Execute an action
+   * @param {string} actionId - ID of the action to execute
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
    */
-  preserveCommonParameters(currentParams) {
-    // Parameters that should be preserved across visualization switches
-    const commonParamIds = [
-      'renderMode', 'opacity', 'colorPalette', 'rotation',
-      'showEdges', 'wireframe'
-    ];
-    
-    const preserved = {};
-    
-    // Copy parameters that exist in current parameters
-    commonParamIds.forEach(id => {
-      if (currentParams[id] !== undefined) {
-        preserved[id] = currentParams[id];
-      }
-    });
-    
-    return preserved;
-  }
-  
   executeAction(actionId, ...args) {
-  // Don't process actions during visualization switching
-  if (this.isSwitchingVisualization) {
-    console.log(`Action ${actionId} ignored during visualization switch`);
-    return false;
+    // Don't process actions during visualization switching
+    if (this.isSwitchingVisualization) {
+      console.log(`Action ${actionId} ignored during visualization switch`);
+      return false;
+    }
+    
+    if (actionId === 'toggle-rotation') {
+      // Toggle rotation parameter
+      const newValue = !this.pluginParameters.rotation;
+      this.updateParameter('rotation', newValue, 'plugin', true);
+      return true;
+    } 
+    else if (actionId === 'reset-camera') {
+      // Reset camera if the RenderingManager has access to it
+      if (this.core && this.core.renderingManager) {
+        const env = this.core.renderingManager.getCurrentEnvironment();
+        if (env && env.getControls && typeof env.getControls === 'function') {
+          const controls = env.getControls();
+          if (controls && typeof controls.reset === 'function') {
+            controls.reset();
+            return true;
+          }
+        }
+      }
+      return true;
+    }
+    
+    return super.executeAction(actionId, ...args);
   }
-  
-  if (actionId === 'toggle-rotation') {
-    // Toggle rotation using the new updateParameter method
-    const newValue = !this.parameters.rotation;
-    this.updateParameter('rotation', newValue);
-    return true;
-  } 
-  else if (actionId === 'reset-camera') {
-    // Reset camera code...
-    return true;
-  }
-  
-  return super.executeAction(actionId, ...args);
-}
 }

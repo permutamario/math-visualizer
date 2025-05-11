@@ -1,5 +1,6 @@
 // src/plugins/circle-plugin/CircleVisualization.js
 import { Visualization } from '../../core/Visualization.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 
 export class CircleVisualization extends Visualization {
   constructor(plugin) {
@@ -12,6 +13,23 @@ export class CircleVisualization extends Visualization {
       hasStroke: false,
       strokeColor: ''
     };
+    
+    // Set animation flag to false as this visualization is static
+    this.isAnimating = false;
+  }
+
+  /**
+   * Define the parameters specific to this visualization
+   * @returns {Array} Parameter definitions
+   * @static
+   */
+  static getParameters() {
+    return createParameters()
+      .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
+      .addColor('fillColor', 'Fill Color', '#3498db')
+      .addCheckbox('stroke', 'Show Outline', true)
+      .addColor('strokeColor', 'Outline Color', '#000000')
+      .build();
   }
 
   /**
@@ -49,6 +67,11 @@ export class CircleVisualization extends Visualization {
     if (parameters.strokeColor !== undefined) {
       this.state.strokeColor = parameters.strokeColor;
     }
+    
+    // Update showLabels parameter if it exists
+    if (parameters.showLabels !== undefined) {
+      // No specific state to update here, as showLabels is used directly from parameters in render2D
+    }
   }
 
   /**
@@ -62,6 +85,7 @@ export class CircleVisualization extends Visualization {
     const fillColor = parameters.fillColor || this.state.lastColor;
     const hasStroke = parameters.stroke !== undefined ? parameters.stroke : this.state.hasStroke;
     const strokeColor = parameters.strokeColor || this.state.strokeColor;
+    const showLabels = parameters.showLabels || false;
     
     // Draw a circle
     ctx.fillStyle = fillColor;
@@ -73,6 +97,17 @@ export class CircleVisualization extends Visualization {
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 2;
       ctx.stroke();
+    }
+    
+    // Show radius label if enabled
+    if (showLabels) {
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`r = ${radius}`, 0, radius + 20);
+      ctx.restore();
     }
   }
 
@@ -87,15 +122,15 @@ export class CircleVisualization extends Visualization {
       const distance = Math.sqrt(event.x * event.x + event.y * event.y);
       
       // Get current radius from plugin
-      const currentRadius = this.plugin.parameters.radius || 100;
+      const currentRadius = this.plugin.visualizationParameters.radius || 100;
       
       // Check if click is within or near the circle
       if (Math.abs(distance - currentRadius) < 15) {
         // Toggle stroke
-        const newStrokeState = !this.plugin.parameters.stroke;
+        const newStrokeState = !this.plugin.visualizationParameters.stroke;
         
         // Update plugin parameter
-        this.plugin.onParameterChanged('stroke', newStrokeState);
+        this.plugin.onParameterChanged('stroke', newStrokeState, 'visualization');
         
         return true;
       }

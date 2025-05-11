@@ -1,5 +1,6 @@
 // src/plugins/polytope-viewer/visualizations/PlatonicVisualization.js
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 
 /**
  * Visualization for Platonic solids
@@ -11,28 +12,21 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
   }
 
   /**
-   * Get specific parameters for this visualization
-   * @returns {Object} Parameter schema with structural and visual parameters
+   * Get parameters specific to this visualization
+   * @returns {Array} Array of parameter definitions
+   * @static
    */
   static getParameters() {
-    return {
-      structural: [
-        {
-          id: 'solidType',
-          type: 'dropdown',
-          label: 'Solid Type',
-          options: [
-            { value: 'tetrahedron', label: 'Tetrahedron (4 faces)' },
-            { value: 'cube', label: 'Cube (6 faces)' },
-            { value: 'octahedron', label: 'Octahedron (8 faces)' },
-            { value: 'dodecahedron', label: 'Dodecahedron (12 faces)' },
-            { value: 'icosahedron', label: 'Icosahedron (20 faces)' }
-          ],
-          default: 'tetrahedron'
-        }
-      ],
-      visual: []
-    };
+    return createParameters()
+      .addDropdown('solidType', 'Solid Type', 'tetrahedron', [
+        { value: 'tetrahedron', label: 'Tetrahedron (4 faces)' },
+        { value: 'cube', label: 'Cube (6 faces)' },
+        { value: 'octahedron', label: 'Octahedron (8 faces)' },
+        { value: 'dodecahedron', label: 'Dodecahedron (12 faces)' },
+        { value: 'icosahedron', label: 'Icosahedron (20 faces)' }
+      ])
+      .addSlider('size', 'Size', 1, { min: 0.5, max: 3, step: 0.1 })
+      .build();
   }
 
   /**
@@ -53,13 +47,14 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
    * Handle specific parameter updates
    * @param {Object} parameters - Changed parameters only
    */
-  handleParameterUpdate(parameters) {
+  update(parameters) {
+    // First, call the parent update method
+    super.update(parameters);
+    
     // Check if solid type has changed
     if (parameters.solidType !== undefined) {
       this.solidType = parameters.solidType;
     }
-    
-    // Parent class will handle requesting a render
   }
 
   /**
@@ -71,28 +66,29 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
   getVertices(THREE, parameters) {
     // Get the solid type from parameters, falling back to instance state
     const solidType = parameters.solidType || this.solidType;
+    const size = parameters.size || 1;
     
     // Create geometry based on selected solid type
     let geometry;
     
     switch (solidType) {
       case 'tetrahedron':
-        geometry = new THREE.TetrahedronGeometry(1, 0);
+        geometry = new THREE.TetrahedronGeometry(size, 0);
         break;
       case 'cube':
-        geometry = new THREE.BoxGeometry(1, 1, 1);
+        geometry = new THREE.BoxGeometry(size, size, size);
         break;
       case 'octahedron':
-        geometry = new THREE.OctahedronGeometry(1, 0);
+        geometry = new THREE.OctahedronGeometry(size, 0);
         break;
       case 'dodecahedron':
-        geometry = new THREE.DodecahedronGeometry(1, 0);
+        geometry = new THREE.DodecahedronGeometry(size, 0);
         break;
       case 'icosahedron':
-        geometry = new THREE.IcosahedronGeometry(1, 0);
+        geometry = new THREE.IcosahedronGeometry(size, 0);
         break;
       default:
-        geometry = new THREE.TetrahedronGeometry(1, 0);
+        geometry = new THREE.TetrahedronGeometry(size, 0);
     }
     
     // Extract unique vertices from the geometry

@@ -1,5 +1,6 @@
 // src/plugins/asep-plugin/BaseASEPVisualization.js
 import { Visualization } from '../../core/Visualization.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Base class for all ASEP visualizations with shared functionality
@@ -31,13 +32,30 @@ export class BaseASEPVisualization extends Visualization {
   }
 
   /**
-   * Abstract initialize method (should be implemented by subclasses)
+   * Get parameters specific to all ASEP visualizations
+   * @returns {Array} Array of parameter definitions 
+   * @static
+   */
+  static getParameters() {
+    // Base parameters shared by all ASEP visualizations
+    // Individual ASEP visualization subclasses will add their own specific parameters
+    return createParameters().build();
+  }
+
+  /**
+   * Initialize the visualization
    * @param {Object} parameters - Parameter values
    */
   async initialize(parameters) {
-    // To be implemented by subclasses
-    // By default, just clear any existing state
+    // Clear any existing state
     this.clearSimulation();
+    
+    // Set isPaused from parameters
+    this.state.isPaused = parameters.isPaused || false;
+    
+    // Set timeScale from parameters
+    this.state.timeScale = parameters.animationSpeed || 1.0;
+    
     return true;
   }
 
@@ -262,12 +280,12 @@ export class BaseASEPVisualization extends Visualization {
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   animate(deltaTime) {
-    if (!this.plugin || !this.plugin.parameters) {
+    if (!this.plugin || !this.plugin.visualizationParameters) {
       return true; // Keep rendering to avoid freezing
     }
     
     // Update speed from parameters
-    this.state.timeScale = this.plugin.parameters.animationSpeed || 1.0;
+    this.state.timeScale = this.plugin.visualizationParameters.animationSpeed || 1.0;
     
     // Always request continuous rendering by setting direct property
     this.isAnimating = true;
@@ -360,7 +378,7 @@ export class BaseASEPVisualization extends Visualization {
     ctx.fill();
     
     // Draw particle ID only if showLabels is true
-    if (this.plugin && this.plugin.parameters && this.plugin.parameters.showLabels) {
+    if (this.plugin && this.plugin.visualizationParameters && this.plugin.visualizationParameters.showLabels) {
       ctx.fillStyle = '#fff';
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
@@ -474,7 +492,8 @@ export class BaseASEPVisualization extends Visualization {
    * @param {Object} parameters - New parameter values
    */
   handleParameterUpdate(parameters) {
-    // To be implemented by subclasses - empty by default
+    // Default implementation does nothing
+    // To be overridden by subclasses
   }
   
   /**
