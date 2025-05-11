@@ -115,6 +115,7 @@ export class Plugin {
     if (rebuild) {
       // Get schema and build controls from scratch
       const schema = this.getParameterSchema();
+console.log("Parameters", this.parameters);
       this.core.uiManager.buildControlsFromSchema(schema, this.parameters);
     } else {
       // Just update control values

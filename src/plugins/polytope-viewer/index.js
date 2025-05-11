@@ -318,7 +318,7 @@ export default class PolytopeViewerPlugin extends Plugin {
   /**
    * Handle parameter changes
    */
-  onParameterChanged(parameterId, value) {
+  async onParameterChanged(parameterId, value) {
     // Update parameter value
     this.parameters[parameterId] = value;
     
@@ -342,16 +342,16 @@ export default class PolytopeViewerPlugin extends Plugin {
       this.registerVisualization(vizInfo.id, visualization);
       this.currentVisualization = visualization;
       
-      // Initialize with current parameters
-      this.currentVisualization.initialize(this.parameters).then(() => {
-        // Update UI with new parameter schema - full rebuild needed
-        this.giveParameters(true);
-        
-        // Request render
-        if (this.core && this.core.renderingManager) {
-          this.core.renderingManager.requestRender();
-        }
-      });
+      // Initialize with current parameters - wait for completion
+      await this.currentVisualization.initialize(this.parameters);
+      
+      // Update UI with new parameter schema after initialization
+      this.giveParameters(true);
+      
+      // Request render
+      if (this.core && this.core.renderingManager) {
+        this.core.renderingManager.requestRender();
+      }
       
       return;
     }
@@ -361,6 +361,9 @@ export default class PolytopeViewerPlugin extends Plugin {
       this.currentVisualization.update({ 
         [parameterId]: value 
       });
+      
+      // Update UI with changed parameters - FIXED: Added this line
+      this.giveParameters(false);
       
       // Request a render update
       if (this.core && this.core.renderingManager) {
