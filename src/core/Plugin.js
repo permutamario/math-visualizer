@@ -283,10 +283,7 @@ executeAction(actionId, ...args) {
   // Action not handled
   return false;
 }
-    
-    // Action not handled
-    return false;
-  }
+
   
   /**
    * Get the current visualization
