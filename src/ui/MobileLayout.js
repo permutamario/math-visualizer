@@ -25,6 +25,13 @@ export class MobileLayout extends BaseLayout {
     this.selectionWindow = null;
     this.themeToggleButton = null;
     
+    // Parameter groups storage
+    this.parameterGroups = {
+      plugin: { schema: [], values: {} },
+      visualization: { schema: [], values: {} },
+      advanced: { schema: [], values: {} }
+    };
+    
     // Bind methods
     this.toggleVisualMenu = this.toggleVisualMenu.bind(this);
     this.toggleExportMenu = this.toggleExportMenu.bind(this);
@@ -73,7 +80,7 @@ export class MobileLayout extends BaseLayout {
     this.headerTitle = this.createHeaderTitle();
     document.body.appendChild(this.headerTitle);
     
-    // Create header with structural controls
+    // Create header with visualization parameters (previously structural)
     this.header = this.createHeader();
     document.body.appendChild(this.header);
     
@@ -81,7 +88,7 @@ export class MobileLayout extends BaseLayout {
     this.controlBar = this.createControlBar();
     document.body.appendChild(this.controlBar);
     
-    // Create visual options menu
+    // Create visual options menu (now for plugin parameters)
     this.visualMenu = this.createVisualMenu();
     document.body.appendChild(this.visualMenu);
     
@@ -159,7 +166,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Create the header with structural controls
+   * Create the header with visualization parameters (previously structural)
    * @returns {HTMLElement} Header element
    */
   createHeader() {
@@ -170,8 +177,8 @@ export class MobileLayout extends BaseLayout {
     header.style.backgroundColor = 'var(--control-bg)';
     header.style.color = 'var(--text-color)';
     
-    // Placeholder for structural controls - will be filled when schema is provided
-    header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
+    // Placeholder for visualization parameters - will be filled when schema is provided
+    header.appendChild(layoutUtils.createPlaceholder('No visualization parameters available.'));
     
     return header;
   }
@@ -213,7 +220,7 @@ export class MobileLayout extends BaseLayout {
     const controlBar = document.createElement('div');
     controlBar.className = 'mobile-control-bar';
     
-    // Create options button
+    // Create options button for plugin parameters
     this.optionsButton = document.createElement('button');
     this.optionsButton.id = 'mobile-options-button';
     this.optionsButton.textContent = 'Options';
@@ -249,7 +256,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Create the visual options menu
+   * Create the visual options menu (now for plugin parameters)
    * @returns {HTMLElement} Visual options menu
    */
   createVisualMenu() {
@@ -262,12 +269,12 @@ export class MobileLayout extends BaseLayout {
     
     // Add title
     const title = document.createElement('h3');
-    title.textContent = 'Visual Options';
+    title.textContent = 'Plugin Options';
     title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Placeholder content - will be filled when schema is provided
-    menu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
+    menu.appendChild(layoutUtils.createPlaceholder('No plugin parameters available.'));
     
     return menu;
   }
@@ -318,7 +325,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Toggle the visual menu
+   * Toggle the visual menu (plugin parameters)
    * @param {Event} event - Click event
    */
   toggleVisualMenu(event) {
@@ -370,25 +377,63 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Build UI controls from schema
-   * @param {Object} schema - Parameter schema
-   * @param {Object} values - Current parameter values
+   * Update UI with parameter groups
+   * @param {Object} parameterGroups - Parameter groups data
+   * @param {boolean} rebuild - Whether to rebuild all controls
    */
-  buildControls(schema, values) {
-    // Call parent method to store controls and values
-    super.buildControls(schema, values);
+  updateParameterGroups(parameterGroups, rebuild = false) {
+    // Store parameter groups
+    this.parameterGroups = parameterGroups;
     
-    // Update header with structural controls
-    this.updateHeaderControls(schema, values);
+    // Update header with visualization parameters (previously structural)
+    this.updateHeaderControls(parameterGroups.visualization.schema, parameterGroups.visualization.values);
     
-    // Update visual menu
-    this.updateVisualMenu(schema, values);
+    // Update visual menu with plugin parameters
+    this.updateVisualMenu(parameterGroups.plugin.schema, parameterGroups.plugin.values);
+    
+    // Update export panel
+    this.updateExportMenu(this.actions);
+    
+    // For advanced parameters, if they exist we could add them to the visual menu or create a separate menu
+    if (parameterGroups.advanced.schema && parameterGroups.advanced.schema.length > 0) {
+      // For simplicity, add advanced params to the visual menu for now
+      this.addAdvancedParamsToVisualMenu(parameterGroups.advanced.schema, parameterGroups.advanced.values);
+    }
   }
   
   /**
-   * Update header with structural controls
-   * @param {Object} schema - Parameter schema
-   * @param {Object} values - Current parameter values
+   * Update a single parameter value
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - New value
+   * @param {string} group - Parameter group
+   */
+  updateParameterValue(parameterId, value, group) {
+    // Update the value in the stored parameter groups
+    if (group && this.parameterGroups[group]) {
+      this.parameterGroups[group].values[parameterId] = value;
+    }
+    
+    // Find the control element with possible group prefix
+    let controlId = `${group}-${parameterId}`;
+    
+    // Try to find the element with group prefix first
+    let element = document.getElementById(controlId);
+    
+    // If not found, try without prefix
+    if (!element) {
+      element = document.getElementById(parameterId);
+    }
+    
+    // Update the control if found
+    if (element) {
+      layoutUtils.updateControlValue(element, value);
+    }
+  }
+  
+  /**
+   * Update header with visualization parameters (previously structural)
+   * @param {Array} schema - Parameter schema
+   * @param {Object} values - Current values
    */
   updateHeaderControls(schema, values) {
     // Clear existing controls
@@ -396,19 +441,20 @@ export class MobileLayout extends BaseLayout {
       this.header.removeChild(this.header.lastChild);
     }
     
-    // Check if we have structural parameters
-    if (!schema.structural || schema.structural.length === 0) {
-      this.header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
+    // Check if we have visualization parameters
+    if (!schema || schema.length === 0) {
+      this.header.appendChild(layoutUtils.createPlaceholder('No visualization parameters available.'));
       return;
     }
     
     // Create controls for each parameter
-    schema.structural.forEach(param => {
+    schema.forEach(param => {
+      const controlId = `visualization-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
-        param,
+        { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value)
+        (value) => this.handleParameterChange(param.id, value, 'visualization')
       );
       
       this.header.appendChild(control);
@@ -416,9 +462,9 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Update visual menu with controls
-   * @param {Object} schema - Parameter schema
-   * @param {Object} values - Current parameter values
+   * Update visual menu with plugin parameters
+   * @param {Array} schema - Parameter schema
+   * @param {Object} values - Current values
    */
   updateVisualMenu(schema, values) {
     // Clear existing controls (except the title)
@@ -426,19 +472,55 @@ export class MobileLayout extends BaseLayout {
       this.visualMenu.removeChild(this.visualMenu.lastChild);
     }
     
-    // Check if we have visual parameters
-    if (!schema.visual || schema.visual.length === 0) {
-      this.visualMenu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
+    // Check if we have plugin parameters
+    if (!schema || schema.length === 0) {
+      this.visualMenu.appendChild(layoutUtils.createPlaceholder('No plugin parameters available.'));
       return;
     }
     
     // Create controls for each parameter
-    schema.visual.forEach(param => {
+    schema.forEach(param => {
+      const controlId = `plugin-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
-        param,
+        { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value)
+        (value) => this.handleParameterChange(param.id, value, 'plugin')
+      );
+      
+      this.visualMenu.appendChild(control);
+    });
+  }
+  
+  /**
+   * Add advanced parameters to the visual menu
+   * @param {Array} schema - Parameter schema
+   * @param {Object} values - Current values
+   */
+  addAdvancedParamsToVisualMenu(schema, values) {
+    // Add a divider if there are already other controls
+    if (this.visualMenu.childNodes.length > 1) {
+      const divider = document.createElement('hr');
+      divider.style.margin = '15px 0';
+      divider.style.borderTop = '1px solid var(--border-color)';
+      this.visualMenu.appendChild(divider);
+      
+      // Add advanced header
+      const advancedHeader = document.createElement('h4');
+      advancedHeader.textContent = 'Advanced Options';
+      advancedHeader.style.color = 'var(--text-color)';
+      advancedHeader.style.marginTop = '10px';
+      this.visualMenu.appendChild(advancedHeader);
+    }
+    
+    // Create controls for each advanced parameter
+    schema.forEach(param => {
+      const controlId = `advanced-${param.id}`;
+      const control = layoutUtils.createControl(
+        this.builder,
+        { ...param, id: controlId }, // Add group prefix to ID
+        values[param.id],
+        (value) => this.handleParameterChange(param.id, value, 'advanced')
       );
       
       this.visualMenu.appendChild(control);
@@ -498,6 +580,22 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
+   * Handle parameter changes
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - New value
+   * @param {string} group - Parameter group
+   */
+  handleParameterChange(parameterId, value, group) {
+    // Update stored value
+    if (group && this.parameterGroups[group]) {
+      this.parameterGroups[group].values[parameterId] = value;
+    }
+    
+    // Emit change event with group
+    this.emit('parameterChange', parameterId, value, group);
+  }
+  
+  /**
    * Update available plugins
    * @param {Array<Object>} plugins - Available plugin metadata
    * @param {string} activePluginId - Currently active plugin ID
@@ -511,7 +609,7 @@ export class MobileLayout extends BaseLayout {
       this.selectionWindow.update(plugins, activePluginId);
     }
     
-    // Update header title
+    // Update header title with active plugin name
     this.updateHeaderTitle(activePluginId);
   }
   
