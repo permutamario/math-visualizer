@@ -9,167 +9,240 @@ export class ThreeJSEnvironment {
    * @param {HTMLCanvasElement} canvas - Canvas element
    * @param {AppCore} core - Reference to the application core
    */
-  constructor(canvas, core) {
-    this.canvas = canvas;
-    this.core = core;
-    this.initialized = false;
-    this.active = false;
-    
-    // THREE.js objects
-    this.scene = null;
-    this.camera = null;
-    this.renderer = null;
-    this.controls = null;
-    this.clock = null;
-    
-    // 3D environment needs continuous rendering
-    this.requiresContinuousRendering = true;
-    
-    // Render target for offscreen rendering
-    this.renderTarget = null;
-    
-    // Bind methods
-    this.handleResize = this.handleResize.bind(this);
-  }
+ constructor(canvas, core) {
+  console.log("Creating ThreeJSEnvironment instance");
+  
+  this.canvas = canvas;
+  this.core = core;
+  this.initialized = false;
+  this.active = false;
+  
+  // THREE.js objects - initialize as null
+  this.scene = null;
+  this.camera = null;
+  this.renderer = null;
+  this.controls = null;
+  this.clock = null;
+  this.threeCanvas = null;
+  
+  // 3D environment needs continuous rendering
+  this.requiresContinuousRendering = true;
+  
+  // Render target for offscreen rendering
+  this.renderTarget = null;
+  
+  // Bind methods
+  this.handleResize = this.handleResize.bind(this);
+  
+  console.log("ThreeJSEnvironment instance created");
+}
   
   /**
    * Initialize the 3D environment
    * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize() {
-    if (this.initialized) return true;
-    
-    try {
-      // Ensure THREE.js is available
-      if (typeof THREE === 'undefined') {
-        throw new Error("THREE.js is not available. Make sure it is loaded before initializing 3D environment.");
-      }
-      
-      // Check WebGL support
-      if (!this._isWebGLAvailable()) {
-        throw new Error("WebGL is not supported in this browser.");
-      }
-      
-      // Create a separate canvas for THREE.js
-      this.threeCanvas = document.createElement('canvas');
-      this.threeCanvas.style.position = 'absolute';
-      this.threeCanvas.style.top = '0';
-      this.threeCanvas.style.left = '0';
-      this.threeCanvas.style.width = '100%';
-      this.threeCanvas.style.height = '100%';
-      
-      // Add the THREE.js canvas as a sibling to the main canvas
-      this.canvas.parentElement.appendChild(this.threeCanvas);
-      
-      // Create scene
-      this.scene = new THREE.Scene();
-      this.scene.background = new THREE.Color(0xf5f5f5);
-      
-      // Create camera
-      this.camera = new THREE.PerspectiveCamera(
-        75, // field of view
-        this.threeCanvas.clientWidth / this.threeCanvas.clientHeight, // aspect ratio
-        0.1, // near clipping plane
-        1000 // far clipping plane
-      );
-      this.camera.position.set(0, 1, 5);
-      this.camera.lookAt(0, 0, 0);
-      
-      // Create renderer
-      this.renderer = new THREE.WebGLRenderer({
-        canvas: this.threeCanvas,
-        antialias: true,
-        alpha: true
-      });
-      this.renderer.setSize(this.threeCanvas.clientWidth, this.threeCanvas.clientHeight);
-      this.renderer.setPixelRatio(window.devicePixelRatio);
-      
-      // Create clock for animation
-      this.clock = new THREE.Clock();
-      
-      // Create camera controls
-      this._setupCameraControls();
-      
-      // Add lighting
-      this._setupLighting();
-      
-      // Hide the THREE.js canvas initially
-      this.threeCanvas.style.display = 'none';
-      
-      this.initialized = true;
-      console.log("3D environment initialized");
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize 3D environment:", error);
-      return false;
-    }
-  }
+  if (this.initialized) return true;
   
+  try {
+    // Ensure THREE.js is available
+    if (typeof THREE === 'undefined') {
+      throw new Error("THREE.js is not available. Make sure it is loaded before initializing 3D environment.");
+    }
+    
+    // Check WebGL support
+    if (!this._isWebGLAvailable()) {
+      throw new Error("WebGL is not supported in this browser.");
+    }
+    
+    // Create a separate canvas for THREE.js
+    // First check if it already exists and remove it if so
+    const existingCanvas = document.getElementById('three-js-canvas');
+    if (existingCanvas) {
+      existingCanvas.parentElement.removeChild(existingCanvas);
+    }
+    
+    this.threeCanvas = document.createElement('canvas');
+    this.threeCanvas.id = 'three-js-canvas';
+    this.threeCanvas.style.position = 'absolute';
+    this.threeCanvas.style.top = '0';
+    this.threeCanvas.style.left = '0';
+    this.threeCanvas.style.width = '100%';
+    this.threeCanvas.style.height = '100%';
+    
+    // Add the THREE.js canvas as a sibling to the main canvas
+    if (this.canvas.parentElement) {
+      this.canvas.parentElement.appendChild(this.threeCanvas);
+    } else {
+      document.body.appendChild(this.threeCanvas);
+    }
+    
+    // Get parent dimensions for initial sizing
+    const parentElement = this.threeCanvas.parentElement;
+    const width = parentElement.clientWidth;
+    const height = parentElement.clientHeight;
+    
+    console.log(`Initializing 3D environment with size ${width}x${height}`);
+    
+    // Create scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0xf5f5f5);
+    
+    // Create camera
+    this.camera = new THREE.PerspectiveCamera(
+      75, // field of view
+      width / height, // aspect ratio
+      0.1, // near clipping plane
+      1000 // far clipping plane
+    );
+    this.camera.position.set(0, 1, 5);
+    this.camera.lookAt(0, 0, 0);
+    
+    // Create renderer
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.threeCanvas,
+      antialias: true,
+      alpha: true
+    });
+    this.renderer.setSize(width, height, false); // false = don't update style
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    
+    // Create clock for animation
+    this.clock = new THREE.Clock();
+    
+    // Create camera controls
+    this._setupCameraControls();
+    
+    // Add lighting
+    this._setupLighting();
+    
+    // Hide the THREE.js canvas initially
+    this.threeCanvas.style.display = 'none';
+    
+    this.initialized = true;
+    console.log("3D environment initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize 3D environment:", error);
+    return false;
+  }
+}
   /**
    * Activate the 3D environment
    * @returns {boolean} Whether activation was successful
    */
-  activate() {
-    if (this.active) return true;
-    
-    if (!this.initialized) {
-      console.error("Cannot activate uninitialized 3D environment");
-      return false;
-    }
-    
-    // Show the THREE.js canvas
+activate() {
+  if (this.active) return true;
+  
+  if (!this.initialized) {
+    console.error("Cannot activate uninitialized 3D environment");
+    return false;
+  }
+  
+  console.log("Activating 3D environment");
+  
+  // Show the THREE.js canvas
+  if (this.threeCanvas) {
     this.threeCanvas.style.display = 'block';
     
-    // Hide the main canvas
-    this.canvas.style.display = 'none';
-    
-    // Set up camera controls
-    this._setupCameraControls();
-    
-    this.active = true;
-    console.log("3D environment activated");
-    return true;
+    // Ensure canvas has proper dimensions
+    const parentElement = this.threeCanvas.parentElement;
+    if (parentElement) {
+      const width = parentElement.clientWidth;
+      const height = parentElement.clientHeight;
+      
+      console.log(`Setting 3D canvas size to ${width}x${height}`);
+      
+      // Update camera
+      if (this.camera) {
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+      }
+      
+      // Update renderer
+      if (this.renderer) {
+        this.renderer.setSize(width, height, false); // false = don't update style
+      }
+    }
   }
+  
+  // Hide the main canvas
+  if (this.canvas) {
+    this.canvas.style.display = 'none';
+  }
+  
+  // Set up camera controls
+  this._setupCameraControls();
+  
+  this.active = true;
+  console.log("3D environment activated");
+  
+  // Force a render to show the 3D scene
+  if (this.renderer && this.scene && this.camera) {
+    this.renderer.render(this.scene, this.camera);
+  }
+  
+  return true;
+}
   
   /**
    * Deactivate the 3D environment
    * @returns {boolean} Whether deactivation was successful
    */
-  deactivate() {
-    if (!this.active) return true;
-    
-    // Hide the THREE.js canvas
+deactivate() {
+  if (!this.active) return true;
+  
+  console.log("Deactivating 3D environment");
+  
+  // Hide the THREE.js canvas
+  if (this.threeCanvas) {
     this.threeCanvas.style.display = 'none';
-    
-    // Show the main canvas
-    this.canvas.style.display = 'block';
-    
-    // Cleanup controls if needed
-    if (this.controls && typeof this.controls.dispose === 'function') {
-      this.controls.dispose();
-      this.controls = null;
-    }
-    
-    this.active = false;
-    console.log("3D environment deactivated");
-    return true;
   }
   
-handleResize() {
-  if (!this.initialized) return;
+  // Show the main canvas
+  if (this.canvas) {
+    this.canvas.style.display = 'block';
+  }
   
-  // Update canvas dimensions
-  const width = this.threeCanvas.clientWidth;
-  const height = this.threeCanvas.clientHeight;
+  // Cleanup controls if needed
+  if (this.controls && typeof this.controls.dispose === 'function') {
+    this.controls.dispose();
+    this.controls = null;
+  }
+  
+  this.active = false;
+  console.log("3D environment deactivated");
+  return true;
+}
+  
+handleResize() {
+  if (!this.initialized || !this.renderer || !this.camera || !this.threeCanvas) {
+    return;
+  }
+  
+  // Get the actual dimensions of the parent element
+  const parentElement = this.threeCanvas.parentElement;
+  const width = parentElement.clientWidth;
+  const height = parentElement.clientHeight;
+  
+  console.log(`3D environment resizing to ${width}x${height}`);
+  
+  // Update threeCanvas size to match parent dimensions
+  this.threeCanvas.style.width = '100%';
+  this.threeCanvas.style.height = '100%';
   
   // Update camera aspect ratio
   this.camera.aspect = width / height;
   this.camera.updateProjectionMatrix();
   
-  // Update renderer size
-  this.renderer.setSize(width, height);
+  // Update renderer size and pixel ratio
+  this.renderer.setSize(width, height, false); // false = don't update style
+  this.renderer.setPixelRatio(window.devicePixelRatio);
   
-  console.log("3D environment resized");
+  // Force a render
+  if (this.scene && this.camera) {
+    this.renderer.render(this.scene, this.camera);
+  }
 }
  /**
  * Render a visualization
@@ -266,24 +339,28 @@ updateControls(deltaTime) {
 /*
 * Dispose
 */
-	dispose() {
-	  // Properly deactivate first
-	  this.deactivate();
-	  
-	  // Dispose of THREE.js resources
-	  if (this.scene) {
-	    this.clearScene();
-	  }
-	  
-	  if (this.renderer) {
-	    this.renderer.dispose();
-	    this.renderer = null;
-	  }
-	  
-	  if (this.controls && typeof this.controls.dispose === 'function') {
-	    this.controls.dispose();
-	    this.controls = null;
-	  }
+dispose() {
+  console.log("Disposing 3D environment");
+  
+  // Properly deactivate first
+  this.deactivate();
+  
+  // Dispose of THREE.js resources
+  if (this.scene) {
+    this.clearScene();
+  }
+  
+  if (this.renderer) {
+    this.renderer.dispose();
+    this.renderer.forceContextLoss();
+    this.renderer.domElement = null;
+    this.renderer = null;
+  }
+  
+  if (this.controls && typeof this.controls.dispose === 'function') {
+    this.controls.dispose();
+    this.controls = null;
+  }
   
   // Remove the THREE.js canvas
   if (this.threeCanvas && this.threeCanvas.parentElement) {
@@ -308,6 +385,8 @@ updateControls(deltaTime) {
     this.canvas.style.display = 'block';
   }
 }
+  
+ 
 
   /**
    * Set up fallback controls when CameraControls is not available

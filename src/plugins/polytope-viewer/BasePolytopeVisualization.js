@@ -1,5 +1,5 @@
-// src/plugins/polytope-viewer/visualizations/BasePolytopeVisualization.js
-import { Visualization } from '../../../core/Visualization.js';
+// src/plugins/polytope-viewer/BasePolytopeVisualization.js
+import { Visualization } from '../../core/Visualization.js';
 
 /**
  * Base class for all polytope visualizations
@@ -23,6 +23,112 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
+   * Get base parameters (common to all polytope visualizations)
+   * @returns {Object} Parameter schema with structural and visual parameters
+   */
+  getBaseParameters() {
+    return {
+      structural: [
+      ],
+      visual: [
+        {
+          id: 'wireframe',
+          type: 'checkbox',
+          label: 'Wireframe',
+          default: false
+        },
+
+	{
+          id: 'rotation',
+          type: 'checkbox',
+          label: 'Auto-rotate',
+          default: false
+        },
+        {
+          id: 'showEdges',
+          type: 'checkbox',
+          label: 'Show Edges',
+          default: false
+        },
+        {
+          id: 'showVertices',
+          type: 'checkbox',
+          label: 'Show Vertices',
+          default: false
+        },
+        {
+          id: 'vertexSize',
+          type: 'slider',
+          label: 'Vertex Size',
+          min: 0.01,
+          max: 0.2,
+          step: 0.01,
+          default: 0.05
+        },
+        {
+          id: 'faceColor',
+          type: 'color',
+          label: 'Face Color',
+          default: '#3498db'
+        },
+        {
+          id: 'edgeColor',
+          type: 'color',
+          label: 'Edge Color',
+          default: '#2c3e50'
+        },
+        {
+          id: 'vertexColor',
+          type: 'color',
+          label: 'Vertex Color',
+          default: '#e74c3c'
+        },
+        {
+          id: 'opacity',
+          type: 'slider',
+          label: 'Opacity',
+          min: 0.1,
+          max: 1,
+          step: 0.1,
+          default: 1
+        }
+      ]
+    };
+  }
+
+  /**
+   * Get visualization-specific parameters - to be overridden by subclasses
+   * @returns {Object} Parameter schema with structural and visual parameters
+   */
+  getVisualizationParameters() {
+    return {
+      structural: [],
+      visual: []
+    };
+  }
+
+  /**
+   * Get common actions for all polytope visualizations
+   * @returns {Array<Object>} Common action definitions
+   */
+  getCommonActions() {
+    return [
+      {
+        id: 'toggle-polytope-rotation',
+        label: 'Toggle Rotation'
+      },
+      {
+        id: 'toggle-polytope-wireframe',
+        label: 'Toggle Wireframe'
+      },
+      {
+        id: 'toggle-polytope-edges',
+        label: 'Toggle Edges'
+      }
+    ];
+  }
+
+  /**
    * Initialize the visualization
    * @param {Object} parameters - Parameter values
    */
@@ -37,28 +143,60 @@ export class BasePolytopeVisualization extends Visualization {
   }
   
   /**
-   * Get the vertices for this polytope
+   * Get the vertices for this polytope - must be implemented by subclasses
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
    * @returns {Array<THREE.Vector3>} Array of vertices
    */
   getVertices(THREE, parameters) {
-    // Abstract method - must be implemented by subclasses
     console.warn("BasePolytopeVisualization.getVertices() must be implemented by subclasses");
     return [];
   }
   
   /**
-   * Get any extra meshes for this polytope
+   * Get any extra meshes for this polytope - optional for subclasses
    * @param {Object} THREE - THREE.js library
    * @param {Object} parameters - Visualization parameters
    * @returns {THREE.Object3D|null} Extra mesh or null
    */
   getExtraMesh(THREE, parameters) {
-    // Optional method - can be overridden by subclasses
     return null;
   }
   
+  /**
+   * Handle common action execution
+   * @param {string} actionId - Action ID
+   * @param {Object} parameters - Current parameters
+   * @returns {boolean} Whether the action was handled
+   */
+  executeCommonAction(actionId, parameters) {
+    switch (actionId) {
+      case 'toggle-polytope-rotation':
+        // Update parameter in plugin
+        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
+          this.plugin.updateParameter('rotation', !parameters.rotation);
+        }
+        
+        // Update animation state directly
+        this.state.isAnimating = !parameters.rotation;
+        return true;
+        
+      case 'toggle-polytope-wireframe':
+        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
+          this.plugin.updateParameter('wireframe', !parameters.wireframe);
+        }
+        return true;
+        
+      case 'toggle-polytope-edges':
+        if (this.plugin && typeof this.plugin.updateParameter === 'function') {
+          this.plugin.updateParameter('showEdges', !parameters.showEdges);
+        }
+        return true;
+    }
+    
+    return false;
+  }
+
   /**
    * Render the visualization in 3D
    * @param {Object} THREE - THREE.js library
@@ -166,6 +304,7 @@ export class BasePolytopeVisualization extends Visualization {
       // Create edges
       const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
       this.state.edges = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+      this.state.edges.visible = parameters.showEdges || false;
       this.state.meshGroup.add(this.state.edges);
       
       // Create vertex spheres
@@ -185,7 +324,7 @@ export class BasePolytopeVisualization extends Visualization {
       });
       
       // Set vertex visibility
-      this.state.vertices.visible = parameters.showVertices !== false;
+      this.state.vertices.visible = parameters.showVertices || false;
       
       // Add vertices to the mesh group
       this.state.meshGroup.add(this.state.vertices);
@@ -225,8 +364,8 @@ export class BasePolytopeVisualization extends Visualization {
     // Update materials
     this.updateMaterials(parameters);
     
-    // Update vertex visibility
-    this.updateVertexVisibility(parameters);
+    // Update vertex and edge visibility
+    this.updateMeshVisibility(parameters);
     
     // Check if we need to rebuild the mesh entirely
     const needsRebuild = this.shouldRebuildOnUpdate(parameters, prevParameters);
@@ -244,7 +383,6 @@ export class BasePolytopeVisualization extends Visualization {
    * @returns {boolean} Whether to rebuild the polytope
    */
   shouldRebuildOnUpdate(parameters, prevParameters) {
-    // Base implementation - subclasses should override
     return false;
   }
   
@@ -294,10 +432,10 @@ export class BasePolytopeVisualization extends Visualization {
   }
   
   /**
-   * Update vertex visibility and size
+   * Update mesh visibility and size based on parameters
    * @param {Object} parameters - New parameters
    */
-  updateVertexVisibility(parameters) {
+  updateMeshVisibility(parameters) {
     // Update vertex visibility
     if (this.state.vertices) {
       if (parameters.showVertices !== undefined) {
@@ -311,6 +449,11 @@ export class BasePolytopeVisualization extends Visualization {
           vertex.scale.set(size, size, size);
         });
       }
+    }
+    
+    // Update edges visibility
+    if (this.state.edges && parameters.showEdges !== undefined) {
+      this.state.edges.visible = parameters.showEdges;
     }
   }
   

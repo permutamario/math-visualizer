@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Platonic Solids",
+    "file": "PlatonicVisualization.js",
+    "description": "Visualization of the five Platonic solids"
+  },
+  {
+    "name": "Permutahedron",
+    "file": "PermutahedronVisualization.js",
+    "description": "Visualizations of permutahedra based on different root systems"
+  }
+]

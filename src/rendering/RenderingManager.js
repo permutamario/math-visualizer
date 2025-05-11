@@ -14,10 +14,13 @@ export class RenderingManager {
   constructor(core) {
     this.core = core;
     this.canvas = null;
+    
+    // Initialize the environments object properly
     this.environments = {
       '2d': null,
       '3d': null
     };
+    
     this.currentEnvironment = null;
     this.animationId = null;
     this.lastFrameTime = 0;
@@ -39,10 +42,13 @@ export class RenderingManager {
     
     // Then let the current environment handle the resize if it exists
     if (this.currentEnvironment) {
+      console.log(`Handling resize for ${this.environments['2d'] === this.currentEnvironment ? '2D' : '3D'} environment`);
       this.currentEnvironment.handleResize();
       
-      // Request a render
+      // Request a render to update the view
       this.requestRender();
+    } else {
+      console.log("No active environment to resize");
     }
   }
   
@@ -53,11 +59,14 @@ export class RenderingManager {
    */
   async initialize(canvasId = 'visualization-canvas') {
     try {
+      console.log("Initializing RenderingManager...");
+      
       // Get or create canvas element
       this.canvas = document.getElementById(canvasId);
       
       if (!this.canvas) {
         // Create new canvas
+        console.log(`Canvas with id ${canvasId} not found, creating new one`);
         this.canvas = document.createElement('canvas');
         this.canvas.id = canvasId;
         document.body.appendChild(this.canvas);
@@ -66,14 +75,24 @@ export class RenderingManager {
       // Set canvas size
       this.resizeCanvas();
       
+      // Ensure environments object is initialized
+      if (!this.environments) {
+        console.log("Initializing environments object");
+        this.environments = {
+          '2d': null,
+          '3d': null
+        };
+      }
+      
       // Create initial environment instances but don't initialize or activate them yet
+      console.log("Creating environment instances");
       this.environments['2d'] = this._createEnvironment('2d');
       this.environments['3d'] = this._createEnvironment('3d');
       
       // Listen for window resize
       window.addEventListener('resize', this.handleResize);
       
-      console.log("Rendering manager initialized");
+      console.log("RenderingManager initialized successfully");
       return true;
     } catch (error) {
       console.error("Failed to initialize rendering manager:", error);
@@ -88,11 +107,14 @@ export class RenderingManager {
    * @private
    */
   _createEnvironment(type) {
+    console.log(`Creating ${type} environment`);
+    
     if (type === '2d') {
       return new Canvas2DEnvironment(this.canvas, this.core);
     } else if (type === '3d') {
       return new ThreeJSEnvironment(this.canvas, this.core);
     }
+    
     throw new Error(`Unknown environment type: ${type}`);
   }
   
@@ -109,6 +131,23 @@ export class RenderingManager {
     }
     
     try {
+      console.log(`Setting environment to ${type}...`);
+      
+      // Validate environments object exists
+      if (!this.environments) {
+        console.error("Environments object is undefined");
+        this.environments = {
+          '2d': null,
+          '3d': null
+        };
+      }
+      
+      // Check if the environment instance exists
+      if (!this.environments[type]) {
+        console.log(`Creating new ${type} environment instance`);
+        this.environments[type] = this._createEnvironment(type);
+      }
+      
       // Dispose of current environment completely if it exists
       if (this.currentEnvironment) {
         // Make sure to stop rendering before we dispose the environment
@@ -117,8 +156,19 @@ export class RenderingManager {
           this.stopRenderLoop();
         }
         
-        this.currentEnvironment.dispose();
+        // Fully dispose the current environment
+        try {
+          console.log("Disposing current environment");
+          this.currentEnvironment.dispose();
+        } catch (disposeError) {
+          console.error("Error disposing current environment:", disposeError);
+          // Continue anyway
+        }
+        
         this.currentEnvironment = null;
+        
+        // Small delay to ensure DOM updates
+        await new Promise(resolve => setTimeout(resolve, 50));
         
         // Restart rendering if it was running
         if (wasRendering) {
@@ -126,24 +176,26 @@ export class RenderingManager {
         }
       }
       
-      // Recreate the environment to ensure it's clean
-      this.environments[type] = this._createEnvironment(type);
-      
-      // Initialize the environment
-      await this.environments[type].initialize();
+      // Initialize the environment if needed
+      if (!this.environments[type].initialized) {
+        console.log(`Initializing ${type} environment`);
+        await this.environments[type].initialize();
+      }
       
       // Set and activate new environment
+      console.log(`Activating ${type} environment`);
       this.currentEnvironment = this.environments[type];
-      this.currentEnvironment.activate();
+      await this.currentEnvironment.activate();
       
-      // Trigger a resize to ensure the new environment is properly sized
-      this.handleResize();
-      
-      console.log(`Set rendering environment to ${type}`);
+      // Ensure the canvas is properly sized for the new environment
+      console.log("Resizing for new environment");
+      this.resizeCanvas();
+      this.currentEnvironment.handleResize();
       
       // Request a render to ensure the new environment is rendered
       this.requestRender();
       
+      console.log(`Environment set to ${type} successfully`);
       return true;
     } catch (error) {
       console.error(`Error setting environment to ${type}:`, error);
@@ -159,6 +211,8 @@ export class RenderingManager {
     
     const container = this.canvas.parentElement || document.body;
     const { width, height } = container.getBoundingClientRect();
+    
+    console.log(`Resizing main canvas to ${width}x${height}`);
     
     this.canvas.width = width;
     this.canvas.height = height;
@@ -260,13 +314,22 @@ export class RenderingManager {
    * Render the current visualization
    */
   render() {
-    if (!this.currentEnvironment) return;
+    if (!this.currentEnvironment) {
+      console.log("Cannot render: no active environment");
+      return;
+    }
     
     const activePlugin = this.core.getActivePlugin();
-    if (!activePlugin) return;
+    if (!activePlugin) {
+      console.log("Cannot render: no active plugin");
+      return;
+    }
     
     const visualization = activePlugin.getCurrentVisualization();
-    if (!visualization) return;
+    if (!visualization) {
+      console.log("Cannot render: no active visualization");
+      return;
+    }
     
     // Render using the current environment
     this.currentEnvironment.render(visualization, activePlugin.parameters);
