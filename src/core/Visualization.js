@@ -35,16 +35,6 @@ export class Visualization {
   }
   
   /**
-   * Check if the visualization is ready to provide parameters
-   * Useful for visualizations that need to compute or load data before determining parameters
-   * @returns {Promise<boolean>} Whether the visualization is ready
-   */
-  async isReadyForParameters() {
-    // Default implementation returns true immediately
-    return true;
-  }
-  
-  /**
    * Initialize the visualization with parameters
    * @param {Object} parameters - Parameter values
    * @returns {Promise<boolean>} Whether initialization was successful

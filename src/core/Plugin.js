@@ -26,7 +26,6 @@ export class Plugin {
     this.isLoaded = false;
     this.currentVisualization = null;
     this.visualizations = new Map();
-    this.parametersReady = false;
     
     // Validate that this is not instantiated directly
     if (this.constructor === Plugin) {
@@ -50,13 +49,10 @@ export class Plugin {
       // Initialize default visualization
       await this._initializeDefaultVisualization();
       
-      // Wait for visualization to be ready for parameters before building the combined schema
-      await this._waitForVisualizationParameters();
-      
       // Mark as loaded
       this.isLoaded = true;
       
-      // Give parameters to the UI manager with the combined schema
+      // Give parameters to the UI manager
       this.giveParameters(true);
       
       // Update actions
@@ -94,7 +90,6 @@ export class Plugin {
       
       // Clear parameters
       this.parameters = {};
-      this.parametersReady = false;
       
       // Mark as unloaded
       this.isLoaded = false;
@@ -103,33 +98,6 @@ export class Plugin {
     } catch (error) {
       console.error(`Error unloading plugin ${this.constructor.id}:`, error);
       return false;
-    }
-  }
-  
-  /**
-   * Wait for visualization parameters to be ready
-   * @private
-   */
-  async _waitForVisualizationParameters() {
-    if (!this.currentVisualization) {
-      return;
-    }
-    
-    try {
-      // Check if visualization is ready to provide parameters
-      if (typeof this.currentVisualization.isReadyForParameters === 'function') {
-        const isReady = await this.currentVisualization.isReadyForParameters();
-        if (!isReady) {
-          // Wait for it to be ready (implementation-specific)
-          await new Promise(resolve => setTimeout(resolve, 100));
-          return this._waitForVisualizationParameters();
-        }
-      }
-      
-      this.parametersReady = true;
-    } catch (error) {
-      console.error('Error waiting for visualization parameters:', error);
-      this.parametersReady = true; // Continue anyway
     }
   }
 
@@ -141,15 +109,6 @@ export class Plugin {
   giveParameters(rebuild = false) {
     if (!this.core) {
       console.warn(`Cannot give parameters: core not available in plugin ${this.constructor.id}`);
-      return;
-    }
-    
-    // Make sure visualization parameters are ready
-    if (!this.parametersReady) {
-      console.warn('Visualization parameters not ready yet, delaying UI update');
-      
-      // Retry after a short delay
-      setTimeout(() => this.giveParameters(rebuild), 100);
       return;
     }
     
@@ -172,15 +131,15 @@ export class Plugin {
    * @returns {Object} Combined parameter schema
    */
   getMergedParameterSchema() {
-    // Start with plugin's base parameters
-    const pluginSchema = this.defineParameters().build();
-    
-    // If no current visualization, just return plugin parameters
-    if (!this.currentVisualization) {
-      return pluginSchema;
-    }
-    
     try {
+      // Start with plugin's base parameters
+      const pluginSchema = this.defineParameters().build();
+      
+      // If no current visualization, just return plugin parameters
+      if (!this.currentVisualization) {
+        return pluginSchema;
+      }
+      
       // Get visualization-specific parameters
       const vizClass = this.currentVisualization.constructor;
       let vizSchema = null;
@@ -195,18 +154,18 @@ export class Plugin {
         return pluginSchema;
       }
       
-      // Create merged schema
+      // Create merged schema with defensive programming
       const mergedSchema = {
-        structural: [...(pluginSchema.structural || [])],
-        visual: [...(pluginSchema.visual || [])],
+        structural: [...(Array.isArray(pluginSchema.structural) ? pluginSchema.structural : [])],
+        visual: [...(Array.isArray(pluginSchema.visual) ? pluginSchema.visual : [])]
       };
       
       // Add visualization structural parameters (avoiding duplicates by ID)
-      if (vizSchema.structural && vizSchema.structural.length > 0) {
+      if (vizSchema.structural && Array.isArray(vizSchema.structural)) {
         const existingIds = new Set(mergedSchema.structural.map(p => p.id));
         
         vizSchema.structural.forEach(param => {
-          if (!existingIds.has(param.id)) {
+          if (param && param.id && !existingIds.has(param.id)) {
             mergedSchema.structural.push(param);
             existingIds.add(param.id);
           }
@@ -214,11 +173,11 @@ export class Plugin {
       }
       
       // Add visualization visual parameters (avoiding duplicates by ID)
-      if (vizSchema.visual && vizSchema.visual.length > 0) {
+      if (vizSchema.visual && Array.isArray(vizSchema.visual)) {
         const existingIds = new Set(mergedSchema.visual.map(p => p.id));
         
         vizSchema.visual.forEach(param => {
-          if (!existingIds.has(param.id)) {
+          if (param && param.id && !existingIds.has(param.id)) {
             mergedSchema.visual.push(param);
             existingIds.add(param.id);
           }
@@ -229,7 +188,7 @@ export class Plugin {
     } catch (error) {
       console.error('Error merging parameter schemas:', error);
       // Return plugin schema as fallback
-      return pluginSchema;
+      return this.defineParameters().build();
     }
   }
 
@@ -435,14 +394,8 @@ export class Plugin {
     // Set the new visualization
     this.currentVisualization = this.visualizations.get(visualizationId);
     
-    // Reset the parameters ready flag
-    this.parametersReady = false;
-    
     // Initialize the new visualization
     await this.currentVisualization.initialize({...this.parameters, ...commonParams});
-    
-    // Wait for visualization parameters to be ready
-    await this._waitForVisualizationParameters();
     
     // Update UI to reflect any visualization-specific parameters
     this.giveParameters(true);
