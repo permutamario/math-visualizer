@@ -8,7 +8,8 @@ export function loadStyles() {
   const cssFiles = [
     'src/ui/styles/core.css',
     'src/ui/styles/components.css',
-    'src/ui/styles/layout.css'
+    'src/ui/styles/layout.css',
+    'src/ui/styles/selection-window.css' // Add selection window styles
   ];
   
   // Add CSS files to document head
@@ -84,6 +85,9 @@ export function applyThemeColors(colorScheme) {
   
   // Apply colors directly to mobile UI elements for immediate effect
   applyColorsToMobileElements(colorScheme);
+  
+  // Apply colors to selection window if it exists
+  applyColorsToSelectionWindow(colorScheme);
 }
 
 /**
@@ -163,4 +167,60 @@ function applyColorsToMobileElements(colorScheme) {
   headerLabels.forEach(label => {
     label.style.color = textColor;
   });
+}
+
+/**
+ * Apply colors to the selection window
+ * @param {Object} colorScheme - Color scheme to apply
+ */
+function applyColorsToSelectionWindow(colorScheme) {
+  // Selection window elements
+  const selectionWindow = document.querySelector('.selection-window-overlay');
+  if (!selectionWindow) return;
+  
+  // Apply colors to selection window elements
+  const content = selectionWindow.querySelector('.selection-window-content');
+  if (content) {
+    content.style.backgroundColor = colorScheme.id === 'light' ? '#ffffff' : '#2a2a2a';
+  }
+  
+  // Card elements
+  const cards = selectionWindow.querySelectorAll('.selection-window-card');
+  cards.forEach(card => {
+    card.style.backgroundColor = colorScheme.background;
+    
+    // Card title and description
+    const title = card.querySelector('.selection-window-card-title');
+    if (title) {
+      title.style.color = colorScheme.text;
+    }
+    
+    const description = card.querySelector('.selection-window-card-description');
+    if (description) {
+      description.style.color = colorScheme.id === 'light' ? '#666666' : '#b0b0b0';
+    }
+    
+    // Card image background
+    const image = card.querySelector('.selection-window-card-image');
+    if (image) {
+      image.style.backgroundColor = colorScheme.id === 'light' ? '#e8f0fe' : '#3c4043';
+      image.style.color = colorScheme.accent;
+    }
+  });
+  
+  // Header elements
+  const header = selectionWindow.querySelector('.selection-window-header');
+  if (header) {
+    header.style.borderBottomColor = colorScheme.id === 'light' ? '#e0e0e0' : '#444444';
+    
+    const title = header.querySelector('.selection-window-title');
+    if (title) {
+      title.style.color = colorScheme.text;
+    }
+    
+    const closeButton = header.querySelector('.selection-window-close');
+    if (closeButton) {
+      closeButton.style.color = colorScheme.id === 'light' ? '#666666' : '#b0b0b0';
+    }
+  }
 }

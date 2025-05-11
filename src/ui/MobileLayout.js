@@ -2,6 +2,7 @@
 
 import { BaseLayout } from './BaseLayout.js';
 import * as layoutUtils from './layoutUtils.js';
+import { SelectionWindow } from './SelectionWindow.js';
 
 /**
  * Mobile UI layout
@@ -21,13 +22,13 @@ export class MobileLayout extends BaseLayout {
     this.pluginButton = null;
     this.visualMenu = null;
     this.exportMenu = null;
-    this.pluginMenu = null;
+    this.selectionWindow = null;
     this.themeToggleButton = null;
     
     // Bind methods
     this.toggleVisualMenu = this.toggleVisualMenu.bind(this);
     this.toggleExportMenu = this.toggleExportMenu.bind(this);
-    this.togglePluginMenu = this.togglePluginMenu.bind(this);
+    this.openSelectionWindow = this.openSelectionWindow.bind(this);
   }
   
   /**
@@ -88,9 +89,13 @@ export class MobileLayout extends BaseLayout {
     this.exportMenu = this.createExportMenu();
     document.body.appendChild(this.exportMenu);
     
-    // Create plugin menu
-    this.pluginMenu = this.createPluginMenu();
-    document.body.appendChild(this.pluginMenu);
+    // Create selection window
+    this.selectionWindow = new SelectionWindow(
+      this.plugins,
+      this.activePluginId,
+      (pluginId) => this.emit('pluginSelect', pluginId),
+      null
+    );
   }
   
   /**
@@ -122,9 +127,10 @@ export class MobileLayout extends BaseLayout {
       this.exportMenu.parentNode.removeChild(this.exportMenu);
     }
     
-    // Remove plugin menu
-    if (this.pluginMenu && this.pluginMenu.parentNode) {
-      this.pluginMenu.parentNode.removeChild(this.pluginMenu);
+    // Dispose of selection window
+    if (this.selectionWindow) {
+      this.selectionWindow.dispose();
+      this.selectionWindow = null;
     }
     
     // Remove theme toggle button
@@ -224,7 +230,7 @@ export class MobileLayout extends BaseLayout {
     pluginIcon.id = 'mobile-plugin-button-icon';
     pluginIcon.style.backgroundColor = 'var(--accent-color)';
     this.pluginButton.appendChild(pluginIcon);
-    this.pluginButton.addEventListener('click', this.togglePluginMenu);
+    this.pluginButton.addEventListener('click', this.openSelectionWindow);
     
     // Create export button
     this.exportButton = document.createElement('button');
@@ -291,29 +297,18 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Create the plugin menu
-   * @returns {HTMLElement} Plugin menu element
+   * Open the selection window
    */
-  createPluginMenu() {
-    const menu = document.createElement('div');
-    menu.id = 'mobile-plugin-menu';
-    menu.className = 'mobile-options-menu hidden';
+  openSelectionWindow() {
+    // Close any open menus
+    this.visualMenu.classList.add('hidden');
+    this.exportMenu.classList.add('hidden');
     
-    // Apply background color
-    menu.style.backgroundColor = 'var(--control-bg)';
-    
-    // Add title
-    const title = document.createElement('h3');
-    title.textContent = 'Visualization Types';
-    title.style.color = 'var(--text-color)';
-    menu.appendChild(title);
-    
-    // Container for plugin items
-    const itemsContainer = document.createElement('div');
-    itemsContainer.className = 'plugin-items-container';
-    menu.appendChild(itemsContainer);
-    
-    return menu;
+    if (this.selectionWindow) {
+      // Update plugins and active ID before showing
+      this.selectionWindow.update(this.plugins, this.activePluginId);
+      this.selectionWindow.show();
+    }
   }
   
   /**
@@ -330,10 +325,6 @@ export class MobileLayout extends BaseLayout {
     if (!this.exportMenu.classList.contains('hidden')) {
       this.exportMenu.classList.add('hidden');
     }
-    
-    if (!this.pluginMenu.classList.contains('hidden')) {
-      this.pluginMenu.classList.add('hidden');
-    }
   }
   
   /**
@@ -349,30 +340,6 @@ export class MobileLayout extends BaseLayout {
     // Hide other menus if open
     if (!this.visualMenu.classList.contains('hidden')) {
       this.visualMenu.classList.add('hidden');
-    }
-    
-    if (!this.pluginMenu.classList.contains('hidden')) {
-      this.pluginMenu.classList.add('hidden');
-    }
-  }
-  
-  /**
-   * Toggle the plugin menu
-   * @param {Event} event - Click event
-   */
-  togglePluginMenu(event) {
-    event.stopPropagation();
-    
-    // Toggle plugin menu
-    this.pluginMenu.classList.toggle('hidden');
-    
-    // Hide other menus if open
-    if (!this.visualMenu.classList.contains('hidden')) {
-      this.visualMenu.classList.add('hidden');
-    }
-    
-    if (!this.exportMenu.classList.contains('hidden')) {
-      this.exportMenu.classList.add('hidden');
     }
   }
   
@@ -393,13 +360,6 @@ export class MobileLayout extends BaseLayout {
         !this.exportMenu.contains(event.target) &&
         !this.exportButton.contains(event.target)) {
       this.exportMenu.classList.add('hidden');
-    }
-    
-    // Check if clicking outside plugin menu
-    if (!this.pluginMenu.classList.contains('hidden') &&
-        !this.pluginMenu.contains(event.target) &&
-        !this.pluginButton.contains(event.target)) {
-      this.pluginMenu.classList.add('hidden');
     }
   }
   
@@ -540,8 +500,10 @@ export class MobileLayout extends BaseLayout {
     // Call parent method to store plugins and active ID
     super.updatePlugins(plugins, activePluginId);
     
-    // Update plugin menu
-    this.updatePluginMenu(plugins, activePluginId);
+    // Update selection window
+    if (this.selectionWindow) {
+      this.selectionWindow.update(plugins, activePluginId);
+    }
     
     // Update header title
     this.updateHeaderTitle(activePluginId);
@@ -556,39 +518,6 @@ export class MobileLayout extends BaseLayout {
     if (activePlugin && this.headerTitle) {
       this.headerTitle.textContent = activePlugin.name;
     }
-  }
-  
-  /**
-   * Update plugin menu with available plugins
-   * @param {Array<Object>} plugins - Available plugin metadata
-   * @param {string} activePluginId - Currently active plugin ID
-   */
-  updatePluginMenu(plugins, activePluginId) {
-    // Get items container
-    const itemsContainer = this.pluginMenu.querySelector('.plugin-items-container');
-    
-    // Clear existing items
-    while (itemsContainer.childNodes.length > 0) {
-      itemsContainer.removeChild(itemsContainer.firstChild);
-    }
-    
-    // Check if we have plugins
-    if (!plugins || plugins.length === 0) {
-      const message = layoutUtils.createPlaceholder('No visualizations available.');
-      message.style.padding = '10px 16px';
-      itemsContainer.appendChild(message);
-      return;
-    }
-    
-    // Create items for each plugin
-    plugins.forEach(plugin => {
-      const item = layoutUtils.createPluginListItem(plugin, activePluginId, (pluginId) => {
-        this.emit('pluginSelect', pluginId);
-        this.pluginMenu.classList.add('hidden');
-      });
-      
-      itemsContainer.appendChild(item);
-    });
   }
   
   /**

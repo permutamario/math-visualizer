@@ -2,6 +2,7 @@
 
 import { BaseLayout } from './BaseLayout.js';
 import * as layoutUtils from './layoutUtils.js';
+import { SelectionWindow } from './SelectionWindow.js';
 
 /**
  * Desktop UI layout
@@ -15,11 +16,11 @@ export class DesktopLayout extends BaseLayout {
     super(uiManager);
     this.panels = {};
     this.pluginSelectorButton = null;
-    this.pluginList = null;
+    this.selectionWindow = null;
     this.themeToggleButton = null;
     
     // Bind methods
-    this.togglePluginList = this.togglePluginList.bind(this);
+    this.openSelectionWindow = this.openSelectionWindow.bind(this);
   }
   
   /**
@@ -36,7 +37,7 @@ export class DesktopLayout extends BaseLayout {
       // Create UI panels
       this.createPanels();
       
-      // Create plugin selector button and list
+      // Create plugin selector button
       this.createPluginSelector();
       
       // Create fullscreen button
@@ -89,14 +90,14 @@ export class DesktopLayout extends BaseLayout {
   }
   
   /**
-   * Create plugin selector button and list
+   * Create plugin selector button
    */
   createPluginSelector() {
     // Create plugin selector button
     this.pluginSelectorButton = document.createElement('div');
     this.pluginSelectorButton.className = 'plugin-selector-button';
     this.pluginSelectorButton.title = 'Visualization Selector';
-    this.pluginSelectorButton.addEventListener('click', this.togglePluginList);
+    this.pluginSelectorButton.addEventListener('click', this.openSelectionWindow);
     
     // Add icon to button
     const icon = document.createElement('div');
@@ -106,40 +107,24 @@ export class DesktopLayout extends BaseLayout {
     // Add button to document
     document.body.appendChild(this.pluginSelectorButton);
     
-    // Create plugin list
-    this.pluginList = document.createElement('div');
-    this.pluginList.className = 'plugin-list hidden';
-    
-    // Add header to list
-    const header = document.createElement('div');
-    header.className = 'plugin-list-header';
-    
-    const title = document.createElement('h3');
-    title.className = 'plugin-list-title';
-    title.textContent = 'Visualization Tools';
-    
-    header.appendChild(title);
-    this.pluginList.appendChild(header);
-    
-    // Add container for list items
-    const itemsContainer = document.createElement('div');
-    itemsContainer.className = 'plugin-list-items';
-    this.pluginList.appendChild(itemsContainer);
-    
-    // Add list to document
-    document.body.appendChild(this.pluginList);
-    
-    // Update list with available plugins
-    this.updatePluginList(this.plugins, null);
+    // Create selection window
+    this.selectionWindow = new SelectionWindow(
+      this.plugins,
+      this.activePluginId,
+      (pluginId) => this.emit('pluginSelect', pluginId),
+      null
+    );
   }
   
   /**
-   * Toggle plugin list visibility
-   * @param {Event} event - Click event
+   * Open the selection window
    */
-  togglePluginList(event) {
-    event.stopPropagation();
-    this.pluginList.classList.toggle('hidden');
+  openSelectionWindow() {
+    if (this.selectionWindow) {
+      // Update plugins and active ID before showing
+      this.selectionWindow.update(this.plugins, this.activePluginId);
+      this.selectionWindow.show();
+    }
   }
   
   /**
@@ -172,16 +157,11 @@ export class DesktopLayout extends BaseLayout {
   }
   
   /**
-   * Handle document clicks to close plugin list
+   * Handle document clicks (not needed for modal selection window)
    * @param {Event} event - Click event
    */
   handleOutsideClick(event) {
-    // Close plugin list if clicking outside
-    if (this.pluginList && !this.pluginList.classList.contains('hidden') &&
-        !this.pluginList.contains(event.target) &&
-        !this.pluginSelectorButton.contains(event.target)) {
-      this.pluginList.classList.add('hidden');
-    }
+    // Selection window handles its own clicks
   }
   
   /**
@@ -307,7 +287,7 @@ export class DesktopLayout extends BaseLayout {
   }
   
   /**
-   * Update plugin list with available plugins
+   * Update available plugins
    * @param {Array<Object>} plugins - Available plugin metadata
    * @param {string} activePluginId - Currently active plugin ID
    */
@@ -315,33 +295,10 @@ export class DesktopLayout extends BaseLayout {
     // Call parent method to store plugins
     super.updatePlugins(plugins, activePluginId);
     
-    // Update plugin list
-    this.updatePluginList(plugins, activePluginId);
-  }
-  
-  /**
-   * Update plugin list with available plugins
-   * @param {Array<Object>} plugins - Available plugin metadata
-   * @param {string} activePluginId - Currently active plugin ID
-   */
-  updatePluginList(plugins, activePluginId) {
-    // Get list items container
-    const itemsContainer = this.pluginList.querySelector('.plugin-list-items');
-    
-    // Clear existing items
-    while (itemsContainer.firstChild) {
-      itemsContainer.removeChild(itemsContainer.firstChild);
+    // Update selection window
+    if (this.selectionWindow) {
+      this.selectionWindow.update(plugins, activePluginId);
     }
-    
-    // Add item for each plugin
-    plugins.forEach(plugin => {
-      const item = layoutUtils.createPluginListItem(plugin, activePluginId, (pluginId) => {
-        this.emit('pluginSelect', pluginId);
-        this.pluginList.classList.add('hidden');
-      });
-      
-      itemsContainer.appendChild(item);
-    });
   }
   
   /**
@@ -359,8 +316,10 @@ export class DesktopLayout extends BaseLayout {
       this.pluginSelectorButton.parentNode.removeChild(this.pluginSelectorButton);
     }
     
-    if (this.pluginList && this.pluginList.parentNode) {
-      this.pluginList.parentNode.removeChild(this.pluginList);
+    // Dispose of selection window
+    if (this.selectionWindow) {
+      this.selectionWindow.dispose();
+      this.selectionWindow = null;
     }
     
     // Remove theme toggle button
