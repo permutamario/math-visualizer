@@ -8,40 +8,48 @@ body.mobile-device {
   background-color: var(--background-color);
 }
 
-/* === FLOATING HEADER === */
 /* Title header */
 .mobile-header-title {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  background-color: var(--text-color);
+  height: 30px;
+  background-color: var(--overlay-bg);
   color: white;
-  z-index: 1001;
-  padding: 8px 12px;
+  z-index: 1000;
+  padding: 6px 12px;
   font-size: 12px;
   text-align: center;
   font-weight: 500;
-  border-bottom: 1px solid var(--overlay-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: none;
+  box-shadow: none;
+  box-sizing: border-box; /* Ensure consistent box model */
 }
 
 /* Main header with controls */
 .mobile-header {
   position: absolute;
-  top: 30px; /* Leave room for title */
+  top: 30px; /* Exactly at the end of title, no overlap */
   left: 0;
   right: 0;
   background-color: var(--overlay-bg);
-  backdrop-filter: blur(6px);
   color: white;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
   gap: 10px;
-  max-height: 35vh; /* Limit max height to prevent covering entire screen */
+  max-height: 35vh;
   overflow-y: auto;
   font-size: 13px;
+  border-top: none;
+  margin-top: 0;
+  box-shadow: none;
+  box-sizing: border-box; /* Ensure consistent box model */
 }
 
 /* === Shared styling for all control rows === */
@@ -50,7 +58,7 @@ body.mobile-device {
   flex-direction: row;             /* side-by-side */
   align-items: center;
   justify-content: space-between; /* adds spacing between label and input */
-  gap: 10px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -73,7 +81,7 @@ body.mobile-device {
   flex: 1 1 auto;
   font-size: 13px;
   padding: 6px 8px;
-  border-radius: 4px;
+  border-radius: 9px;
   border: 1px solid var(--control-border);
   background-color: var(--control-bg);
   color: var(--text-color);
@@ -137,7 +145,7 @@ body.mobile-device {
   gap: 6px;
 }
 
-/* === FULLSCREEN CANVAS BELOW HEADER === */
+/* === FULLSCREEN === */
 body.mobile-device #viewer-canvas {
   position: absolute;
   top: 0;
@@ -168,11 +176,11 @@ body.mobile-device #viewer-canvas {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background-color: var(--text-color);
+  background-color: var(--control-bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 8px var(--overlay-light);
+  box-shadow: 0 3px 8px var(--overlay-bg);
   cursor: pointer;
   transition: background-color 0.2s, transform 0.2s;
 }
@@ -196,7 +204,7 @@ body.mobile-device #viewer-canvas {
 #mobile-options-button,
 #mobile-export-button {
   padding: 12px 24px;
-  background-color: var(--text-color);
+  background-color: var(--control-bg);
   color: white;
   border: none;
   border-radius: 24px;
@@ -335,7 +343,7 @@ body.mobile-device #viewer-canvas {
 }
 
 .mobile-options-menu button:active {
-  background-color: var(--text-secondary);
+  background-color: var(--accent-color);
   transform: scale(0.98);
 }
 
@@ -390,11 +398,11 @@ body.mobile-device #viewer-canvas {
 /* Mobile fullscreen button */
 .mobile-fullscreen-button {
   position: fixed;
-  top: 80px;
-  right: 20px;
+  top: 0px;
+  right: 0px;
   width: 40px;
   height: 40px;
-  background-color: var(--overlay-light);
+  background-color: transparent;
   border: none;
   border-radius: 4px;
   color: white;
@@ -407,8 +415,8 @@ body.mobile-device #viewer-canvas {
 }
 
 .mobile-fullscreen-button.fullscreen-active {
-  top: 10px;
-  right: 10px;
+  top: 0px;
+  right: 0px;
   background-color: var(--overlay-light);
 }
 
@@ -419,7 +427,8 @@ body.mobile-device #viewer-canvas {
 /* Fullscreen mode for mobile */
 body.mobile-device.fullscreen-mode .mobile-header,
 body.mobile-device.fullscreen-mode .mobile-header-title,
-body.mobile-device.fullscreen-mode .mobile-control-bar {
+body.mobile-device.fullscreen-mode .mobile-control-bar, 
+body.mobile-device.fullscreen-mode .mobile-theme-toggle {
   display: none;
 }
 

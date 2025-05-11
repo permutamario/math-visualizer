@@ -158,10 +158,10 @@ function addSpecialStyles() {
     /* Mobile theme toggle */
     .mobile-theme-toggle {
       position: fixed;
-      top: 10px;
-      right: 10px;
-      width: 30px;
-      height: 30px;
+      top: 0px;
+      right: 40px;
+      width: 40px;
+      height: 40px;
       background-color: transparent;
       border: none;
       color: white;
