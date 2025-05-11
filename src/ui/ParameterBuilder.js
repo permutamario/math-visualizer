@@ -1,14 +1,12 @@
 /**
- * Builder class for creating parameter schemas with a fluent interface
+ * Builder class for creating parameter definitions with a fluent interface
  */
 export class ParameterBuilder {
   /**
    * Create a new ParameterBuilder
    */
   constructor() {
-    this.structural = [];
-    this.visual = [];
-    this.advanced = []; // New category for advanced parameters
+    this.parameters = [];
   }
 
   /**
@@ -17,10 +15,9 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {number} defaultValue - Default value
    * @param {Object} options - Options like min, max, step
-   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addSlider(id, label, defaultValue, options = {}, category = 'structural') {
+  addSlider(id, label, defaultValue, options = {}) {
     const param = {
       id,
       type: 'slider',
@@ -31,14 +28,7 @@ export class ParameterBuilder {
       step: options.step !== undefined ? options.step : 1
     };
 
-    if (category === 'visual') {
-      this.visual.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.structural.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
@@ -47,10 +37,9 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {boolean} defaultValue - Default value
-   * @param {string} [category='visual'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addCheckbox(id, label, defaultValue, category = 'visual') {
+  addCheckbox(id, label, defaultValue) {
     const param = {
       id,
       type: 'checkbox',
@@ -58,14 +47,7 @@ export class ParameterBuilder {
       default: defaultValue
     };
 
-    if (category === 'structural') {
-      this.structural.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.visual.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
@@ -74,10 +56,9 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {string} defaultValue - Default color value
-   * @param {string} [category='visual'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addColor(id, label, defaultValue, category = 'visual') {
+  addColor(id, label, defaultValue) {
     const param = {
       id,
       type: 'color',
@@ -85,14 +66,7 @@ export class ParameterBuilder {
       default: defaultValue
     };
 
-    if (category === 'structural') {
-      this.structural.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.visual.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
@@ -102,10 +76,9 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {string} defaultValue - Default selected value
    * @param {Array} options - Array of options (strings or {value, label} objects)
-   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addDropdown(id, label, defaultValue, options, category = 'structural') {
+  addDropdown(id, label, defaultValue, options) {
     const param = {
       id,
       type: 'dropdown',
@@ -114,14 +87,7 @@ export class ParameterBuilder {
       options
     };
 
-    if (category === 'visual') {
-      this.visual.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.structural.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
@@ -131,10 +97,9 @@ export class ParameterBuilder {
    * @param {string} label - Display label
    * @param {number} defaultValue - Default value
    * @param {Object} options - Options like min, max, step
-   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addNumber(id, label, defaultValue, options = {}, category = 'structural') {
+  addNumber(id, label, defaultValue, options = {}) {
     const param = {
       id,
       type: 'number',
@@ -146,14 +111,7 @@ export class ParameterBuilder {
     if (options.max !== undefined) param.max = options.max;
     if (options.step !== undefined) param.step = options.step;
 
-    if (category === 'visual') {
-      this.visual.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.structural.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
@@ -162,10 +120,9 @@ export class ParameterBuilder {
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
    * @param {string} defaultValue - Default value
-   * @param {string} [category='structural'] - 'structural', 'visual', or 'advanced'
    * @returns {ParameterBuilder} This builder for chaining
    */
-  addText(id, label, defaultValue, category = 'structural') {
+  addText(id, label, defaultValue) {
     const param = {
       id,
       type: 'text',
@@ -173,33 +130,16 @@ export class ParameterBuilder {
       default: defaultValue
     };
 
-    if (category === 'visual') {
-      this.visual.push(param);
-    } else if (category === 'advanced') {
-      this.advanced.push(param);
-    } else {
-      this.structural.push(param);
-    }
-
+    this.parameters.push(param);
     return this;
   }
 
   /**
-   * Build the parameter schema
-   * @returns {Object} Parameter schema with structural, visual, and advanced sections
+   * Build the parameter array
+   * @returns {Array} Array of parameter definitions
    */
   build() {
-    // For backward compatibility, we add advanced parameters to structural
-    // but mark them with a flag that the UI manager can use to filter them out
-    const structuralWithAdvanced = [
-      ...this.structural,
-      ...this.advanced.map(param => ({...param, advanced: true}))
-    ];
-
-    return {
-      structural: structuralWithAdvanced,
-      visual: this.visual
-    };
+    return this.parameters;
   }
 }
 

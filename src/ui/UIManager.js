@@ -19,7 +19,11 @@ export class UIManager extends EventEmitter {
     this.core = core;
     this.uiBuilder = new UIBuilder();
     this.layout = null;
-    this.controls = {};
+    this.parameterGroups = {
+      plugin: { schema: [], values: {} },
+      visualization: { schema: [], values: {} },
+      advanced: { schema: [], values: {} }
+    };
     this.initialized = false;
     
     // Determine if using mobile layout
@@ -53,8 +57,8 @@ export class UIManager extends EventEmitter {
       await this.layout.initialize();
       
       // Register layout event handlers
-      this.layout.on('parameterChange', (parameterId, value) => {
-        this.emit('parameterChange', parameterId, value);
+      this.layout.on('parameterChange', (parameterId, value, group) => {
+        this.emit('parameterChange', parameterId, value, group);
       });
       
       this.layout.on('action', (actionId, ...args) => {
@@ -90,41 +94,145 @@ export class UIManager extends EventEmitter {
   }
   
   /**
- * Build UI controls from parameter schema
- * @param {ParameterSchema} schema - Parameter schema
- * @param {Object} values - Current parameter values
- */
-buildControlsFromSchema(schema, values) {
-  try {
-    // Build controls in the layout
-    this.layout.buildControls(schema, values);
-    
-    // Only store schema reference, not values
-    this.controls = { schema };
-    
-    console.log("UI controls built from schema");
-  } catch (error) {
-    console.error("Failed to build controls from schema:", error);
+   * Update UI with parameter groups
+   * @param {Object} parameterData - Parameter group data
+   * @param {Object} parameterData.pluginParameters - Plugin parameters
+   * @param {Object} parameterData.visualizationParameters - Visualization parameters 
+   * @param {Object} parameterData.advancedParameters - Advanced parameters
+   * @param {boolean} rebuild - Whether to rebuild the entire UI
+   */
+  updatePluginParameterGroups(parameterData, rebuild = false) {
+    try {
+      // Store parameter groups
+      if (parameterData.pluginParameters) {
+        this.parameterGroups.plugin = parameterData.pluginParameters;
+      }
+      
+      if (parameterData.visualizationParameters) {
+        this.parameterGroups.visualization = parameterData.visualizationParameters;
+      }
+      
+      if (parameterData.advancedParameters) {
+        this.parameterGroups.advanced = parameterData.advancedParameters;
+      }
+      
+      // Update the layout with parameter groups
+      if (this.layout && typeof this.layout.updateParameterGroups === 'function') {
+        this.layout.updateParameterGroups(this.parameterGroups, rebuild);
+      }
+      
+      console.log("UI parameter groups updated", rebuild ? "(rebuilt)" : "(values only)");
+    } catch (error) {
+      console.error("Failed to update parameter groups:", error);
+    }
   }
-}
   
-/**
- * Update control values
- * @param {Object} values - New parameter values
- */
-updateControls(values) {
-  // Just update the layout controls without storing values
-  if (this.layout) {
-    this.layout.updateControls(values);
+  /**
+   * Update a single parameter value without rebuilding UI
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - Parameter value
+   * @param {string} group - Parameter group ('plugin', 'visualization', or 'advanced')
+   */
+  updateParameterValue(parameterId, value, group) {
+    try {
+      // Find which group this parameter belongs to if not specified
+      if (!group) {
+        if (this.parameterGroups.plugin.values.hasOwnProperty(parameterId)) {
+          group = 'plugin';
+        } else if (this.parameterGroups.visualization.values.hasOwnProperty(parameterId)) {
+          group = 'visualization';
+        } else if (this.parameterGroups.advanced.values.hasOwnProperty(parameterId)) {
+          group = 'advanced';
+        }
+      }
+      
+      // Update the parameter value
+      if (group && this.parameterGroups[group]) {
+        this.parameterGroups[group].values[parameterId] = value;
+        
+        // Update the control in the layout
+        if (this.layout && typeof this.layout.updateParameterValue === 'function') {
+          this.layout.updateParameterValue(parameterId, value, group);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to update parameter value for ${parameterId}:`, error);
+    }
   }
-}
+  
+  /**
+   * Backward compatibility method for old parameter format
+   * @param {Object} schema - Parameter schema
+   * @param {Object} values - Parameter values
+   * @deprecated Use updatePluginParameterGroups instead
+   */
+  buildControlsFromSchema(schema, values) {
+    try {
+      console.warn("Using deprecated buildControlsFromSchema method, consider updating to use parameter groups");
+      
+      // Extract plugin and visualization parameters from old format
+      const pluginParams = [];
+      const visualizationParams = [];
+      
+      if (schema.structural && Array.isArray(schema.structural)) {
+        // Treat structural as plugin parameters
+        pluginParams.push(...schema.structural);
+      }
+      
+      if (schema.visual && Array.isArray(schema.visual)) {
+        // Treat visual as visualization parameters
+        visualizationParams.push(...schema.visual);
+      }
+      
+      // Create parameter group data
+      const parameterData = {
+        pluginParameters: {
+          schema: pluginParams,
+          values: values
+        },
+        visualizationParameters: {
+          schema: visualizationParams,
+          values: values
+        },
+        advancedParameters: {
+          schema: [],
+          values: {}
+        }
+      };
+      
+      // Update UI with parameter groups
+      this.updatePluginParameterGroups(parameterData, true);
+    } catch (error) {
+      console.error("Failed to build controls from schema:", error);
+    }
+  }
+  
+  /**
+   * Backward compatibility method for updating values
+   * @param {Object} values - Updated parameter values
+   * @deprecated Use updateParameterValue instead
+   */
+  updateControls(values) {
+    try {
+      console.warn("Using deprecated updateControls method, consider updating to use parameter groups");
+      
+      // Update each value in the appropriate group
+      Object.entries(values).forEach(([id, value]) => {
+        this.updateParameterValue(id, value);
+      });
+    } catch (error) {
+      console.error("Failed to update controls:", error);
+    }
+  }
   
   /**
    * Update available actions
    * @param {Array<Action>} actions - Available actions
    */
   updateActions(actions) {
-    this.layout.updateActions(actions);
+    if (this.layout) {
+      this.layout.updateActions(actions);
+    }
   }
   
   /**
@@ -133,7 +241,9 @@ updateControls(values) {
    * @param {string} activePluginId - Currently active plugin ID
    */
   updatePlugins(plugins, activePluginId) {
-    this.layout.updatePlugins(plugins, activePluginId);
+    if (this.layout) {
+      this.layout.updatePlugins(plugins, activePluginId);
+    }
   }
   
   /**
@@ -141,7 +251,9 @@ updateControls(values) {
    * @param {string} message - Error message
    */
   showError(message) {
-    this.layout.showError(message);
+    if (this.layout) {
+      this.layout.showError(message);
+    }
   }
   
   /**
@@ -150,7 +262,9 @@ updateControls(values) {
    * @param {number} duration - Duration in milliseconds (default: 3000)
    */
   showNotification(message, duration = 3000) {
-    this.layout.showNotification(message, duration);
+    if (this.layout) {
+      this.layout.showNotification(message, duration);
+    }
   }
   
   /**
@@ -158,14 +272,18 @@ updateControls(values) {
    * @param {string} message - Loading message
    */
   showLoading(message = 'Loading...') {
-    this.layout.showLoading(message);
+    if (this.layout) {
+      this.layout.showLoading(message);
+    }
   }
   
   /**
    * Hide loading indicator
    */
   hideLoading() {
-    this.layout.hideLoading();
+    if (this.layout) {
+      this.layout.hideLoading();
+    }
   }
   
   /**
@@ -178,101 +296,101 @@ updateControls(values) {
            window.innerWidth < 768;
   }
   
-  // Modified part of UIManager.js - _handleResize method
-
-/**
- * Handle window resize
- * @private
- */
-_handleResize() {
-  // Check if layout should change
-  const isMobileNow = this._detectMobile();
-  
-  if (isMobileNow !== this.isMobile) {
-    console.log(`Layout changing from ${this.isMobile ? 'mobile' : 'desktop'} to ${isMobileNow ? 'mobile' : 'desktop'}`);
+  /**
+   * Handle window resize
+   * @private
+   */
+  _handleResize() {
+    // Check if layout should change
+    const isMobileNow = this._detectMobile();
     
-    // Clean up any global elements before changing layout
-    this._cleanupUI();
-    
-    // Update flag
-    this.isMobile = isMobileNow;
-    
-    // Clean up old layout
-    if (this.layout) {
-      this.layout.dispose();
-    }
-    
-    // Create new layout
-    if (this.isMobile) {
-      this.layout = new MobileLayout(this);
+    if (isMobileNow !== this.isMobile) {
+      console.log(`Layout changing from ${this.isMobile ? 'mobile' : 'desktop'} to ${isMobileNow ? 'mobile' : 'desktop'}`);
+      
+      // Clean up any global elements before changing layout
+      this._cleanupUI();
+      
+      // Update flag
+      this.isMobile = isMobileNow;
+      
+      // Clean up old layout
+      if (this.layout) {
+        this.layout.dispose();
+      }
+      
+      // Create new layout
+      if (this.isMobile) {
+        this.layout = new MobileLayout(this);
+      } else {
+        this.layout = new DesktopLayout(this);
+      }
+      
+      // Initialize new layout
+      this.layout.initialize();
+      
+      // Register layout event handlers
+      this._registerLayoutEvents();
+      
+      // Rebuild controls with stored parameter groups
+      if (this.layout && typeof this.layout.updateParameterGroups === 'function') {
+        this.layout.updateParameterGroups(this.parameterGroups, true);
+      }
+      
+      console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
     } else {
-      this.layout = new DesktopLayout(this);
+      // Just notify layout of resize
+      if (this.layout) {
+        this.layout.handleResize();
+      }
+    }
+  }
+
+  /**
+   * Register event handlers for the layout
+   * @private
+   */
+  _registerLayoutEvents() {
+    // Register standard events
+    this.layout.on('parameterChange', (parameterId, value, group) => {
+      this.emit('parameterChange', parameterId, value, group);
+    });
+    
+    this.layout.on('action', (actionId, ...args) => {
+      this.emit('action', actionId, ...args);
+    });
+    
+    this.layout.on('pluginSelect', (pluginId) => {
+      this.emit('pluginSelect', pluginId);
+    });
+  }
+
+  /**
+   * Clean up UI elements that might cause duplicates
+   * @private
+   */
+  _cleanupUI() {
+    // Remove theme toggle buttons
+    const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
+    existingDesktopButtons.forEach(button => {
+      if (button.parentNode) button.parentNode.removeChild(button);
+    });
+    
+    const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
+    existingMobileButtons.forEach(button => {
+      if (button.parentNode) button.parentNode.removeChild(button);
+    });
+    
+    // Remove any fullscreen buttons
+    const desktopFullscreenBtn = document.getElementById('desktop-fullscreen-button');
+    if (desktopFullscreenBtn) {
+      desktopFullscreenBtn.parentNode.removeChild(desktopFullscreenBtn);
     }
     
-    // Initialize new layout
-    this.layout.initialize();
-    
-    // Register layout event handlers
-    this._registerLayoutEvents();
-    
-    // Rebuild controls if we have a schema
-    if (this.controls.schema) {
-      this.layout.buildControls(this.controls.schema, this.controls.values);
+    const mobileFullscreenBtn = document.getElementById('mobile-fullscreen-button');
+    if (mobileFullscreenBtn) {
+      mobileFullscreenBtn.parentNode.removeChild(mobileFullscreenBtn);
     }
-    
-    console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
-  } else {
-    // Just notify layout of resize
-    this.layout.handleResize();
   }
-}
-
-/**
- * Register event handlers for the layout
- * @private
- */
-_registerLayoutEvents() {
-  // Register standard events
-  this.layout.on('parameterChange', (parameterId, value) => {
-    this.emit('parameterChange', parameterId, value);
-  });
-  
-  this.layout.on('action', (actionId, ...args) => {
-    this.emit('action', actionId, ...args);
-  });
-  
-  this.layout.on('pluginSelect', (pluginId) => {
-    this.emit('pluginSelect', pluginId);
-  });
-}
-
-/**
- * Clean up UI elements that might cause duplicates
- * @private
- */
-_cleanupUI() {
-  // Remove theme toggle buttons
-  const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
-  existingDesktopButtons.forEach(button => {
-    if (button.parentNode) button.parentNode.removeChild(button);
-  });
-  
-  const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
-  existingMobileButtons.forEach(button => {
-    if (button.parentNode) button.parentNode.removeChild(button);
-  });
-  
-  // Remove any fullscreen buttons
-  const desktopFullscreenBtn = document.getElementById('desktop-fullscreen-button');
-  if (desktopFullscreenBtn) {
-    desktopFullscreenBtn.parentNode.removeChild(desktopFullscreenBtn);
-  }
-  
-  const mobileFullscreenBtn = document.getElementById('mobile-fullscreen-button');
-  if (mobileFullscreenBtn) {
-    mobileFullscreenBtn.parentNode.removeChild(mobileFullscreenBtn);
-  }
-}
   
   /**
    * Update the UI theme based on the color scheme
@@ -422,7 +540,11 @@ _cleanupUI() {
     }
     
     // Reset state
-    this.controls = {};
+    this.parameterGroups = {
+      plugin: { schema: [], values: {} },
+      visualization: { schema: [], values: {} },
+      advanced: { schema: [], values: {} }
+    };
     this.initialized = false;
     
     console.log("UI manager cleaned up");

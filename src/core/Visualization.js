@@ -23,20 +23,17 @@ export class Visualization {
   
   /**
    * Get the parameter definition for this visualization
-   * This should be implemented by subclasses to define their specific parameters
-   * @returns {Object} Parameter schema with structural and visual parameters
+   * These parameters are specific to this visualization and will appear in the visualization panel
+   * @returns {Array} Array of parameter definitions
    * @static
    */
   static getParameters() {
-    return {
-      structural: [],
-      visual: []
-    };
+    return [];
   }
   
   /**
    * Initialize the visualization with parameters
-   * @param {Object} parameters - Parameter values
+   * @param {Object} parameters - Parameter values (combined from plugin, visualization, and advanced)
    * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
@@ -47,7 +44,7 @@ export class Visualization {
   
   /**
    * Update the visualization with new parameters
-   * @param {Object} parameters - New parameter values
+   * @param {Object} parameters - New parameter values (only changed ones)
    */
   update(parameters) {
     // Default implementation does nothing
@@ -65,7 +62,7 @@ export class Visualization {
   /**
    * Render the visualization in 2D
    * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
-   * @param {Object} parameters - Current parameters
+   * @param {Object} parameters - Current parameters (combined from all groups)
    */
   render2D(ctx, parameters) {
     // Default implementation does nothing
@@ -76,7 +73,7 @@ export class Visualization {
    * Render the visualization in 3D
    * @param {Object} THREE - THREE.js library
    * @param {THREE.Scene} scene - THREE.js scene
-   * @param {Object} parameters - Current parameters
+   * @param {Object} parameters - Current parameters (combined from all groups)
    */
   render3D(THREE, scene, parameters) {
     // Default implementation does nothing

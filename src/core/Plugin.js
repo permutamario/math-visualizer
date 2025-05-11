@@ -21,8 +21,12 @@ export class Plugin {
     // Core application reference
     this.core = core;
     
-    // Plugin state
-    this.parameters = {};
+    // Parameter collections
+    this.pluginParameters = {};     // Parameters that affect the entire plugin
+    this.visualizationParameters = {}; // Parameters specific to current visualization
+    this.advancedParameters = {};   // Advanced parameters (shown optionally)
+    
+    // Visualization management
     this.isLoaded = false;
     this.currentVisualization = null;
     this.visualizations = new Map();
@@ -34,6 +38,18 @@ export class Plugin {
   }
 
   /**
+   * Get all parameters (combined for backward compatibility)
+   * @returns {Object} Combined parameters
+   */
+  get parameters() {
+    return {
+      ...this.pluginParameters,
+      ...this.visualizationParameters,
+      ...this.advancedParameters
+    };
+  }
+
+  /**
    * Load the plugin
    * Called when the plugin is selected by the user
    * Sets up all resources, parameters, and visualizations
@@ -42,12 +58,22 @@ export class Plugin {
     if (this.isLoaded) return true;
     
     try {
-      // Initialize default parameters from plugin's base parameters
-      const schema = this.defineParameters().build();
-      this.parameters = this._getDefaultParametersFromSchema(schema);
+      // Initialize plugin parameters
+      const pluginSchema = this.definePluginParameters();
+      this.pluginParameters = this._getDefaultValuesFromSchema(pluginSchema);
+      
+      // Initialize advanced parameters if any
+      const advancedSchema = this.defineAdvancedParameters();
+      this.advancedParameters = this._getDefaultValuesFromSchema(advancedSchema);
       
       // Initialize default visualization
       await this._initializeDefaultVisualization();
+      
+      // Initialize visualization parameters after visualization is selected
+      if (this.currentVisualization) {
+        const visualizationSchema = this.getVisualizationParameters();
+        this.visualizationParameters = this._getDefaultValuesFromSchema(visualizationSchema);
+      }
       
       // Mark as loaded
       this.isLoaded = true;
@@ -89,7 +115,9 @@ export class Plugin {
       this.visualizations.clear();
       
       // Clear parameters
-      this.parameters = {};
+      this.pluginParameters = {};
+      this.visualizationParameters = {};
+      this.advancedParameters = {};
       
       // Mark as unloaded
       this.isLoaded = false;
@@ -112,138 +140,162 @@ export class Plugin {
       return;
     }
     
-    // Let the core handle parameter updates
-    this.core.updatePluginParameters(this, rebuild);
-  }
-  
-  /**
-   * Define parameters for this plugin
-   * @returns {ParameterBuilder} Parameter builder for fluent interface
-   */
-  defineParameters() {
-    // Subclasses should override this
-    // Default empty schema
-    return createParameters();
-  }
-  
-  /**
-   * Merge plugin parameters with visualization parameters
-   * @returns {Object} Combined parameter schema
-   */
-  getMergedParameterSchema() {
-    try {
-      // Start with plugin's base parameters
-      const pluginSchema = this.defineParameters().build();
-      
-      // If no current visualization, just return plugin parameters
-      if (!this.currentVisualization) {
-        return pluginSchema;
+    // Create schema objects for UI
+    const pluginSchema = this.definePluginParameters();
+    const visualizationSchema = this.getVisualizationParameters();
+    const advancedSchema = this.defineAdvancedParameters();
+    
+    // Format parameters for UI manager
+    const parameterData = {
+      pluginParameters: {
+        schema: pluginSchema,
+        values: this.pluginParameters
+      },
+      visualizationParameters: {
+        schema: visualizationSchema,
+        values: this.visualizationParameters
+      },
+      advancedParameters: {
+        schema: advancedSchema,
+        values: this.advancedParameters
       }
+    };
+    
+    // Send to UI manager
+    if (this.core.uiManager && typeof this.core.uiManager.updatePluginParameterGroups === 'function') {
+      this.core.uiManager.updatePluginParameterGroups(parameterData, rebuild);
+    } else {
+      // Fallback for backward compatibility
+      console.warn("UIManager doesn't support parameter groups, using compatibility mode");
+      this.core.updatePluginParameters(this, rebuild);
+    }
+  }
+  
+  /**
+   * Define plugin-level parameters
+   * These parameters affect the entire plugin and all visualizations
+   * @returns {Array} Array of parameter definitions
+   */
+  definePluginParameters() {
+    // If multiple visualizations are available, add visualization selector parameter
+    if (this.visualizations && this.visualizations.size > 1) {
+      const visualizationOptions = Array.from(this.visualizations.keys()).map(id => {
+        // Try to get a nice display name if available
+        const viz = this.visualizations.get(id);
+        const displayName = viz.constructor.name || id;
+        
+        return { value: id, label: displayName };
+      });
       
-      // Get visualization-specific parameters
+      return [
+        {
+          id: 'visualizationType',
+          type: 'dropdown',
+          label: 'Visualization Type',
+          options: visualizationOptions,
+          default: visualizationOptions[0]?.value || ''
+        }
+      ];
+    }
+    
+    // Default empty array if no additional visualizations
+    return [];
+  }
+  
+  /**
+   * Define advanced parameters
+   * These are shown optionally to users
+   * @returns {Array} Array of parameter definitions
+   */
+  defineAdvancedParameters() {
+    // Subclasses can override this
+    return [];
+  }
+  
+  /**
+   * Get parameters for the current visualization
+   * @returns {Array} Array of parameter definitions
+   */
+  getVisualizationParameters() {
+    // Get visualization-specific parameters if a visualization is active
+    if (this.currentVisualization) {
       const vizClass = this.currentVisualization.constructor;
-      let vizSchema = null;
       
-      // Check if the visualization class has a static getParameters method
+      // Check if the visualization class has a getParameters method
       if (vizClass && typeof vizClass.getParameters === 'function') {
-        vizSchema = vizClass.getParameters();
+        return vizClass.getParameters();
       }
-      
-      // If no visualization schema, just return plugin schema
-      if (!vizSchema) {
-        return pluginSchema;
-      }
-      
-      // Create merged schema with defensive programming
-      const mergedSchema = {
-        structural: [...(Array.isArray(pluginSchema.structural) ? pluginSchema.structural : [])],
-        visual: [...(Array.isArray(pluginSchema.visual) ? pluginSchema.visual : [])]
-      };
-      
-      // Add visualization structural parameters (avoiding duplicates by ID)
-      if (vizSchema.structural && Array.isArray(vizSchema.structural)) {
-        const existingIds = new Set(mergedSchema.structural.map(p => p.id));
-        
-        vizSchema.structural.forEach(param => {
-          if (param && param.id && !existingIds.has(param.id)) {
-            mergedSchema.structural.push(param);
-            existingIds.add(param.id);
-          }
-        });
-      }
-      
-      // Add visualization visual parameters (avoiding duplicates by ID)
-      if (vizSchema.visual && Array.isArray(vizSchema.visual)) {
-        const existingIds = new Set(mergedSchema.visual.map(p => p.id));
-        
-        vizSchema.visual.forEach(param => {
-          if (param && param.id && !existingIds.has(param.id)) {
-            mergedSchema.visual.push(param);
-            existingIds.add(param.id);
-          }
-        });
-      }
-      
-      return mergedSchema;
-    } catch (error) {
-      console.error('Error merging parameter schemas:', error);
-      // Return plugin schema as fallback
-      return this.defineParameters().build();
-    }
-  }
-
-  /**
-   * Add standard parameters from the core
-   * @param {AppCore} core - Core application reference
-   * @param {string} renderingType - '2d' or '3d'
-   * @returns {ParameterBuilder} This builder for chaining
-   */
-  addStandardParameters(core, renderingType = '2d') {
-    if (!core || !core.getStandardParameters) {
-      console.warn('Cannot add standard parameters: core reference invalid or missing getStandardParameters method');
-      return this;
     }
     
-    const standardParams = core.getStandardParameters(renderingType);
-    
-    // Add each standard parameter based on its type
-    Object.values(standardParams).forEach(param => {
-      switch (param.type) {
-        case 'dropdown':
-          this.addDropdown(param.id, param.label, param.default, param.options, param.category);
-          break;
-        case 'slider':
-          this.addSlider(param.id, param.label, param.default, {
-            min: param.min,
-            max: param.max,
-            step: param.step
-          }, param.category);
-          break;
-        case 'checkbox':
-          this.addCheckbox(param.id, param.label, param.default, param.category);
-          break;
-        case 'color':
-          this.addColor(param.id, param.label, param.default, param.category);
-          break;
-        // Add other types as needed
-      }
-    });
-    
-    return this;
+    return [];
   }
 
   /**
    * Handle parameter changes
    * @param {string} parameterId - ID of the changed parameter
    * @param {any} value - New parameter value
+   * @param {string} parameterGroup - Which group the parameter belongs to 
+   *                                 ('plugin', 'visualization', or 'advanced')
    */
-  onParameterChanged(parameterId, value) {
-    // Update the parameter value
-    this.parameters[parameterId] = value;
+  onParameterChanged(parameterId, value, parameterGroup = null) {
+    // Determine which group this parameter belongs to if not specified
+    if (!parameterGroup) {
+      if (this.pluginParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'plugin';
+      } else if (this.visualizationParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'visualization';
+      } else if (this.advancedParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'advanced';
+      }
+    }
     
-    // If we have a current visualization, update it
-    if (this.currentVisualization) {
-      this.currentVisualization.update({ [parameterId]: value });
+    // Update the appropriate parameter collection
+    switch (parameterGroup) {
+      case 'plugin':
+        this.pluginParameters[parameterId] = value;
+        
+        // Handle special case: visualization selection parameter
+        if (parameterId === 'visualizationType' && this.visualizations.has(value)) {
+          this.setVisualization(value);
+          return; // Don't continue with normal parameter updates
+        }
+        
+        // Update all visualizations with this parameter
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
+        }
+        break;
+        
+      case 'visualization':
+        this.visualizationParameters[parameterId] = value;
+        
+        // Update only the current visualization
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
+        }
+        break;
+        
+      case 'advanced':
+        this.advancedParameters[parameterId] = value;
+        
+        // Update current visualization with advanced parameters
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
+        }
+        break;
+        
+      default:
+        // For backward compatibility, treat as visualization parameter
+        this.visualizationParameters[parameterId] = value;
+        
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
+        }
+    }
+    
+    // Request render from the core
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
     }
   }
   
@@ -268,13 +320,40 @@ export class Plugin {
    * Update a single parameter 
    * @param {string} parameterId - Parameter ID
    * @param {any} value - New value
+   * @param {string} parameterGroup - Which group the parameter belongs to
    * @param {boolean} updateUI - Whether to update the UI
    */
-  updateParameter(parameterId, value, updateUI = true) {
-    // Update internal state
-    this.parameters[parameterId] = value;
+  updateParameter(parameterId, value, parameterGroup = null, updateUI = true) {
+    // Determine which group this parameter belongs to if not specified
+    if (!parameterGroup) {
+      if (this.pluginParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'plugin';
+      } else if (this.visualizationParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'visualization';
+      } else if (this.advancedParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'advanced';
+      } else {
+        // Default to visualization parameters if not found elsewhere
+        parameterGroup = 'visualization';
+      }
+    }
     
-    // Update visualization if available
+    // Update parameter in correct collection
+    switch (parameterGroup) {
+      case 'plugin':
+        this.pluginParameters[parameterId] = value;
+        break;
+        
+      case 'visualization':
+        this.visualizationParameters[parameterId] = value;
+        break;
+        
+      case 'advanced':
+        this.advancedParameters[parameterId] = value;
+        break;
+    }
+    
+    // Update visualization
     if (this.currentVisualization) {
       this.currentVisualization.update({ [parameterId]: value });
     }
@@ -286,56 +365,42 @@ export class Plugin {
   }
 
   /**
-   * Update multiple parameters at once
-   * @param {Object} updates - Parameter updates as key-value pairs
+   * Reset parameters to their default values
+   * @param {Array<string>} groups - Which parameter groups to reset (default: all)
    * @param {boolean} updateUI - Whether to update the UI
    */
-  updateParameters(updates, updateUI = true) {
-    // Update internal state
-    Object.assign(this.parameters, updates);
-    
-    // Update visualization if available
-    if (this.currentVisualization) {
-      this.currentVisualization.update(updates);
-    }
-    
-    // Update UI if requested
-    if (updateUI) {
-      this.giveParameters(false);
-    }
-  }
-
-  /**
-   * Reset all parameters to their default values
-   * @param {boolean} updateUI - Whether to update the UI
-   */
-  resetParametersToDefault(updateUI = true) {
+  resetParameters(groups = ['plugin', 'visualization', 'advanced'], updateUI = true) {
     try {
-      // Get the merged schema
-      const mergedSchema = this.getMergedParameterSchema();
+      if (groups.includes('plugin')) {
+        const pluginSchema = this.definePluginParameters();
+        this.pluginParameters = this._getDefaultValuesFromSchema(pluginSchema);
+      }
       
-      // Extract defaults
-      this.parameters = this._getDefaultParametersFromSchema(mergedSchema);
+      if (groups.includes('visualization')) {
+        const visualizationSchema = this.getVisualizationParameters();
+        this.visualizationParameters = this._getDefaultValuesFromSchema(visualizationSchema);
+      }
+      
+      if (groups.includes('advanced')) {
+        const advancedSchema = this.defineAdvancedParameters();
+        this.advancedParameters = this._getDefaultValuesFromSchema(advancedSchema);
+      }
       
       // Update visualization with all parameters
       if (this.currentVisualization) {
-        this.currentVisualization.update(this.parameters);
+        this.currentVisualization.update({
+          ...this.pluginParameters,
+          ...this.visualizationParameters,
+          ...this.advancedParameters
+        });
       }
       
-      // Update UI if requested, always rebuild since we're replacing all parameters
+      // Update UI if requested
       if (updateUI) {
         this.giveParameters(true);
       }
     } catch (error) {
       console.error('Error resetting parameters:', error);
-      
-      // Fallback to just plugin parameters
-      const schema = this.defineParameters().build();
-      this.parameters = this._getDefaultParametersFromSchema(schema);
-      
-      if (updateUI) {
-        this.giveParameters(true);
-      }
     }
   }
 
@@ -349,13 +414,16 @@ export class Plugin {
     // Handle common actions
     switch (actionId) {
       case "export-png":
-        // Export as PNG
-        this.core.renderingManager.exportAsPNG();
-        return true;
+        // Export as PNG using core
+        if (this.core && this.core.renderingManager) {
+          this.core.renderingManager.exportAsPNG();
+          return true;
+        }
+        return false;
         
       case "reset-parameters":
         // Reset to default parameters
-        this.resetParametersToDefault(true);
+        this.resetParameters(['plugin', 'visualization', 'advanced'], true);
         return true;
     }
     
@@ -383,34 +451,39 @@ export class Plugin {
       return false;
     }
     
-    // Clean up current visualization if it exists
-    if (this.currentVisualization) {
-      this.currentVisualization.dispose();
+    try {
+      // Update plugin parameters if needed
+      if (this.pluginParameters.visualizationType !== visualizationId) {
+        this.pluginParameters.visualizationType = visualizationId;
+      }
+      
+      // Clean up current visualization if any
+      if (this.currentVisualization) {
+        this.currentVisualization.dispose();
+      }
+      
+      // Set new visualization
+      this.currentVisualization = this.visualizations.get(visualizationId);
+      
+      // Reset visualization parameters to defaults from the new visualization
+      const vizSchema = this.getVisualizationParameters();
+      this.visualizationParameters = this._getDefaultValuesFromSchema(vizSchema);
+      
+      // Initialize the new visualization with all parameters
+      await this.currentVisualization.initialize({
+        ...this.pluginParameters,
+        ...this.visualizationParameters,
+        ...this.advancedParameters
+      });
+      
+      // Update UI to reflect visualization-specific parameters
+      this.giveParameters(true);
+      
+      return true;
+    } catch (error) {
+      console.error(`Error setting visualization ${visualizationId}:`, error);
+      return false;
     }
-    
-    // Preserve common parameters
-    const commonParams = this.preserveCommonParameters();
-    
-    // Set the new visualization
-    this.currentVisualization = this.visualizations.get(visualizationId);
-    
-    // Initialize the new visualization
-    await this.currentVisualization.initialize({...this.parameters, ...commonParams});
-    
-    // Update UI to reflect any visualization-specific parameters
-    this.giveParameters(true);
-    
-    return true;
-  }
-  
-  /**
-   * Preserve common parameters across visualization changes
-   * Override in subclasses to specify which parameters should be preserved
-   * @returns {Object} Parameters to preserve
-   */
-  preserveCommonParameters() {
-    // Default implementation preserves no parameters
-    return {};
   }
   
   /**
@@ -435,30 +508,24 @@ export class Plugin {
   
   /**
    * Extract default parameter values from a schema
-   * @param {ParameterSchema} schema - Parameter schema
+   * @param {Array} schema - Parameter schema array
    * @returns {Object} Object with default parameter values
    * @private
    */
-  _getDefaultParametersFromSchema(schema) {
+  _getDefaultValuesFromSchema(schema) {
     const defaults = {};
     
-    // Process structural parameters
-    if (schema.structural) {
-      for (const param of schema.structural) {
-        defaults[param.id] = param.default;
-      }
-    }
-    
-    // Process visual parameters
-    if (schema.visual) {
-      for (const param of schema.visual) {
-        defaults[param.id] = param.default;
-      }
+    if (Array.isArray(schema)) {
+      schema.forEach(param => {
+        if (param && param.id && param.default !== undefined) {
+          defaults[param.id] = param.default;
+        }
+      });
     }
     
     return defaults;
   }
 }
 
-// Import the parameter builder at the top level
+// Import the parameter builder
 import { createParameters } from '../ui/ParameterBuilder.js';
