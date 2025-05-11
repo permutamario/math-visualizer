@@ -94,12 +94,18 @@ export class BasePolytopeVisualization extends Visualization {
     const hullGeometry = new window.ConvexGeometry(centeredVertices);
     
     // Always use palette mode
-    if (this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
-      // We will use face-based materials with palette colors
+    if (this.plugin && this.plugin.core) {
+      // Get RenderModeManager and ColorSchemeManager if available
+      const renderModeManager = this.plugin.core.renderModeManager;
+      const colorSchemeManager = this.plugin.core.colorSchemeManager;
+      
+      // Get the current render mode
+      const renderMode = parameters.renderMode || 'standard';
       
       // Get the selected palette from color scheme manager
-      const colorSchemeManager = this.plugin.core.colorSchemeManager;
-      const palette = colorSchemeManager.getPalette(parameters.colorPalette || 'default');
+      const palette = colorSchemeManager ? 
+        colorSchemeManager.getPalette(parameters.colorPalette || 'default') :
+        ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
       
       // Create a group to hold the face meshes
       const polytopeGroup = new THREE.Group();
@@ -111,21 +117,60 @@ export class BasePolytopeVisualization extends Visualization {
       // Store the face meshes to update their materials later if needed
       this.state.faceMeshes = [];
       
+      // Check if we have access to the RenderModeManager's material factories
+      const useRenderModeManager = renderModeManager && 
+                                 renderModeManager.renderModes && 
+                                 renderModeManager.materialFactories;
+      
+      // Get material settings from render mode
+      let materialSettings = { type: 'standard', properties: {} };
+      if (useRenderModeManager && renderModeManager.renderModes[renderMode]) {
+        materialSettings = renderModeManager.renderModes[renderMode].materialSettings;
+      }
+      
       // Create a mesh for each face with its own material
       faces.forEach((face, i) => {
         // Get the color for this face
         const colorIndex = i % palette.length;
         const faceColor = palette[colorIndex];
         
-        // Create material for this face
-        const faceMaterial = new THREE.MeshStandardMaterial({
-          color: new THREE.Color(faceColor),
-          wireframe: parameters.wireframe || false,
-          transparent: (parameters.opacity || 1) < 1,
-          opacity: parameters.opacity || 1,
-          side: THREE.DoubleSide,
-          flatShading: true
-        });
+        // Create material for this face - either using RenderModeManager or fallback
+        let faceMaterial;
+        
+        if (useRenderModeManager) {
+          // Use the appropriate material factory from RenderModeManager
+          const materialType = materialSettings.type;
+          const materialFactory = renderModeManager.materialFactories[materialType];
+          
+          if (materialFactory) {
+            // Create material using the factory
+            faceMaterial = materialFactory(
+              new THREE.Color(faceColor),
+              parameters.opacity || 1.0,
+              materialSettings.properties
+            );
+          } else {
+            // Fallback to standard material if factory not found
+            faceMaterial = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(faceColor),
+              wireframe: parameters.wireframe || false,
+              transparent: (parameters.opacity || 1) < 1,
+              opacity: parameters.opacity || 1,
+              side: THREE.DoubleSide,
+              flatShading: true
+            });
+          }
+        } else {
+          // Fallback if RenderModeManager is not available
+          faceMaterial = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(faceColor),
+            wireframe: parameters.wireframe || false,
+            transparent: (parameters.opacity || 1) < 1,
+            opacity: parameters.opacity || 1,
+            side: THREE.DoubleSide,
+            flatShading: true
+          });
+        }
         
         // Create face geometry
         const faceGeometry = new THREE.BufferGeometry();
@@ -351,6 +396,24 @@ export class BasePolytopeVisualization extends Visualization {
       
       // Add the mesh group to the scene
       scene.add(this.state.meshGroup);
+      
+      // Update render mode if RenderModeManager is available
+      if (this.plugin && this.plugin.core && this.plugin.core.renderModeManager && parameters.renderMode) {
+        const renderModeManager = this.plugin.core.renderModeManager;
+        
+        // Apply the render mode to configure lighting and update materials
+        renderModeManager.applyRenderMode(
+          scene,
+          this.state.meshGroup,
+          parameters.renderMode,
+          {
+            opacity: parameters.opacity,
+            colorPalette: this.plugin.core.colorSchemeManager ?
+                          this.plugin.core.colorSchemeManager.getPalette(parameters.colorPalette || 'default') :
+                          null
+          }
+        );
+      }
     } catch (error) {
       console.error("Error rendering polytope:", error);
       
@@ -418,29 +481,6 @@ export class BasePolytopeVisualization extends Visualization {
       this.state.isRotating = parameters.rotation;
     }
     
-    // Handle color palette changes
-    if (parameters.colorPalette !== undefined && 
-        this.state.faceMeshes && 
-        this.state.faceMeshes.length > 0 &&
-        this.plugin && 
-        this.plugin.core && 
-        this.plugin.core.colorSchemeManager) {
-      
-      const colorSchemeManager = this.plugin.core.colorSchemeManager;
-      const palette = colorSchemeManager.getPalette(parameters.colorPalette || 'default');
-      
-      // Update each face mesh with a color from the palette
-      this.state.faceMeshes.forEach((faceMesh, i) => {
-        const colorIndex = i % palette.length;
-        const faceColor = palette[colorIndex];
-        
-        // Update material color
-        if (faceMesh.material) {
-          faceMesh.material.color.set(faceColor);
-        }
-      });
-    }
-    
     // Update wireframe setting if changed
     if (parameters.wireframe !== undefined && 
         this.state.faceMeshes && 
@@ -453,17 +493,37 @@ export class BasePolytopeVisualization extends Visualization {
       });
     }
     
-    // Update opacity if changed
-    if (parameters.opacity !== undefined && 
-        this.state.faceMeshes && 
-        this.state.faceMeshes.length > 0) {
+    // Handle RenderModeManager-specific updates
+    if (this.plugin && this.plugin.core && this.plugin.core.renderModeManager) {
+      const renderModeManager = this.plugin.core.renderModeManager;
       
-      this.state.faceMeshes.forEach(faceMesh => {
-        if (faceMesh.material) {
-          faceMesh.material.transparent = parameters.opacity < 1;
-          faceMesh.material.opacity = parameters.opacity;
-        }
-      });
+      // Check if we need to update RenderMode-managed properties
+      const updateProperties = {};
+      let needsPropertyUpdate = false;
+      
+      // Collect properties that RenderModeManager can update without rebuilding
+      if (parameters.opacity !== undefined) {
+        updateProperties.opacity = parameters.opacity;
+        needsPropertyUpdate = true;
+      }
+      
+      if (parameters.colorPalette !== undefined && this.plugin.core.colorSchemeManager) {
+        updateProperties.colorPalette = this.plugin.core.colorSchemeManager.getPalette(
+          parameters.colorPalette
+        );
+        needsPropertyUpdate = true;
+      }
+      
+      // If render mode changed, we need to apply it fully rather than just updating properties
+      if (parameters.renderMode !== undefined) {
+        // For complete render mode changes, we need access to the scene
+        // This requires a full rebuild which will be handled elsewhere
+        // Just flag that we should not do a property-only update
+        needsPropertyUpdate = false;
+      } else if (needsPropertyUpdate && this.state.meshGroup) {
+        // Update just the properties that changed without changing the render mode
+        renderModeManager.updateProperties(updateProperties, this.state.meshGroup);
+      }
     }
     
     // Let specific implementations handle their own parameters
@@ -496,7 +556,8 @@ export class BasePolytopeVisualization extends Visualization {
     return parameters.visualizationType !== undefined || 
            parameters.solidType !== undefined ||
            parameters.rootType !== undefined ||
-           parameters.orbitPoint !== undefined;
+           parameters.orbitPoint !== undefined ||
+           parameters.renderMode !== undefined; // Add renderMode as a trigger for rebuild
   }
 
   /**
