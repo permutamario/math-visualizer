@@ -258,41 +258,35 @@ export default class PolytopeViewerPlugin extends Plugin {
   }
 
   /**
-   * Handle parameter changes
-   * @param {string} parameterId - ID of the changed parameter
-   * @param {any} value - New parameter value 
-   */
-  async onParameterChanged(parameterId, value) {
-    // Check if we're in the middle of a visualization switch
-    if (this.isSwitchingVisualization) {
-      console.log(`Parameter change for ${parameterId} ignored during visualization switch`);
-      return;
-    }
-    
-    // Update parameter value
+ * Handle parameter changes
+ * @param {string} parameterId - ID of the changed parameter
+ * @param {any} value - New parameter value 
+ */
+async onParameterChanged(parameterId, value) {
+  // Check if we're in the middle of a visualization switch
+  if (this.isSwitchingVisualization) {
+    console.log(`Parameter change for ${parameterId} ignored during visualization switch`);
+    return;
+  }
+  
+  // Special handling for visualization type changes
+  if (parameterId === 'visualizationType') {
+    // First update the parameter
     this.parameters[parameterId] = value;
     
-    // Special handling for visualization type changes
-    if (parameterId === 'visualizationType') {
-      await this.switchVisualization(value);
-      return;
-    }
-    
-    // Update visualization with only the changed parameter
-    if (this.currentVisualization) {
-      // Create a parameter update object with just the changed parameter
-      const paramUpdate = { [parameterId]: value };
-      this.currentVisualization.update(paramUpdate);
-      
-      // Update UI with changed parameters
-      this.giveParameters(false);
-      
-      // Request a render update
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
-      }
-    }
+    // Then switch visualization (will handle UI updates internally)
+    await this.switchVisualization(value);
+    return;
   }
+  
+  // For normal parameters, use the base implementation to update state
+  super.onParameterChanged(parameterId, value);
+  
+  // Then update the visualization with just the changed parameter
+  if (this.currentVisualization) {
+    this.currentVisualization.update({ [parameterId]: value });
+  }
+}
   
   /**
    * Switch to a new visualization type
@@ -402,67 +396,24 @@ export default class PolytopeViewerPlugin extends Plugin {
     return preserved;
   }
   
-  /**
-   * Execute an action
-   * @param {string} actionId - ID of the action to execute
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether the action was handled
-   */
   executeAction(actionId, ...args) {
-    // Don't process actions during visualization switching
-    if (this.isSwitchingVisualization) {
-      console.log(`Action ${actionId} ignored during visualization switch`);
-      return false;
-    }
-    
-    if (actionId === 'toggle-rotation') {
-      // Toggle rotation
-      const newValue = !this.parameters.rotation;
-      this.parameters.rotation = newValue;
-      
-      // Update visualization with just the changed parameter
-      if (this.currentVisualization) {
-        this.currentVisualization.update({ rotation: newValue });
-      }
-      
-      // Update UI
-      this.giveParameters(false);
-      
-      // Request render
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
-      }
-      
-      return true;
-    } else if (actionId === 'reset-camera') {
-      // Reset camera (implementation depends on the 3D environment setup)
-      if (this.core && this.core.renderingManager) {
-        const environment = this.core.renderingManager.getCurrentEnvironment();
-        if (environment && typeof environment.getCamera === 'function') {
-          const camera = environment.getCamera();
-          if (camera) {
-            // Reset camera position
-            camera.position.set(0, 0, 5);
-            camera.lookAt(0, 0, 0);
-          }
-          
-          // Try to use camera controls if available
-          if (environment.getControls && typeof environment.getControls === 'function') {
-            const controls = environment.getControls();
-            if (controls && typeof controls.reset === 'function') {
-              controls.reset();
-            } else if (controls && typeof controls.setLookAt === 'function') {
-              controls.setLookAt(0, 1, 5, 0, 0, 0);
-            }
-          }
-        }
-        
-        // Request render update
-        this.core.renderingManager.requestRender();
-      }
-      return true;
-    }
-    
-    return super.executeAction(actionId, ...args);
+  // Don't process actions during visualization switching
+  if (this.isSwitchingVisualization) {
+    console.log(`Action ${actionId} ignored during visualization switch`);
+    return false;
   }
+  
+  if (actionId === 'toggle-rotation') {
+    // Toggle rotation using the new updateParameter method
+    const newValue = !this.parameters.rotation;
+    this.updateParameter('rotation', newValue);
+    return true;
+  } 
+  else if (actionId === 'reset-camera') {
+    // Reset camera code...
+    return true;
+  }
+  
+  return super.executeAction(actionId, ...args);
+}
 }

@@ -332,20 +332,53 @@ export class AppCore {
    * @param {string} parameterId - ID of the changed parameter
    * @param {any} value - New parameter value
    */
-  handleParameterChange(parameterId, value) {
-    if (!this.loadedPlugin) return;
+  /**
+ * Handle parameter changes from UI
+ * @param {string} parameterId - ID of the changed parameter
+ * @param {any} value - New parameter value
+ */
+handleParameterChange(parameterId, value) {
+  if (!this.loadedPlugin) return;
+  
+  try {
+    // Update parameter value in the plugin
+    this.loadedPlugin.onParameterChanged(parameterId, value);
     
-    try {
-      // Update parameter value and notify the plugin
-      this.loadedPlugin.onParameterChanged(parameterId, value);
-      
-      // Request render
+    // Request render
+    if (this.renderingManager) {
       this.renderingManager.requestRender();
-    } catch (error) {
-      console.error(`Error handling parameter change for ${parameterId}:`, error);
+    }
+  } catch (error) {
+    console.error(`Error handling parameter change for ${parameterId}:`, error);
+    if (this.uiManager) {
       this.uiManager.showError(`Error updating parameter "${parameterId}": ${error.message}`);
     }
   }
+}
+
+  /**
+ * Update UI based on plugin parameters
+ * @param {Plugin} plugin - The plugin whose parameters to use
+ * @param {boolean} rebuild - Whether to rebuild the entire UI
+ */
+updatePluginParameters(plugin, rebuild = false) {
+  if (!plugin || !this.uiManager) return;
+  
+  // Get schema if rebuilding
+  const schema = rebuild ? plugin.defineParameters().build() : null;
+  
+  // Update UI based on current plugin state
+  if (rebuild) {
+    this.uiManager.buildControlsFromSchema(schema, plugin.parameters);
+  } else {
+    this.uiManager.updateControls(plugin.parameters);
+  }
+  
+  // Request a render update if rendering manager exists
+  if (this.renderingManager) {
+    this.renderingManager.requestRender();
+  }
+}
   
   /**
    * Execute an action

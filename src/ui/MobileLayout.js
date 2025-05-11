@@ -545,17 +545,14 @@ export class MobileLayout extends EventEmitter {
     });
   }
   
-  /**
-   * Update control values
-   * @param {Object} values - New parameter values
-   */
-  updateControls(values) {
-    // Update stored values
-    this.controls.values = { ...values };
-    
-    // Update control elements
-    this.updateControlElements(values);
-  }
+/**
+ * Update control values
+ * @param {Object} values - New parameter values
+ */
+updateControls(values) {
+  // Just update UI elements without storing values
+  this.updateControlElements(values);
+}
   
   /**
    * Update control elements with new values

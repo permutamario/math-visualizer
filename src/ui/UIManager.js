@@ -90,40 +90,34 @@ export class UIManager extends EventEmitter {
   }
   
   /**
-   * Build UI controls from parameter schema
-   * @param {ParameterSchema} schema - Parameter schema
-   * @param {Object} values - Current parameter values
-   */
-  buildControlsFromSchema(schema, values) {
-    try {
-      // No need for schema validation anymore - we trust our parameter builder
-      
-      // Build controls
-      this.layout.buildControls(schema, values);
-      
-      // Store controls state
-      this.controls = {
-        schema,
-        values: { ...values }
-      };
-      
-      console.log("UI controls built from schema");
-    } catch (error) {
-      console.error("Failed to build controls from schema:", error);
-    }
-  }
-  
-  /**
-   * Update control values
-   * @param {Object} values - New parameter values
-   */
-  updateControls(values) {
-    // Update stored values
-    this.controls.values = { ...values };
+ * Build UI controls from parameter schema
+ * @param {ParameterSchema} schema - Parameter schema
+ * @param {Object} values - Current parameter values
+ */
+buildControlsFromSchema(schema, values) {
+  try {
+    // Build controls in the layout
+    this.layout.buildControls(schema, values);
     
-    // Update layout controls
+    // Only store schema reference, not values
+    this.controls = { schema };
+    
+    console.log("UI controls built from schema");
+  } catch (error) {
+    console.error("Failed to build controls from schema:", error);
+  }
+}
+  
+/**
+ * Update control values
+ * @param {Object} values - New parameter values
+ */
+updateControls(values) {
+  // Just update the layout controls without storing values
+  if (this.layout) {
     this.layout.updateControls(values);
   }
+}
   
   /**
    * Update available actions

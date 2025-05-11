@@ -101,26 +101,21 @@ export class Plugin {
     }
   }
   
-  /**
-   * Give parameters to the UI manager
-   * Controls whether to rebuild the UI or just update values
-   * @param {boolean} rebuild - Whether to rebuild the entire UI
-   */
-  giveParameters(rebuild = false) {
-    if (!this.core || !this.core.uiManager) {
-      console.warn(`Cannot give parameters: UI manager not available in plugin ${this.constructor.id}`);
-      return;
-    }
-    
-    if (rebuild) {
-      // Get schema and build controls from scratch
-      const schema = this.defineParameters().build();
-      this.core.uiManager.buildControlsFromSchema(schema, this.parameters);
-    } else {
-      // Just update control values
-      this.core.uiManager.updateControls(this.parameters);
-    }
+
+/**
+ * Give parameters to the UI manager
+ * Controls whether to rebuild the UI or just update values
+ * @param {boolean} rebuild - Whether to rebuild the entire UI
+ */
+giveParameters(rebuild = false) {
+  if (!this.core) {
+    console.warn(`Cannot give parameters: core not available in plugin ${this.constructor.id}`);
+    return;
   }
+  
+  // Let the core handle parameter updates
+  this.core.updatePluginParameters(this, rebuild);
+}
   
   /**
    * Define parameters for this plugin
@@ -172,23 +167,21 @@ addStandardParameters(core, renderingType = '2d') {
   return this;
 }
   
-  /**
-   * Handle parameter changes
-   * @param {string} parameterId - ID of the changed parameter
-   * @param {any} value - New parameter value
-   */
-  onParameterChanged(parameterId, value) {
-    // Update the parameter value
-    this.parameters[parameterId] = value;
-    
-    // If we have a current visualization, update it
-    if (this.currentVisualization) {
-      this.currentVisualization.update({ [parameterId]: value });
-    }
-    
-    // Update the UI with the new parameter value
-    this.giveParameters(false);
+
+/**
+ * Handle parameter changes
+ * @param {string} parameterId - ID of the changed parameter
+ * @param {any} value - New parameter value
+ */
+onParameterChanged(parameterId, value) {
+  // Update the parameter value
+  this.parameters[parameterId] = value;
+  
+  // If we have a current visualization, update it
+  if (this.currentVisualization) {
+    this.currentVisualization.update({ [parameterId]: value });
   }
+}
   
   /**
    * Define available actions for this plugin
@@ -206,35 +199,90 @@ addStandardParameters(core, renderingType = '2d') {
       }
     ];
   }
-  
   /**
-   * Execute an action
-   * @param {string} actionId - ID of the action to execute
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether the action was handled
-   */
-  executeAction(actionId, ...args) {
-    // Handle common actions
-    switch (actionId) {
-      case "export-png":
-        // Export as PNG
-        this.core.renderingManager.exportAsPNG();
-        return true;
-        
-      case "reset-parameters":
-        // Reset to default parameters
-        const schema = this.defineParameters().build();
-        this.parameters = this._getDefaultParametersFromSchema(schema);
-        
-        // Update UI with rebuilt controls
-        this.giveParameters(true);
-        
-        // Update visualization
-        if (this.currentVisualization) {
-          this.currentVisualization.update(this.parameters);
-        }
-        return true;
-    }
+ * Update a single parameter 
+ * @param {string} parameterId - Parameter ID
+ * @param {any} value - New value
+ * @param {boolean} updateUI - Whether to update the UI
+ */
+updateParameter(parameterId, value, updateUI = true) {
+  // Update internal state
+  this.parameters[parameterId] = value;
+  
+  // Update visualization if available
+  if (this.currentVisualization) {
+    this.currentVisualization.update({ [parameterId]: value });
+  }
+  
+  // Update UI if requested
+  if (updateUI) {
+    this.giveParameters(false);
+  }
+}
+
+/**
+ * Update multiple parameters at once
+ * @param {Object} updates - Parameter updates as key-value pairs
+ * @param {boolean} updateUI - Whether to update the UI
+ */
+updateParameters(updates, updateUI = true) {
+  // Update internal state
+  Object.assign(this.parameters, updates);
+  
+  // Update visualization if available
+  if (this.currentVisualization) {
+    this.currentVisualization.update(updates);
+  }
+  
+  // Update UI if requested
+  if (updateUI) {
+    this.giveParameters(false);
+  }
+}
+
+/**
+ * Reset all parameters to their default values
+ * @param {boolean} updateUI - Whether to update the UI
+ */
+resetParametersToDefault(updateUI = true) {
+  // Get default parameters from schema
+  const schema = this.defineParameters().build();
+  this.parameters = this._getDefaultParametersFromSchema(schema);
+  
+  // Update visualization with all parameters
+  if (this.currentVisualization) {
+    this.currentVisualization.update(this.parameters);
+  }
+  
+  // Update UI if requested, always rebuild since we're replacing all parameters
+  if (updateUI) {
+    this.giveParameters(true);
+  }
+}
+
+  /**
+ * Execute an action
+ * @param {string} actionId - ID of the action to execute
+ * @param {...any} args - Action arguments
+ * @returns {boolean} Whether the action was handled
+ */
+executeAction(actionId, ...args) {
+  // Handle common actions
+  switch (actionId) {
+    case "export-png":
+      // Export as PNG
+      this.core.renderingManager.exportAsPNG();
+      return true;
+      
+    case "reset-parameters":
+      // Reset to default parameters
+      this.resetParametersToDefault(true);
+      return true;
+  }
+  
+  // Action not handled
+  return false;
+}
     
     // Action not handled
     return false;
