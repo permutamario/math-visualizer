@@ -334,7 +334,7 @@ export function applyThemeColors(colorScheme) {
     root.style.setProperty('--control-bg', '#ffffff');
     root.style.setProperty('--control-border', '#cccccc');
     root.style.setProperty('--control-active', '#e8f0fe');
-    root.style.setProperty('--control-focus', '#3367d6');
+    root.style.setProperty('--control-focus', colorScheme.accent); // Use accent color for focus
     root.style.setProperty('--error-color', '#d93025');
     root.style.setProperty('--success-color', '#0f9d58');
     root.style.setProperty('--warning-color', '#f29900');
@@ -350,7 +350,7 @@ export function applyThemeColors(colorScheme) {
     root.style.setProperty('--control-bg', '#333333');
     root.style.setProperty('--control-border', '#555555');
     root.style.setProperty('--control-active', '#3c4043');
-    root.style.setProperty('--control-focus', '#8ab4f8');
+    root.style.setProperty('--control-focus', colorScheme.accent); // Use accent color for focus
     root.style.setProperty('--error-color', '#f28b82');
     root.style.setProperty('--success-color', '#81c995');
     root.style.setProperty('--warning-color', '#fdd663');
@@ -362,4 +362,86 @@ export function applyThemeColors(colorScheme) {
   
   // Update data-theme attribute immediately
   document.body.setAttribute('data-theme', colorScheme.id);
+  
+  // Apply colors directly to mobile UI elements for immediate effect
+  applyColorsToMobileElements(colorScheme);
+}
+
+/**
+ * Apply colors directly to mobile UI elements
+ * @param {Object} colorScheme - Color scheme to apply
+ */
+function applyColorsToMobileElements(colorScheme) {
+  // Get mobile header and menus
+  const mobileHeader = document.querySelector('.mobile-header');
+  const mobileHeaderTitle = document.querySelector('.mobile-header-title');
+  const mobileOptionsMenu = document.querySelector('#mobile-visual-menu');
+  const mobileExportMenu = document.querySelector('#mobile-export-menu');
+  const mobilePluginMenu = document.querySelector('#mobile-plugin-menu');
+  
+  // Get mobile buttons
+  const optionsButton = document.querySelector('#mobile-options-button');
+  const exportButton = document.querySelector('#mobile-export-button');
+  const pluginButton = document.querySelector('#mobile-plugin-button');
+  const pluginButtonIcon = document.querySelector('#mobile-plugin-button-icon');
+  
+  // Get all mobile buttons
+  const allButtons = document.querySelectorAll('.mobile-options-menu button');
+  
+  // Control background color
+  const controlBg = colorScheme.id === 'light' ? '#ffffff' : '#333333';
+  
+  // Text color
+  const textColor = colorScheme.text;
+  
+  // Accent color
+  const accentColor = colorScheme.accent;
+  
+  // Apply colors to headers
+  if (mobileHeader) {
+    mobileHeader.style.backgroundColor = controlBg;
+    mobileHeader.style.color = textColor;
+  }
+  
+  if (mobileHeaderTitle) {
+    mobileHeaderTitle.style.backgroundColor = controlBg;
+    mobileHeaderTitle.style.color = textColor;
+  }
+  
+  // Apply colors to menus
+  [mobileOptionsMenu, mobileExportMenu, mobilePluginMenu].forEach(menu => {
+    if (menu) {
+      menu.style.backgroundColor = controlBg;
+      menu.style.color = textColor;
+    }
+  });
+  
+  // Apply colors to main buttons
+  [optionsButton, exportButton].forEach(button => {
+    if (button) {
+      button.style.backgroundColor = controlBg;
+      button.style.color = textColor;
+    }
+  });
+  
+  // Apply colors to plugin button
+  if (pluginButton) {
+    pluginButton.style.backgroundColor = controlBg;
+  }
+  
+  if (pluginButtonIcon) {
+    pluginButtonIcon.style.backgroundColor = accentColor;
+  }
+  
+  // Apply accent color to all buttons in menus
+  allButtons.forEach(button => {
+    button.style.backgroundColor = accentColor;
+    button.style.color = 'white';
+  });
+  
+  // Fix labels in the header
+  const headerLabels = document.querySelectorAll('.mobile-header label');
+  headerLabels.forEach(label => {
+    label.style.color = textColor;
+  });
 }

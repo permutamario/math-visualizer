@@ -59,6 +59,7 @@ export class UIBuilder {
     const label = document.createElement('label');
     label.htmlFor = id;
     label.textContent = text;
+    label.style.color = 'var(--text-color)';
     return label;
   }
   
@@ -85,6 +86,7 @@ export class UIBuilder {
     const valueDisplay = document.createElement('span');
     valueDisplay.className = 'value-display';
     valueDisplay.textContent = value !== undefined ? value : param.default;
+    valueDisplay.style.color = 'var(--text-secondary)';
     
     // Input container (for layout)
     const inputContainer = document.createElement('div');
@@ -119,6 +121,7 @@ export class UIBuilder {
     const label = document.createElement('label');
     label.htmlFor = param.id;
     label.textContent = param.label;
+    label.style.color = 'var(--text-color)';
     
     const input = document.createElement('input');
     input.type = 'checkbox';
@@ -174,6 +177,8 @@ export class UIBuilder {
     
     const select = document.createElement('select');
     select.id = param.id;
+    select.style.backgroundColor = 'var(--background-secondary)';
+    select.style.color = 'var(--text-color)';
     
     // Add options
     if (param.options && Array.isArray(param.options)) {
@@ -226,6 +231,8 @@ export class UIBuilder {
     input.type = 'number';
     input.id = param.id;
     input.value = value !== undefined ? value : param.default;
+    input.style.backgroundColor = 'var(--background-secondary)';
+    input.style.color = 'var(--text-color)';
     
     if (param.min !== undefined) input.min = param.min;
     if (param.max !== undefined) input.max = param.max;
@@ -256,6 +263,8 @@ export class UIBuilder {
     input.type = 'text';
     input.id = param.id;
     input.value = value !== undefined ? value : param.default;
+    input.style.backgroundColor = 'var(--background-secondary)';
+    input.style.color = 'var(--text-color)';
     
     input.addEventListener('input', (e) => {
       onChange(e.target.value);
@@ -277,10 +286,11 @@ export class UIBuilder {
     
     const label = document.createElement('label');
     label.textContent = param.label;
+    label.style.color = 'var(--text-color)';
     
     const message = document.createElement('p');
     message.textContent = `Unsupported control type: ${param.type}`;
-    message.style.color = 'red';
+    message.style.color = 'var(--error-color)';
     
     container.appendChild(label);
     container.appendChild(message);
@@ -289,7 +299,7 @@ export class UIBuilder {
   }
   
   /**
-   * Create a button
+   * Create a button with consistent styling
    * @param {string} id - Button ID
    * @param {string} label - Button text
    * @param {Function} onClick - Click handler
@@ -299,6 +309,38 @@ export class UIBuilder {
     const button = document.createElement('button');
     button.id = id;
     button.textContent = label;
+    
+    // Ensure consistent button styling with accent color
+    button.style.backgroundColor = 'var(--accent-color)';
+    button.style.color = 'white';
+    button.style.padding = '10px';
+    button.style.borderRadius = '4px';
+    button.style.border = 'none';
+    button.style.cursor = 'pointer';
+    button.style.fontWeight = 'bold';
+    button.style.width = '100%';
+    button.style.transition = 'background-color 0.2s, transform 0.1s';
+    
+    // Active state
+    button.addEventListener('mousedown', () => {
+      button.style.transform = 'translateY(1px)';
+      button.style.backgroundColor = 'var(--control-focus)';
+    });
+    
+    // Reset state
+    button.addEventListener('mouseup', () => {
+      button.style.transform = 'none';
+      button.style.backgroundColor = 'var(--accent-color)';
+    });
+    
+    // Hover state
+    button.addEventListener('mouseover', () => {
+      button.style.backgroundColor = 'var(--control-focus)';
+    });
+    
+    button.addEventListener('mouseout', () => {
+      button.style.backgroundColor = 'var(--accent-color)';
+    });
     
     button.addEventListener('click', onClick);
     
@@ -314,6 +356,7 @@ export class UIBuilder {
     const header = document.createElement('h3');
     header.textContent = title;
     header.className = 'section-header';
+    header.style.color = 'var(--text-color)';
     return header;
   }
   
@@ -339,7 +382,7 @@ export class UIBuilder {
       bottom: '20px',
       left: '50%',
       transform: 'translateX(-50%)',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      backgroundColor: 'var(--overlay-bg)',
       color: 'white',
       padding: '10px 20px',
       borderRadius: '4px',
@@ -458,7 +501,7 @@ export class UIBuilder {
       left: '0',
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'var(--overlay-bg)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -472,8 +515,8 @@ export class UIBuilder {
     
     // Set spinner styles
     Object.assign(spinner.style, {
-      border: '5px solid #f3f3f3',
-      borderTop: '5px solid #3498db',
+      border: '5px solid var(--border-color)',
+      borderTop: '5px solid var(--accent-color)',
       borderRadius: '50%',
       width: '50px',
       height: '50px',

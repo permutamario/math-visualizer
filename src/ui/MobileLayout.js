@@ -144,6 +144,10 @@ export class MobileLayout extends EventEmitter {
     const activePlugin = this.plugins.find(p => p.id === this.activePluginId) || this.plugins[0];
     headerTitle.textContent = activePlugin ? activePlugin.name : 'Visualization';
     
+    // Apply background color
+    headerTitle.style.backgroundColor = 'var(--control-bg)';
+    headerTitle.style.color = 'var(--text-color)';
+    
     return headerTitle;
   }
   
@@ -155,11 +159,15 @@ export class MobileLayout extends EventEmitter {
     const header = document.createElement('div');
     header.className = 'mobile-header';
     
+    // Apply background color
+    header.style.backgroundColor = 'var(--control-bg)';
+    header.style.color = 'var(--text-color)';
+    
     // Placeholder for structural controls - will be filled when schema is provided
     const placeholder = document.createElement('p');
     placeholder.textContent = 'No structural parameters available.';
     placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = '#fff';
+    placeholder.style.color = 'var(--text-secondary)';
     placeholder.style.padding = '8px';
     placeholder.style.textAlign = 'center';
     header.appendChild(placeholder);
@@ -182,6 +190,9 @@ export class MobileLayout extends EventEmitter {
     button.className = 'mobile-fullscreen-button';
     button.innerHTML = '<span class="fullscreen-icon">⛶</span>';
     button.title = 'Toggle Fullscreen Mode';
+    
+    // Set text color
+    button.style.color = 'var(--text-color)';
     
     // Handle click
     button.addEventListener('click', () => {
@@ -217,14 +228,21 @@ export class MobileLayout extends EventEmitter {
     this.optionsButton = document.createElement('button');
     this.optionsButton.id = 'mobile-options-button';
     this.optionsButton.textContent = 'Options';
+    // Set the correct background and text colors
+    this.optionsButton.style.backgroundColor = 'var(--control-bg)';
+    this.optionsButton.style.color = 'var(--text-color)';
     this.optionsButton.addEventListener('click', this.toggleVisualMenu);
     
     // Create plugin button
     this.pluginButton = document.createElement('div');
     this.pluginButton.id = 'mobile-plugin-button';
+    // Set the correct background color
+    this.pluginButton.style.backgroundColor = 'var(--control-bg)';
     
     const pluginIcon = document.createElement('div');
     pluginIcon.id = 'mobile-plugin-button-icon';
+    // Set the correct background color
+    pluginIcon.style.backgroundColor = 'var(--accent-color)';
     this.pluginButton.appendChild(pluginIcon);
     this.pluginButton.addEventListener('click', this.togglePluginMenu);
     
@@ -232,6 +250,9 @@ export class MobileLayout extends EventEmitter {
     this.exportButton = document.createElement('button');
     this.exportButton.id = 'mobile-export-button';
     this.exportButton.textContent = 'Export';
+    // Set the correct background and text colors
+    this.exportButton.style.backgroundColor = 'var(--control-bg)';
+    this.exportButton.style.color = 'var(--text-color)';
     this.exportButton.addEventListener('click', this.toggleExportMenu);
     
     // Add buttons to control bar
@@ -251,16 +272,20 @@ export class MobileLayout extends EventEmitter {
     menu.id = 'mobile-visual-menu';
     menu.className = 'mobile-options-menu hidden';
     
+    // Apply background color
+    menu.style.backgroundColor = 'var(--control-bg)';
+    
     // Add title
     const title = document.createElement('h3');
     title.textContent = 'Visual Options';
+    title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Placeholder content - will be filled when schema is provided
     const placeholder = document.createElement('p');
     placeholder.textContent = 'No visual parameters available.';
     placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = '#666';
+    placeholder.style.color = 'var(--text-secondary)';
     menu.appendChild(placeholder);
     
     return menu;
@@ -275,16 +300,20 @@ export class MobileLayout extends EventEmitter {
     menu.id = 'mobile-export-menu';
     menu.className = 'mobile-options-menu hidden';
     
+    // Apply background color
+    menu.style.backgroundColor = 'var(--control-bg)';
+    
     // Add title
     const title = document.createElement('h3');
     title.textContent = 'Export Options';
+    title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Placeholder content - will be filled when actions are provided
     const placeholder = document.createElement('p');
     placeholder.textContent = 'No export options available.';
     placeholder.style.fontStyle = 'italic';
-    placeholder.style.color = '#666';
+    placeholder.style.color = 'var(--text-secondary)';
     menu.appendChild(placeholder);
     
     return menu;
@@ -299,9 +328,13 @@ export class MobileLayout extends EventEmitter {
     menu.id = 'mobile-plugin-menu';
     menu.className = 'mobile-options-menu hidden';
     
+    // Apply background color
+    menu.style.backgroundColor = 'var(--control-bg)';
+    
     // Add title
     const title = document.createElement('h3');
     title.textContent = 'Visualization Types';
+    title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Container for plugin items
@@ -434,7 +467,7 @@ export class MobileLayout extends EventEmitter {
       const message = document.createElement('p');
       message.textContent = 'No structural parameters available.';
       message.style.fontStyle = 'italic';
-      message.style.color = '#fff';
+      message.style.color = 'var(--text-secondary)';
       message.style.padding = '8px';
       message.style.textAlign = 'center';
       this.header.appendChild(message);
@@ -448,6 +481,19 @@ export class MobileLayout extends EventEmitter {
         values[param.id],
         (value) => this.handleParameterChange(param.id, value)
       );
+      
+      // Ensure labels have correct color
+      const labels = control.querySelectorAll('label');
+      labels.forEach(label => {
+        label.style.color = 'var(--text-color)';
+      });
+      
+      // Ensure any buttons use accent color
+      const buttons = control.querySelectorAll('button');
+      buttons.forEach(button => {
+        button.style.backgroundColor = 'var(--accent-color)';
+        button.style.color = 'white';
+      });
       
       this.header.appendChild(control);
     });
@@ -469,7 +515,7 @@ export class MobileLayout extends EventEmitter {
       const message = document.createElement('p');
       message.textContent = 'No visual parameters available.';
       message.style.fontStyle = 'italic';
-      message.style.color = '#666';
+      message.style.color = 'var(--text-secondary)';
       this.visualMenu.appendChild(message);
       return;
     }
@@ -481,6 +527,19 @@ export class MobileLayout extends EventEmitter {
         values[param.id],
         (value) => this.handleParameterChange(param.id, value)
       );
+      
+      // Ensure labels have correct color
+      const labels = control.querySelectorAll('label');
+      labels.forEach(label => {
+        label.style.color = 'var(--text-color)';
+      });
+      
+      // Ensure any buttons use accent color
+      const buttons = control.querySelectorAll('button');
+      buttons.forEach(button => {
+        button.style.backgroundColor = 'var(--accent-color)';
+        button.style.color = 'white';
+      });
       
       this.visualMenu.appendChild(control);
     });
@@ -571,7 +630,7 @@ export class MobileLayout extends EventEmitter {
       const message = document.createElement('p');
       message.textContent = 'No export options available.';
       message.style.fontStyle = 'italic';
-      message.style.color = '#666';
+      message.style.color = 'var(--text-secondary)';
       this.exportMenu.appendChild(message);
       return;
     }
@@ -593,6 +652,10 @@ export class MobileLayout extends EventEmitter {
           this.emit('action', action.id);
         }
       );
+      
+      // Ensure button uses accent color
+      button.style.backgroundColor = 'var(--accent-color)';
+      button.style.color = 'white';
       
       buttonContainer.appendChild(button);
     });
@@ -647,7 +710,7 @@ export class MobileLayout extends EventEmitter {
       const message = document.createElement('p');
       message.textContent = 'No visualizations available.';
       message.style.fontStyle = 'italic';
-      message.style.color = '#666';
+      message.style.color = 'var(--text-secondary)';
       message.style.padding = '10px 16px';
       itemsContainer.appendChild(message);
       return;
@@ -664,10 +727,12 @@ export class MobileLayout extends EventEmitter {
       const title = document.createElement('div');
       title.className = 'plugin-list-item-title';
       title.textContent = plugin.name;
+      title.style.color = 'var(--text-color)';
       
       const description = document.createElement('div');
       description.className = 'plugin-list-item-description';
       description.textContent = plugin.description;
+      description.style.color = 'var(--text-secondary)';
       
       item.appendChild(title);
       item.appendChild(description);
