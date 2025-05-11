@@ -1,7 +1,5 @@
 // src/rendering/RenderModeManager.js
 
-import * as THREE from 'three';
-
 /**
  * Manages rendering modes that combine material and lighting settings
  * for a cohesive visual style across the application.
