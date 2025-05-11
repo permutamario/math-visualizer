@@ -144,27 +144,11 @@ export class RenderModeManager {
         }
       },
       
-      // Neon glow effect
-      neon: {
-        id: 'neon',
-        name: 'Neon',
-        description: 'Glowing neon materials on dark background',
-        materialSettings: {
-          type: 'neon',
-          properties: {
-            emissiveIntensity: 1.5
-          }
-        },
-        lighting: () => this._createDarkLighting(),
-        effects: {
-          bloom: true
-        }
-      },
       
       // Lightweight mobile-friendly mode
-      mobile: {
-        id: 'mobile',
-        name: 'Mobile',
+      lightweight: {
+        id: 'lightweight',
+        name: 'Lightweight',
         description: 'Performance-optimized mode for mobile devices',
         materialSettings: {
           type: 'basic',
