@@ -13,7 +13,7 @@ export class AssociahedronVisualization extends BasePolytopeVisualization {
    * Get visualization-specific parameters
    * @returns {Object} Parameter schema with structural and visual parameters
    */
-  getVisualizationParameters() {
+  static getParameters() {
     return {
       structural: [],
       visual: []

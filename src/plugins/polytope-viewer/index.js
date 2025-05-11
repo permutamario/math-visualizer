@@ -91,7 +91,7 @@ export default class PolytopeViewerPlugin extends Plugin {
     if (this.currentVisualization) {
       const vizClass = this.currentVisualization.constructor;
       
-      // Check if the visualization class has static parameters
+      // Check if the visualization class has static parameters method
       if (vizClass && typeof vizClass.getParameters === 'function') {
         const vizParams = vizClass.getParameters();
         
@@ -112,6 +112,29 @@ export default class PolytopeViewerPlugin extends Plugin {
                 break;
               case 'text':
                 params.addText(param.id, param.label, param.default);
+                break;
+              // Add other types as needed
+            }
+          }
+        }
+        
+        // Add visualization-specific visual parameters
+        if (vizParams.visual && vizParams.visual.length > 0) {
+          for (const param of vizParams.visual) {
+            // Add to our parameter builder based on type
+            switch(param.type) {
+              case 'checkbox':
+                params.addCheckbox(param.id, param.label, param.default, 'visual');
+                break;
+              case 'slider':
+                params.addSlider(param.id, param.label, param.default, { 
+                  min: param.min, 
+                  max: param.max, 
+                  step: param.step 
+                }, 'visual');
+                break;
+              case 'color':
+                params.addColor(param.id, param.label, param.default, 'visual');
                 break;
               // Add other types as needed
             }
@@ -191,144 +214,6 @@ export default class PolytopeViewerPlugin extends Plugin {
       // Ensure clean state on failure
       await this.unload();
       return false;
-    }
-  }
-
-  /**
-   * Unload the plugin
-   * Called when another plugin is selected
-   */
-  async unload() {
-    if (!this.isLoaded) return true;
-    
-    try {
-      console.log("Unloading polytope-viewer plugin...");
-      
-      // Wait for any visualization switching to complete
-      if (this.isSwitchingVisualization) {
-        console.log("Waiting for visualization switch to complete before unloading...");
-        await new Promise(resolve => {
-          const checkInterval = setInterval(() => {
-            if (!this.isSwitchingVisualization) {
-              clearInterval(checkInterval);
-              resolve();
-            }
-          }, 50);
-        });
-      }
-      
-      // Clean up current visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.dispose();
-        this.currentVisualization = null;
-      }
-      
-      // Clear all visualizations
-      this.visualizations.clear();
-      
-      // Clear parameters
-      this.parameters = {};
-      
-      // Mark as unloaded
-      this.isLoaded = false;
-      
-      console.log("Polytope-viewer plugin unloaded successfully");
-      return true;
-    } catch (error) {
-      console.error(`Error unloading PolytopeViewerPlugin:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Discover available polytope visualizations from the manifest
-   */
-  async discoverVisualizations() {
-    try {
-      // Try different manifest paths since the exact path may vary
-      let manifestPath = './src/plugins/polytope-viewer/polytope_manifest.json';
-      let response = await fetch(manifestPath);
-      
-      // If first path fails, try alternative paths
-      if (!response.ok) {
-        manifestPath = '/src/plugins/polytope-viewer/polytope_manifest.json';
-        response = await fetch(manifestPath);
-        
-        if (!response.ok) {
-          manifestPath = '/math-visualizer/src/plugins/polytope-viewer/polytope_manifest.json';
-          response = await fetch(manifestPath);
-        }
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load polytope manifest: ${response.statusText}`);
-      }
-      
-      const manifest = await response.json();
-      
-      // Create a map of existing visualization types for fast lookup
-      const existingTypeMap = new Map(
-        this.visualizationTypes.map(vt => [vt.id.toLowerCase(), vt])
-      );
-      
-      // Process manifest entries
-      for (const entry of manifest) {
-        try {
-          const { name, file, description } = entry;
-          if (!name || !file) continue;
-          
-          const id = name.toLowerCase().replace(/\s+/g, '');
-          
-          // Skip if we already have this visualization type
-          if (existingTypeMap.has(id)) continue;
-          
-          const className = file.replace(/\.js$/, '');
-          
-          // Try different import paths
-          let module;
-          try {
-            // Try relative path
-            module = await import(`./visualizations/${file}`);
-          } catch (importError) {
-            try {
-              // Try absolute path
-              module = await import(`/math-visualizer/src/plugins/polytope-viewer/visualizations/${file}`);
-            } catch (secondError) {
-              // Try another path format
-              module = await import(`../plugins/polytope-viewer/visualizations/${file}`);
-            }
-          }
-          
-          if (!module) {
-            console.warn(`Could not import ${file}`);
-            continue;
-          }
-          
-          const VisualizationClass = module[className];
-          
-          if (!VisualizationClass) {
-            console.warn(`Could not find class ${className} in ${file}`);
-            continue;
-          }
-          
-          this.visualizationTypes.push({
-            id,
-            name,
-            description,
-            class: VisualizationClass
-          });
-          
-          console.log(`Discovered visualization: ${name}`);
-        } catch (error) {
-          console.error(`Error importing visualization ${entry.name || 'unknown'}: ${error.message}`);
-        }
-      }
-      
-      return this.visualizationTypes.length > 0;
-    } catch (error) {
-      console.error("Error discovering visualizations:", error);
-      // No need to throw - we'll use the direct imports as fallback
-      return this.visualizationTypes.length > 0;
     }
   }
 

@@ -12,6 +12,7 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
 
   /**
    * Get specific parameters for this visualization
+   * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
     return {
@@ -33,25 +34,44 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
 
   /**
    * Initialize the visualization
+   * @param {Object} parameters - Visualization parameters
    */
   async initialize(parameters) {
+    // Call parent initialization
     await super.initialize(parameters);
+    
+    // Set root system from parameters
     this.rootSystem = parameters.rootSystem || 'A3';
+    
     return true;
   }
 
   /**
-   * Update the visualization
+   * Handle specific parameter updates
+   * @param {Object} parameters - Changed parameters only
    */
-  update(parameters) {
-    super.update(parameters);
+  handleParameterUpdate(parameters) {
+    // Check if root system has changed
     if (parameters.rootSystem !== undefined) {
       this.rootSystem = parameters.rootSystem;
     }
   }
 
   /**
+   * Determine if the polytope should be rebuilt after a parameter change
+   * @param {Object} parameters - New parameters (only changed ones)
+   * @returns {boolean} Whether to rebuild the polytope
+   */
+  shouldRebuildOnUpdate(parameters) {
+    return parameters.rootSystem !== undefined || 
+           super.shouldRebuildOnUpdate(parameters);
+  }
+
+  /**
    * Get the vertices for this permutahedron
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} parameters - Visualization parameters
+   * @returns {Array<THREE.Vector3>} Array of vertices
    */
   getVertices(THREE, parameters) {
     // Get root system from parameters, falling back to instance state

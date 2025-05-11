@@ -16,7 +16,7 @@ export class RootPolytopeVisualization extends BasePolytopeVisualization {
    * Get visualization-specific parameters
    * @returns {Object} Parameter schema with structural and visual parameters
    */
-  getVisualizationParameters() {
+  static getParameters() {
     return {
       structural: [
         {
@@ -30,7 +30,7 @@ export class RootPolytopeVisualization extends BasePolytopeVisualization {
             { value: 'D3', label: 'Type D3' },
             { value: 'H3', label: 'Type H3' }
           ],
-          default: this.rootType
+          default: 'A3'
         }
       ],
       visual: []
@@ -39,29 +39,39 @@ export class RootPolytopeVisualization extends BasePolytopeVisualization {
 
   /**
    * Initialize the visualization
-   * @param {Object} parameters - Parameter values
+   * @param {Object} parameters - Visualization parameters
    */
   async initialize(parameters) {
+    // Call parent initialization first
+    await super.initialize(parameters);
+    
     // Update root type if provided
     if (parameters.rootType) {
       this.rootType = parameters.rootType;
     }
     
-    // Call parent initialization
-    await super.initialize(parameters);
-    
     return true;
   }
 
   /**
+   * Handle specific parameter updates
+   * @param {Object} parameters - Changed parameters only
+   */
+  handleParameterUpdate(parameters) {
+    // Check if root type has changed
+    if (parameters.rootType !== undefined) {
+      this.rootType = parameters.rootType;
+    }
+  }
+
+  /**
    * Determine if the polytope should be rebuilt after a parameter change
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
+   * @param {Object} parameters - New parameters (only changed ones)
    * @returns {boolean} Whether to rebuild the polytope
    */
-  shouldRebuildOnUpdate(parameters, prevParameters) {
-    return parameters.rootType !== undefined && 
-           parameters.rootType !== prevParameters?.rootType;
+  shouldRebuildOnUpdate(parameters) {
+    return parameters.rootType !== undefined || 
+           super.shouldRebuildOnUpdate(parameters);
   }
 
   /**

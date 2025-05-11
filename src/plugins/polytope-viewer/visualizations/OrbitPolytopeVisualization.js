@@ -16,14 +16,14 @@ export class OrbitPolytopeVisualization extends BasePolytopeVisualization {
    * Get visualization-specific parameters
    * @returns {Object} Parameter schema with structural and visual parameters
    */
-  getVisualizationParameters() {
+  static getParameters() {
     return {
       structural: [
         {
           id: 'orbitPoint',
           type: 'text',
           label: 'Orbit Point [x,y,z,w]',
-          default: JSON.stringify(this.orbitPoint)
+          default: '[1,2,2,3]'
         }
       ],
       visual: []
@@ -35,6 +35,9 @@ export class OrbitPolytopeVisualization extends BasePolytopeVisualization {
    * @param {Object} parameters - Parameter values
    */
   async initialize(parameters) {
+    // Call parent initialization
+    await super.initialize(parameters);
+    
     // Update orbit point if provided
     if (parameters.orbitPoint) {
       try {
@@ -44,21 +47,32 @@ export class OrbitPolytopeVisualization extends BasePolytopeVisualization {
       }
     }
     
-    // Call parent initialization
-    await super.initialize(parameters);
-    
     return true;
   }
 
   /**
+   * Handle specific parameter updates
+   * @param {Object} parameters - Changed parameters only
+   */
+  handleParameterUpdate(parameters) {
+    // Check if orbit point has changed
+    if (parameters.orbitPoint !== undefined) {
+      try {
+        this.orbitPoint = JSON.parse(parameters.orbitPoint);
+      } catch (error) {
+        console.error("Invalid orbit point format:", error);
+      }
+    }
+  }
+
+  /**
    * Determine if the polytope should be rebuilt after a parameter change
-   * @param {Object} parameters - New parameters
-   * @param {Object} prevParameters - Previous parameters
+   * @param {Object} parameters - New parameters (only changed ones)
    * @returns {boolean} Whether to rebuild the polytope
    */
-  shouldRebuildOnUpdate(parameters, prevParameters) {
-    return parameters.orbitPoint !== undefined && 
-           parameters.orbitPoint !== prevParameters?.orbitPoint;
+  shouldRebuildOnUpdate(parameters) {
+    return parameters.orbitPoint !== undefined || 
+           super.shouldRebuildOnUpdate(parameters);
   }
 
   /**
