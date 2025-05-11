@@ -107,16 +107,14 @@ export class BasePolytopeVisualization extends Visualization {
       const polytopeGroup = new THREE.Group();
       this.state.meshGroup.add(polytopeGroup);
       
-      // Get all the faces from the hull geometry
-      const positionAttribute = hullGeometry.getAttribute('position');
-      const normalAttribute = hullGeometry.getAttribute('normal');
-      const faceCount = positionAttribute.count / 3;
+      // Extract faces from hull geometry
+      const faces = this.extractFaces(THREE, hullGeometry);
       
       // Store the face meshes to update their materials later if needed
       this.state.faceMeshes = [];
       
       // Create a mesh for each face with its own material
-      for (let i = 0; i < faceCount; i++) {
+      faces.forEach((face, i) => {
         // Get the color for this face
         const colorIndex = i % palette.length;
         const faceColor = palette[colorIndex];
@@ -131,32 +129,46 @@ export class BasePolytopeVisualization extends Visualization {
           flatShading: true
         });
         
-        // Create a geometry for just this face
+        // Create face geometry
         const faceGeometry = new THREE.BufferGeometry();
         
-        // Extract vertices for this face (3 vertices per face)
+        // Combine all the triangles in this face
         const vertices = [];
         const normals = [];
+        const indices = [];
         
-        for (let j = 0; j < 3; j++) {
-          const index = i * 3 + j;
+        // Add each vertex with its normal
+        let vertexCount = 0;
+        face.triangles.forEach(triangle => {
+          // Add the three vertices of this triangle
+          for (let j = 0; j < 3; j++) {
+            vertices.push(
+              triangle.vertices[j].x,
+              triangle.vertices[j].y,
+              triangle.vertices[j].z
+            );
+            
+            normals.push(
+              triangle.normal.x,
+              triangle.normal.y,
+              triangle.normal.z
+            );
+          }
           
-          vertices.push(
-            positionAttribute.getX(index),
-            positionAttribute.getY(index),
-            positionAttribute.getZ(index)
+          // Add indices for this triangle
+          indices.push(
+            vertexCount,
+            vertexCount + 1,
+            vertexCount + 2
           );
           
-          normals.push(
-            normalAttribute.getX(index),
-            normalAttribute.getY(index),
-            normalAttribute.getZ(index)
-          );
-        }
+          vertexCount += 3;
+        });
         
         // Set attributes for the face geometry
         faceGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
         faceGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        faceGeometry.setIndex(indices);
         
         // Create mesh for this face
         const faceMesh = new THREE.Mesh(faceGeometry, faceMaterial);
@@ -164,7 +176,7 @@ export class BasePolytopeVisualization extends Visualization {
         // Add to group and store reference
         polytopeGroup.add(faceMesh);
         this.state.faceMeshes.push(faceMesh);
-      }
+      });
       
       // Clean up the original hull geometry
       hullGeometry.dispose();
@@ -213,6 +225,108 @@ export class BasePolytopeVisualization extends Visualization {
         this.state.meshGroup.add(sphere);
       });
     }
+  }
+
+  /**
+   * Extract faces from the geometry
+   * A face is a group of connected triangles with the same normal
+   * @param {Object} THREE - THREE.js library
+   * @param {THREE.BufferGeometry} geometry - Geometry to extract faces from
+   * @returns {Array} Array of faces, each containing triangles
+   */
+  extractFaces(THREE, geometry) {
+    const faces = [];
+    const positionAttribute = geometry.getAttribute('position');
+    const normalAttribute = geometry.getAttribute('normal');
+    const triangleCount = positionAttribute.count / 3;
+    
+    // Collect all triangles with their normals
+    const triangles = [];
+    for (let i = 0; i < triangleCount; i++) {
+      const vertices = [];
+      let normal = null;
+      
+      // Get three vertices for this triangle
+      for (let j = 0; j < 3; j++) {
+        const index = i * 3 + j;
+        vertices.push(new THREE.Vector3(
+          positionAttribute.getX(index),
+          positionAttribute.getY(index),
+          positionAttribute.getZ(index)
+        ));
+        
+        // Use the first vertex normal as the face normal
+        if (j === 0) {
+          normal = new THREE.Vector3(
+            normalAttribute.getX(index),
+            normalAttribute.getY(index),
+            normalAttribute.getZ(index)
+          );
+        }
+      }
+      
+      triangles.push({
+        vertices,
+        normal,
+        faceIndex: -1 // Will be assigned later
+      });
+    }
+    
+    // Group triangles into faces based on their normals
+    let faceIndex = 0;
+    for (let i = 0; i < triangles.length; i++) {
+      const triangle = triangles[i];
+      
+      // Skip triangles that have already been assigned to a face
+      if (triangle.faceIndex >= 0) continue;
+      
+      // Create a new face with this triangle
+      const face = { 
+        normal: triangle.normal, 
+        triangles: [triangle]
+      };
+      
+      // Mark this triangle as part of this face
+      triangle.faceIndex = faceIndex;
+      
+      // Look for other triangles that belong to this face
+      for (let j = i + 1; j < triangles.length; j++) {
+        const otherTriangle = triangles[j];
+        
+        // Skip triangles that have already been assigned
+        if (otherTriangle.faceIndex >= 0) continue;
+        
+        // Check if the normals are similar (within a small threshold)
+        if (this.normalsAreSimilar(triangle.normal, otherTriangle.normal, 0.01)) {
+          // Add this triangle to the face
+          face.triangles.push(otherTriangle);
+          otherTriangle.faceIndex = faceIndex;
+        }
+      }
+      
+      // Add the completed face to the list
+      faces.push(face);
+      faceIndex++;
+    }
+    
+    return faces;
+  }
+  
+  /**
+   * Check if two normals are similar (within a threshold)
+   * @param {THREE.Vector3} normal1 - First normal
+   * @param {THREE.Vector3} normal2 - Second normal
+   * @param {number} threshold - Threshold for similarity
+   * @returns {boolean} Whether the normals are similar
+   */
+  normalsAreSimilar(normal1, normal2, threshold = 0.01) {
+    // Calculate dot product of normalized vectors
+    // Dot product of unit vectors equals cosine of angle between them
+    // For parallel vectors, dot product is 1
+    // For perpendicular vectors, dot product is 0
+    // We want vectors to be nearly parallel, so dot product should be close to 1
+    const dot = normal1.dot(normal2);
+    return Math.abs(1 - dot) < threshold;
   }
 
   /**
@@ -325,7 +439,8 @@ export class BasePolytopeVisualization extends Visualization {
     if ((parameters.usePalette !== undefined || 
         parameters.colorPalette !== undefined ||
         parameters.wireframe !== undefined ||
-        parameters.opacity !== undefined) &&
+        parameters.opacity !== undefined ||
+        parameters.faceColor !== undefined) &&
         this.state.faceMeshes && 
         this.state.faceMeshes.length > 0) {
       
@@ -360,7 +475,7 @@ export class BasePolytopeVisualization extends Visualization {
         });
       } else if (parameters.usePalette === 'none') {
         // Switch back to single color
-        const faceColor = this.plugin.parameters.faceColor || '#3498db';
+        const faceColor = parameters.faceColor || this.plugin.parameters.faceColor || '#3498db';
         
         // Update each face mesh with the single color
         this.state.faceMeshes.forEach(faceMesh => {
@@ -376,6 +491,13 @@ export class BasePolytopeVisualization extends Visualization {
               faceMesh.material.transparent = parameters.opacity < 1;
               faceMesh.material.opacity = parameters.opacity;
             }
+          }
+        });
+      } else if (parameters.faceColor !== undefined && this.plugin.parameters.usePalette !== 'true') {
+        // Update single color when not in palette mode
+        this.state.faceMeshes.forEach(faceMesh => {
+          if (faceMesh.material) {
+            faceMesh.material.color.set(parameters.faceColor);
           }
         });
       }
