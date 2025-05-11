@@ -1,7 +1,8 @@
 // src/plugins/polytope-viewer/index.js
 import { Plugin } from '../../core/Plugin.js';
 import { BasePolytopeVisualization } from './BasePolytopeVisualization.js';
-// Import visualization classes directly to ensure they're available
+
+// Import all visualization classes directly
 import { PlatonicVisualization } from './visualizations/PlatonicVisualization.js';
 import { PermutahedronVisualization } from './visualizations/PermutahedronVisualization.js';
 import { RootPolytopeVisualization } from './visualizations/RootPolytopeVisualization.js';
@@ -9,6 +10,9 @@ import { StellahedronVisualization } from './visualizations/StellahedronVisualiz
 import { OrbitPolytopeVisualization } from './visualizations/OrbitPolytopeVisualization.js';
 import { AssociahedronVisualization } from './visualizations/AssociahedronVisualization.js';
 
+/**
+ * PolytopeViewerPlugin - A plugin for viewing 3D polytopes
+ */
 export default class PolytopeViewerPlugin extends Plugin {
   static id = "polytope-viewer";
   static name = "Polytope Viewer";
@@ -18,70 +22,70 @@ export default class PolytopeViewerPlugin extends Plugin {
   constructor(core) {
     super(core);
     
-    // Initialize with known visualizations to avoid empty array issues
-    this.visualizationTypes = [
+    // Define visualization registry with clear metadata and classes
+    this.visualizationRegistry = [
       {
         id: 'platonic',
         name: 'Platonic Solids',
+        description: 'The five regular polyhedra: tetrahedron, cube, octahedron, dodecahedron, and icosahedron',
         class: PlatonicVisualization
       },
       {
         id: 'permutahedron',
         name: 'Permutahedron',
+        description: 'Polytopes derived from permutation groups',
         class: PermutahedronVisualization
       },
       {
         id: 'rootpolytope',
         name: 'Root Polytope',
+        description: 'Polytopes based on root systems',
         class: RootPolytopeVisualization
       },
       {
         id: 'stellahedron',
         name: 'Stellahedron',
+        description: 'Star-like polytope constructed using Minkowski sums',
         class: StellahedronVisualization
       },
       {
         id: 'orbitpolytope',
         name: 'Orbit Polytope',
+        description: 'Polytopes derived from the orbit of a point under group action',
         class: OrbitPolytopeVisualization
       },
       {
         id: 'associahedron',
         name: 'Associahedron',
+        description: 'Polytope related to associations in bracket expressions',
         class: AssociahedronVisualization
       }
     ];
+    
+    // Current visualization type
+    this.currentVisualizationType = 'platonic';
   }
 
   /**
    * Load the plugin
-   * Called when the plugin is selected
    */
   async load() {
     if (this.isLoaded) return true;
     
     try {
-      console.log("Loading polytope-viewer plugin...");
+      console.log("Loading polytope viewer plugin...");
       
-      // Try to discover more visualizations from manifest
-      try {
-        await this.discoverVisualizations();
-      } catch (error) {
-        console.warn("Could not discover visualizations from manifest:", error);
-        // Continue with hard-coded visualizations
-      }
-      
-      // Set up default parameters from schema
+      // Build parameter schema for all visualization types
       const schema = this.getParameterSchema();
+      
+      // Initialize parameters with defaults from schema
       this.parameters = this._getDefaultParametersFromSchema(schema);
       
-      // Set default visualization type if not already set
-      if (!this.parameters.visualizationType) {
-        this.parameters.visualizationType = this.visualizationTypes[0].id;
-      }
+      // Default to first visualization type if not set
+      this.currentVisualizationType = this.parameters.visualizationType || this.visualizationRegistry[0].id;
       
-      // Initialize default visualization
-      await this._initializeDefaultVisualization();
+      // Initialize the visualization
+      await this._initializeVisualization(this.currentVisualizationType);
       
       // Mark as loaded
       this.isLoaded = true;
@@ -95,10 +99,10 @@ export default class PolytopeViewerPlugin extends Plugin {
         this.core.uiManager.updateActions(actions);
       }
       
-      console.log("Polytope-viewer plugin loaded successfully");
+      console.log("Polytope viewer plugin loaded successfully");
       return true;
     } catch (error) {
-      console.error(`Error loading PolytopeViewerPlugin:`, error);
+      console.error("Error loading polytope viewer plugin:", error);
       
       // Ensure clean state on failure
       await this.unload();
@@ -108,13 +112,12 @@ export default class PolytopeViewerPlugin extends Plugin {
 
   /**
    * Unload the plugin
-   * Called when another plugin is selected
    */
   async unload() {
     if (!this.isLoaded) return true;
     
     try {
-      console.log("Unloading polytope-viewer plugin...");
+      console.log("Unloading polytope viewer plugin...");
       
       // Clean up current visualization
       if (this.currentVisualization) {
@@ -125,186 +128,106 @@ export default class PolytopeViewerPlugin extends Plugin {
       // Clear all visualizations
       this.visualizations.clear();
       
-      // Clear parameters
+      // Reset parameters
       this.parameters = {};
       
-      // Clear visualization types
-      // Note: We don't clear this because it would break future loads
-      // this.visualizationTypes = [];
+      // Reset current visualization type
+      this.currentVisualizationType = this.visualizationRegistry[0].id;
       
       // Mark as unloaded
       this.isLoaded = false;
       
-      console.log("Polytope-viewer plugin unloaded successfully");
+      console.log("Polytope viewer plugin unloaded successfully");
       return true;
     } catch (error) {
-      console.error(`Error unloading PolytopeViewerPlugin:`, error);
+      console.error("Error unloading polytope viewer plugin:", error);
       return false;
     }
   }
 
   /**
-   * Discover available polytope visualizations from the manifest
-   */
-  async discoverVisualizations() {
-    try {
-      // Try different manifest paths since the exact path may vary
-      let manifestPath = './src/plugins/polytope-viewer/polytope_manifest.json';
-      let response = await fetch(manifestPath);
-      
-      // If first path fails, try alternative paths
-      if (!response.ok) {
-        manifestPath = '/src/plugins/polytope-viewer/polytope_manifest.json';
-        response = await fetch(manifestPath);
-        
-        if (!response.ok) {
-          manifestPath = '/math-visualizer/src/plugins/polytope-viewer/polytope_manifest.json';
-          response = await fetch(manifestPath);
-        }
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load polytope manifest: ${response.statusText}`);
-      }
-      
-      const manifest = await response.json();
-      
-      // Create a map of existing visualization types for fast lookup
-      const existingTypeMap = new Map(
-        this.visualizationTypes.map(vt => [vt.id.toLowerCase(), vt])
-      );
-      
-      // Process manifest entries
-      for (const entry of manifest) {
-        try {
-          const { name, file, description } = entry;
-          if (!name || !file) continue;
-          
-          const id = name.toLowerCase().replace(/\s+/g, '');
-          
-          // Skip if we already have this visualization type
-          if (existingTypeMap.has(id)) continue;
-          
-          const className = file.replace(/\.js$/, '');
-          
-          // Try different import paths
-          let module;
-          try {
-            // Try relative path
-            module = await import(`./visualizations/${file}`);
-          } catch (importError) {
-            try {
-              // Try absolute path
-              module = await import(`/math-visualizer/src/plugins/polytope-viewer/visualizations/${file}`);
-            } catch (secondError) {
-              // Try another path format
-              module = await import(`../plugins/polytope-viewer/visualizations/${file}`);
-            }
-          }
-          
-          if (!module) {
-            console.warn(`Could not import ${file}`);
-            continue;
-          }
-          
-          const VisualizationClass = module[className];
-          
-          if (!VisualizationClass) {
-            console.warn(`Could not find class ${className} in ${file}`);
-            continue;
-          }
-          
-          this.visualizationTypes.push({
-            id,
-            name,
-            description,
-            class: VisualizationClass
-          });
-          
-          console.log(`Discovered visualization: ${name}`);
-        } catch (error) {
-          console.error(`Error importing visualization ${entry.name || 'unknown'}: ${error.message}`);
-        }
-      }
-      
-      return this.visualizationTypes.length > 0;
-    } catch (error) {
-      console.error("Error discovering visualizations:", error);
-      // No need to throw - we'll use the direct imports as fallback
-      return this.visualizationTypes.length > 0;
-    }
-  }
-
-  /**
-   * Initialize the default visualization
+   * Initialize visualization with the specified type
+   * @param {string} visualizationType - ID of visualization type to initialize
    * @private
    */
-  async _initializeDefaultVisualization() {
-    if (this.visualizationTypes.length === 0) {
-      console.error("No visualizations available to initialize");
-      return false;
+  async _initializeVisualization(visualizationType) {
+    // Get visualization info
+    const vizInfo = this._getVisualizationInfo(visualizationType);
+    if (!vizInfo) {
+      throw new Error(`Visualization type '${visualizationType}' not found`);
     }
     
-    // Get the selected visualization type
-    const selectedType = this.parameters.visualizationType || this.visualizationTypes[0].id;
+    // Clean up current visualization if it exists
+    if (this.currentVisualization) {
+      this.currentVisualization.dispose();
+    }
     
-    // Find the visualization info
-    const vizInfo = this.visualizationTypes.find(vt => vt.id === selectedType) || 
-                   this.visualizationTypes[0];
+    console.log(`Initializing ${vizInfo.name} visualization`);
     
-    // Create and register visualization
-    const visualization = new vizInfo.class(this);
-    this.registerVisualization(vizInfo.id, visualization);
-    this.currentVisualization = visualization;
+    // Create new visualization instance
+    const vizInstance = new vizInfo.class(this);
+    
+    // Register and set as current
+    this.registerVisualization(vizInfo.id, vizInstance);
+    this.currentVisualization = vizInstance;
+    this.currentVisualizationType = vizInfo.id;
     
     // Initialize with current parameters
     await this.currentVisualization.initialize(this.parameters);
     
     return true;
   }
-  
+
   /**
-   * Get the parameter schema combining plugin, base, and visualization parameters
+   * Get visualization info by ID
+   * @param {string} id - Visualization ID
+   * @returns {Object|null} Visualization info or null if not found
+   * @private
+   */
+  _getVisualizationInfo(id) {
+    return this.visualizationRegistry.find(viz => viz.id === id) || null;
+  }
+
+  /**
+   * Generate the parameter schema for this plugin
+   * Combines core plugin parameters with visualization parameters
    */
   getParameterSchema() {
-    // Visualization type selector options
-    const visualizationTypeOptions = this.visualizationTypes?.map(vt => ({
-      value: vt.id,
-      label: vt.name
-    })) || [];
+    // Create visualization type dropdown options
+    const vizTypeOptions = this.visualizationRegistry.map(viz => ({
+      value: viz.id,
+      label: viz.name
+    }));
     
-    // Current visualization type, defaulting to first one if not set
-    const currentType = this.parameters?.visualizationType || 
-                      (this.visualizationTypes && this.visualizationTypes.length > 0 ? 
-                       this.visualizationTypes[0].id : '');
-    
-    // Plugin parameter
-    const pluginParam = {
-      id: 'visualizationType',
-      type: 'dropdown',
-      label: 'Polytope Class',
-      options: visualizationTypeOptions,
-      default: currentType
+    // Plugin's own parameters
+    const pluginParams = {
+      structural: [
+        {
+          id: 'visualizationType',
+          type: 'dropdown',
+          label: 'Polytope Type',
+          options: vizTypeOptions,
+          default: this.currentVisualizationType || this.visualizationRegistry[0].id
+        }
+      ],
+      visual: []
     };
     
-    // Start with base parameters from BasePolytopeVisualization
+    // Get base parameters common to all polytopes
     const baseParams = BasePolytopeVisualization.getBaseParameters();
     
-    // Get visualization-specific parameters if visualization class is available
+    // Get visualization-specific parameters
     let vizParams = { structural: [], visual: [] };
+    const currentVizInfo = this._getVisualizationInfo(this.currentVisualizationType);
     
-    if (this.visualizationTypes) {
-      const vizInfo = this.visualizationTypes.find(vt => vt.id === currentType);
-      
-      if (vizInfo && vizInfo.class && vizInfo.class.getParameters) {
-        vizParams = vizInfo.class.getParameters();
-      }
+    if (currentVizInfo && currentVizInfo.class && typeof currentVizInfo.class.getParameters === 'function') {
+      vizParams = currentVizInfo.class.getParameters();
     }
     
     // Combine all parameters
     return {
       structural: [
-        pluginParam,
+        ...pluginParams.structural,
         ...baseParams.structural,
         ...vizParams.structural
       ],
@@ -322,58 +245,38 @@ export default class PolytopeViewerPlugin extends Plugin {
     // Update parameter value
     this.parameters[parameterId] = value;
     
-    // Special handling for visualization type changes
-    if (parameterId === 'visualizationType') {
-      // Find visualization info
-      const vizInfo = this.visualizationTypes.find(vt => vt.id === value);
-      
-      if (!vizInfo) {
-        console.error(`Visualization type ${value} not found`);
-        return;
+    // Handle visualization type change specially
+    if (parameterId === 'visualizationType' && value !== this.currentVisualizationType) {
+      try {
+        // Initialize the new visualization type
+        await this._initializeVisualization(value);
+        
+        // Update UI with new parameter schema
+        this.giveParameters(true);
+      } catch (error) {
+        console.error(`Error changing visualization type to ${value}:`, error);
+        
+        // Revert to previous visualization type in parameters
+        this.parameters.visualizationType = this.currentVisualizationType;
+        
+        // Show error to user
+        if (this.core && this.core.uiManager) {
+          this.core.uiManager.showError(`Failed to change visualization type: ${error.message}`);
+        }
       }
+    } else if (this.currentVisualization) {
+      // For all other parameters, just update the visualization
+      this.currentVisualization.update({ [parameterId]: value });
       
-      // Dispose current visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.dispose();
-      }
-      
-      // Create and register new visualization
-      const visualization = new vizInfo.class(this);
-      this.registerVisualization(vizInfo.id, visualization);
-      this.currentVisualization = visualization;
-      
-      // Initialize with current parameters - wait for completion
-      await this.currentVisualization.initialize(this.parameters);
-      
-      // Update UI with new parameter schema after initialization
-      this.giveParameters(true);
-      
-      // Request render
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
-      }
-      
-      return;
-    }
-    
-    // Update visualization with the parameter change
-    if (this.currentVisualization) {
-      this.currentVisualization.update({ 
-        [parameterId]: value 
-      });
-      
-      // Update UI with changed parameters - FIXED: Added this line
-      this.giveParameters(false);
-      
-      // Request a render update
+      // Request render update
       if (this.core && this.core.renderingManager) {
         this.core.renderingManager.requestRender();
       }
     }
   }
-  
+
   /**
-   * Get available actions
+   * Get available actions for this plugin
    */
   getActions() {
     return [
@@ -388,52 +291,74 @@ export default class PolytopeViewerPlugin extends Plugin {
       }
     ];
   }
-  
+
   /**
    * Execute an action
    */
   executeAction(actionId, ...args) {
-    if (actionId === 'toggle-rotation') {
-      // Toggle rotation
-      const newValue = !this.parameters.rotation;
-      this.parameters.rotation = newValue;
-      
-      // Update visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.update({ rotation: newValue });
-      }
-      
-      // Update UI
-      this.giveParameters(false);
-      
-      return true;
-    } else if (actionId === 'reset-camera') {
-      // Reset camera (implementation depends on the 3D environment setup)
-      if (this.core && this.core.renderingManager) {
-        const environment = this.core.renderingManager.getCurrentEnvironment();
-        if (environment && typeof environment.getCamera === 'function') {
-          const camera = environment.getCamera();
-          if (camera) {
-            // Reset camera position
-            camera.position.set(0, 0, 5);
-            camera.lookAt(0, 0, 0);
-          }
-          
-          // Try to use camera controls if available
-          if (environment.getControls && typeof environment.getControls === 'function') {
-            const controls = environment.getControls();
-            if (controls && typeof controls.reset === 'function') {
-              controls.reset();
-            }
-          }
+    switch (actionId) {
+      case 'toggle-rotation':
+        // Toggle rotation parameter
+        const newRotationValue = !this.parameters.rotation;
+        this.parameters.rotation = newRotationValue;
+        
+        // Update visualization
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ rotation: newRotationValue });
         }
         
-        // Request render update
-        this.core.renderingManager.requestRender();
-      }
-      return true;
+        // Update UI
+        this.giveParameters(false);
+        
+        return true;
+        
+      case 'reset-camera':
+        // Reset camera position
+        if (this.core && this.core.renderingManager) {
+          const environment = this.core.renderingManager.getCurrentEnvironment();
+          
+          if (environment) {
+            // Try different camera reset methods
+            if (environment.getControls && typeof environment.getControls === 'function') {
+              const controls = environment.getControls();
+              if (controls && typeof controls.reset === 'function') {
+                controls.reset();
+              } else if (controls && typeof controls.setLookAt === 'function') {
+                // For camera-controls
+                controls.setLookAt(0, 1, 5, 0, 0, 0);
+              }
+            }
+            
+            // Also try to reset camera directly
+            if (environment.getCamera && typeof environment.getCamera === 'function') {
+              const camera = environment.getCamera();
+              if (camera) {
+                camera.position.set(0, 1, 5);
+                camera.lookAt(0, 0, 0);
+                if (camera.updateProjectionMatrix) {
+                  camera.updateProjectionMatrix();
+                }
+              }
+            }
+            
+            // Request a render update
+            this.core.renderingManager.requestRender();
+          }
+        }
+        return true;
+        
+      default:
+        // Let parent handle standard actions
+        return super.executeAction(actionId, ...args);
     }
-    
-    return super.executeAction(actionId, ...args);
+  }
+
+  /**
+   * Initialize the default visualization
+   * Required by Plugin base class
+   * @private
+   */
+  async _initializeDefaultVisualization() {
+    return this._initializeVisualization(this.currentVisualizationType);
   }
 }

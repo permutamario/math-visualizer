@@ -157,6 +157,8 @@ export class AppCore {
             
             // Update UI with currently active plugin
             this.uiManager.updatePlugins(this.availablePlugins, pluginId);
+
+this.exposeDebugInfo(); //Expose to debugger.
             
             // Restore rendering if it was active
             if (wasRendering) {
@@ -237,6 +239,40 @@ export class AppCore {
     
     return isFullscreen;
   }
+
+/**
+ * Expose debug information
+ * Makes the app, current plugin info, and parameterSchema available in the console
+ */
+exposeDebugInfo() {
+  try {
+    // Create debug object with core app reference
+    window.__debugInfo = {
+      app: this,
+      currentPlugin: null,
+      parameterSchema: null
+    };
+    
+    // Add current plugin info if available
+    if (this.loadedPlugin) {
+      window.__debugInfo.currentPlugin = {
+        id: this.loadedPlugin.constructor.id,
+        name: this.loadedPlugin.constructor.name,
+        parameters: this.loadedPlugin.parameters,
+        instance: this.loadedPlugin
+      };
+      
+      // Add parameter schema
+      window.__debugInfo.parameterSchema = this.loadedPlugin.getParameterSchema();
+    }
+    
+    console.log('Debug info exposed. Access via window.__debugInfo');
+    return window.__debugInfo;
+  } catch (error) {
+    console.error('Error exposing debug info:', error);
+    return null;
+  }
+}
   
   /**
    * Handle parameter changes from UI

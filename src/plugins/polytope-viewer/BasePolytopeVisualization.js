@@ -3,6 +3,7 @@ import { Visualization } from '../../core/Visualization.js';
 
 /**
  * Base class for all polytope visualizations
+ * Provides common functionality and parameters
  */
 export class BasePolytopeVisualization extends Visualization {
   constructor(plugin) {
@@ -11,15 +12,17 @@ export class BasePolytopeVisualization extends Visualization {
     // Set direct isAnimating property for the RenderingManager
     this.isAnimating = true;
     
-    // Store state
+    // Store visualization state
     this.state = {
       meshGroup: null,   // Group containing all meshes
-      maxRadius: 1.0     // Maximum radius of the polytope
+      maxRadius: 1.0,    // Maximum radius of the polytope
+      isRotating: false  // Whether the polytope is rotating
     };
   }
 
   /**
    * Get base parameters common to all polytopes
+   * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getBaseParameters() {
     return {
@@ -41,7 +44,7 @@ export class BasePolytopeVisualization extends Visualization {
           id: 'showEdges',
           type: 'checkbox',
           label: 'Show Edges',
-          default: false
+          default: true
         },
         {
           id: 'showVertices',
@@ -91,7 +94,8 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Get specific parameters for this visualization
-   * Override in subclasses
+   * Override in subclasses to provide additional parameters
+   * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
     return {
@@ -102,59 +106,47 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Get the vertices for this polytope
-   * Override in subclasses
+   * Must be overridden by subclasses
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} parameters - Visualization parameters
+   * @returns {Array} Array of vertices as THREE.Vector3
    */
   getVertices(THREE, parameters) {
     // Default implementation returns empty array
+    // Subclasses must override this method
     return [];
   }
 
   /**
    * Initialize the visualization
+   * @param {Object} parameters - Visualization parameters
+   * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
-    this.state.isAnimating = parameters.rotation || false;
-    this.cleanupMeshes();
-    return true;
-  }
-
-  /**
-   * Render the visualization in 3D
-   */
-  render3D(THREE, scene, parameters) {
-    // Remove existing mesh if present
-    if (this.state.meshGroup && this.state.meshGroup.parent) {
-      scene.remove(this.state.meshGroup);
-    }
-    
-    // Create new mesh
-    this.state.meshGroup = new THREE.Group();
-    
     try {
-      // Get vertices from the subclass
-      const vertices = this.getVertices(THREE, parameters);
+      // Store rotation state
+      this.state.isRotating = parameters.rotation || false;
       
-      // Create the polytope from vertices
-      this.createPolytope(THREE, vertices, parameters);
+      // Clean up any existing meshes
+      this.cleanupMeshes();
       
+      // Trigger a render after initialization
+      if (this.plugin && this.plugin.core && this.plugin.core.renderingManager) {
+        this.plugin.core.renderingManager.requestRender();
+      }
+      
+      return true;
     } catch (error) {
-      console.error("Error creating polytope:", error);
-      
-      // Create a fallback error indicator
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
-      const material = new THREE.MeshBasicMaterial({ 
-        color: 0xff0000,
-        wireframe: true 
-      });
-      this.state.meshGroup.add(new THREE.Mesh(geometry, material));
+      console.error("Error initializing polytope visualization:", error);
+      return false;
     }
-    
-    // Add the mesh group to the scene
-    scene.add(this.state.meshGroup);
   }
 
   /**
    * Create a polytope from vertices
+   * @param {Object} THREE - THREE.js library
+   * @param {Array} vertices - Array of vertices as THREE.Vector3
+   * @param {Object} parameters - Visualization parameters
    */
   createPolytope(THREE, vertices, parameters) {
     if (!vertices || vertices.length < 4) {
@@ -162,10 +154,15 @@ export class BasePolytopeVisualization extends Visualization {
     }
     
     // Process the vertices to center them
-    vertices = this.centerVertices(THREE, vertices);
+    const centeredVertices = this.centerVertices(THREE, vertices);
     
-    // Create convex hull geometry using global ConvexGeometry
-    const hullGeometry = new window.ConvexGeometry(vertices);
+    // Create convex hull geometry using ConvexGeometry
+    // (which should be globally available via the window object)
+    if (!window.ConvexGeometry) {
+      throw new Error("ConvexGeometry is not available. Make sure it's properly imported.");
+    }
+    
+    const hullGeometry = new window.ConvexGeometry(centeredVertices);
     
     // Create materials
     const faceMaterial = new THREE.MeshStandardMaterial({
@@ -200,20 +197,66 @@ export class BasePolytopeVisualization extends Visualization {
       });
       
       const vertexSize = parameters.vertexSize || 0.05;
-      const sphereGeometry = new THREE.SphereGeometry(1, 16, 16);
+      const sphereGeometry = new THREE.SphereGeometry(vertexSize, 16, 16);
       
       // Add a sphere at each vertex position
-      vertices.forEach(vertex => {
+      centeredVertices.forEach(vertex => {
         const sphere = new THREE.Mesh(sphereGeometry, vertexMaterial);
         sphere.position.copy(vertex);
-        sphere.scale.set(vertexSize, vertexSize, vertexSize);
         this.state.meshGroup.add(sphere);
       });
     }
   }
 
   /**
+   * Render the visualization in 3D
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} scene - THREE.js scene
+   * @param {Object} parameters - Visualization parameters
+   */
+  render3D(THREE, scene, parameters) {
+    try {
+      // Remove existing mesh if present
+      if (this.state.meshGroup && scene.children.includes(this.state.meshGroup)) {
+        scene.remove(this.state.meshGroup);
+      }
+      
+      // Create new mesh group
+      this.state.meshGroup = new THREE.Group();
+      
+      // Get vertices from the subclass
+      const vertices = this.getVertices(THREE, parameters);
+      
+      // Create the polytope from vertices
+      this.createPolytope(THREE, vertices, parameters);
+      
+      // Add the mesh group to the scene
+      scene.add(this.state.meshGroup);
+    } catch (error) {
+      console.error("Error rendering polytope:", error);
+      
+      // Create a fallback error indicator
+      if (!this.state.meshGroup) {
+        this.state.meshGroup = new THREE.Group();
+      }
+      
+      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const material = new THREE.MeshBasicMaterial({ 
+        color: 0xff0000,
+        wireframe: true 
+      });
+      this.state.meshGroup.add(new THREE.Mesh(geometry, material));
+      
+      // Add the error mesh to the scene
+      scene.add(this.state.meshGroup);
+    }
+  }
+
+  /**
    * Center vertices around the origin
+   * @param {Object} THREE - THREE.js library
+   * @param {Array} vertices - Array of vertices as THREE.Vector3
+   * @returns {Array} Centered vertices
    */
   centerVertices(THREE, vertices) {
     if (!vertices || vertices.length === 0) return vertices;
@@ -233,10 +276,12 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Update animation
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * @returns {boolean} Whether a render is needed
    */
   animate(deltaTime) {
     // Only animate if rotation is enabled
-    if (this.state.isAnimating && this.state.meshGroup) {
+    if (this.state.isRotating && this.state.meshGroup) {
       this.state.meshGroup.rotation.y += 0.5 * deltaTime;
       this.state.meshGroup.rotation.x += 0.2 * deltaTime;
       return true;
@@ -246,11 +291,31 @@ export class BasePolytopeVisualization extends Visualization {
 
   /**
    * Handle parameter updates
+   * @param {Object} parameters - Updated parameters
    */
   update(parameters) {
+    // Handle rotation separately
     if (parameters.rotation !== undefined) {
-      this.state.isAnimating = parameters.rotation;
+      this.state.isRotating = parameters.rotation;
     }
+    
+    // Let specific implementations handle their own parameters
+    this.handleParameterUpdate(parameters);
+    
+    // Request a render if needed
+    if (this.plugin && this.plugin.core && this.plugin.core.renderingManager) {
+      this.plugin.core.renderingManager.requestRender();
+    }
+  }
+  
+  /**
+   * Handle visualization-specific parameter updates
+   * Override in subclasses to handle specific parameters
+   * @param {Object} parameters - Updated parameters
+   */
+  handleParameterUpdate(parameters) {
+    // Default implementation does nothing
+    // Subclasses should override this method
   }
 
   /**
@@ -284,7 +349,7 @@ export class BasePolytopeVisualization extends Visualization {
    */
   dispose() {
     this.cleanupMeshes();
-    this.state.isAnimating = false;
+    this.state.isRotating = false;
     this.isAnimating = false;
   }
 }
