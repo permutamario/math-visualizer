@@ -85,7 +85,22 @@ export default class PolytopeViewerPlugin extends Plugin {
       .addColor('faceColor', 'Face Color', '#3498db', 'visual')
       .addColor('edgeColor', 'Edge Color', '#2c3e50', 'visual')
       .addColor('vertexColor', 'Vertex Color', '#e74c3c', 'visual')
-      .addSlider('opacity', 'Opacity', 1, { min: 0.1, max: 1, step: 0.1 }, 'visual');
+      .addSlider('opacity', 'Opacity', 1, { min: 0.1, max: 1, step: 0.1 }, 'visual')
+      .addDropdown('usePalette', 'Use Color Palette', 'none', [
+  { value: 'none', label: 'Single Color' },
+  { value: 'true', label: 'Use Palette' }
+], 'visual')
+.addDropdown('colorPalette', 'Color Palette', 'default', [
+  { value: 'default', label: 'Default' },
+  { value: 'pastel', label: 'Pastel' },
+  { value: 'blues', label: 'Blues' },
+  { value: 'greens', label: 'Greens' },
+  { value: 'reds', label: 'Reds' },
+  { value: 'rainbow', label: 'Rainbow' },
+  { value: 'sequential', label: 'Sequential' },
+  { value: 'diverging', label: 'Diverging' }
+], 'visual');
+      
     
     // Add visualization-specific parameters if available
     if (this.currentVisualization) {

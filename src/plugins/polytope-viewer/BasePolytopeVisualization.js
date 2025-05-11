@@ -7,18 +7,19 @@ import { Visualization } from '../../core/Visualization.js';
  */
 export class BasePolytopeVisualization extends Visualization {
   constructor(plugin) {
-    super(plugin);
-    
-    // Set direct isAnimating property for the RenderingManager
-    this.isAnimating = true;
-    
-    // Store visualization state
-    this.state = {
-      meshGroup: null,   // Group containing all meshes
-      maxRadius: 1.0,    // Maximum radius of the polytope
-      isRotating: false  // Whether the polytope is rotating
-    };
-  }
+  super(plugin);
+  
+  // Set direct isAnimating property for the RenderingManager
+  this.isAnimating = true;
+  
+  // Store visualization state
+  this.state = {
+    meshGroup: null,   // Group containing all meshes
+    faceMeshes: [],    // Individual face meshes for palette coloring
+    maxRadius: 1.0,    // Maximum radius of the polytope
+    isRotating: false  // Whether the polytope is rotating
+  };
+}
 
   /**
    * Get common parameters for all polytope visualizations
@@ -76,23 +77,106 @@ export class BasePolytopeVisualization extends Visualization {
    * @param {Array} vertices - Array of vertices as THREE.Vector3
    * @param {Object} parameters - Visualization parameters
    */
-  createPolytope(THREE, vertices, parameters) {
-    if (!vertices || vertices.length < 4) {
-      throw new Error("Not enough vertices to create a polytope");
+ /**
+ * Create a polytope from vertices
+ * @param {Object} THREE - THREE.js library
+ * @param {Array} vertices - Array of vertices as THREE.Vector3
+ * @param {Object} parameters - Visualization parameters
+ */
+createPolytope(THREE, vertices, parameters) {
+  if (!vertices || vertices.length < 4) {
+    throw new Error("Not enough vertices to create a polytope");
+  }
+  
+  // Process the vertices to center them
+  const centeredVertices = this.centerVertices(THREE, vertices);
+  
+  // Create convex hull geometry using ConvexGeometry
+  // (which should be globally available via the window object)
+  if (!window.ConvexGeometry) {
+    throw new Error("ConvexGeometry is not available. Make sure it's properly imported.");
+  }
+  
+  const hullGeometry = new window.ConvexGeometry(centeredVertices);
+  
+  // Check if we should use a palette
+  const usePalette = parameters.usePalette === 'true';
+  
+  if (usePalette && this.plugin && this.plugin.core && this.plugin.core.colorSchemeManager) {
+    // We will use face-based materials with palette colors
+    
+    // Get the selected palette from color scheme manager
+    const colorSchemeManager = this.plugin.core.colorSchemeManager;
+    const palette = colorSchemeManager.getPalette(parameters.colorPalette || 'default');
+    
+    // Create a group to hold the face meshes
+    const polytopeGroup = new THREE.Group();
+    this.state.meshGroup.add(polytopeGroup);
+    
+    // Get all the faces from the hull geometry
+    const positionAttribute = hullGeometry.getAttribute('position');
+    const normalAttribute = hullGeometry.getAttribute('normal');
+    const faceCount = positionAttribute.count / 3;
+    
+    // Store the face meshes to update their materials later if needed
+    this.state.faceMeshes = [];
+    
+    // Create a mesh for each face with its own material
+    for (let i = 0; i < faceCount; i++) {
+      // Get the color for this face
+      const colorIndex = i % palette.length;
+      const faceColor = palette[colorIndex];
+      
+      // Create material for this face
+      const faceMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(faceColor),
+        wireframe: parameters.wireframe || false,
+        transparent: (parameters.opacity || 1) < 1,
+        opacity: parameters.opacity || 1,
+        side: THREE.DoubleSide,
+        flatShading: true
+      });
+      
+      // Create a geometry for just this face
+      const faceGeometry = new THREE.BufferGeometry();
+      
+      // Extract vertices for this face (3 vertices per face)
+      const vertices = [];
+      const normals = [];
+      
+      for (let j = 0; j < 3; j++) {
+        const index = i * 3 + j;
+        
+        vertices.push(
+          positionAttribute.getX(index),
+          positionAttribute.getY(index),
+          positionAttribute.getZ(index)
+        );
+        
+        normals.push(
+          normalAttribute.getX(index),
+          normalAttribute.getY(index),
+          normalAttribute.getZ(index)
+        );
+      }
+      
+      // Set attributes for the face geometry
+      faceGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      faceGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      
+      // Create mesh for this face
+      const faceMesh = new THREE.Mesh(faceGeometry, faceMaterial);
+      
+      // Add to group and store reference
+      polytopeGroup.add(faceMesh);
+      this.state.faceMeshes.push(faceMesh);
     }
     
-    // Process the vertices to center them
-    const centeredVertices = this.centerVertices(THREE, vertices);
+    // Clean up the original hull geometry
+    hullGeometry.dispose();
     
-    // Create convex hull geometry using ConvexGeometry
-    // (which should be globally available via the window object)
-    if (!window.ConvexGeometry) {
-      throw new Error("ConvexGeometry is not available. Make sure it's properly imported.");
-    }
-    
-    const hullGeometry = new window.ConvexGeometry(centeredVertices);
-    
-    // Create materials
+  } else {
+    // Use standard single-color material for the entire polytope
     const faceMaterial = new THREE.MeshStandardMaterial({
       color: new THREE.Color(parameters.faceColor || '#3498db'),
       wireframe: parameters.wireframe || false,
@@ -105,37 +189,37 @@ export class BasePolytopeVisualization extends Visualization {
     // Create the main polytope mesh
     const solid = new THREE.Mesh(hullGeometry, faceMaterial);
     this.state.meshGroup.add(solid);
-    
-    // Add edges if needed
-    if (parameters.showEdges) {
-      const edgeMaterial = new THREE.LineBasicMaterial({
-        color: parameters.edgeColor || '#2c3e50',
-        linewidth: 1
-      });
-      
-      const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
-      const edges = new THREE.LineSegments(edgesGeometry, edgeMaterial);
-      this.state.meshGroup.add(edges);
-    }
-    
-    // Add vertices if needed
-    if (parameters.showVertices) {
-      const vertexMaterial = new THREE.MeshBasicMaterial({
-        color: parameters.vertexColor || '#e74c3c'
-      });
-      
-      const vertexSize = parameters.vertexSize || 0.05;
-      const sphereGeometry = new THREE.SphereGeometry(vertexSize, 16, 16);
-      
-      // Add a sphere at each vertex position
-      centeredVertices.forEach(vertex => {
-        const sphere = new THREE.Mesh(sphereGeometry, vertexMaterial);
-        sphere.position.copy(vertex);
-        this.state.meshGroup.add(sphere);
-      });
-    }
   }
-
+  
+  // Add edges if needed
+  if (parameters.showEdges) {
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: parameters.edgeColor || '#2c3e50',
+      linewidth: 1
+    });
+    
+    const edgesGeometry = new THREE.EdgesGeometry(hullGeometry);
+    const edges = new THREE.LineSegments(edgesGeometry, edgeMaterial);
+    this.state.meshGroup.add(edges);
+  }
+  
+  // Add vertices if needed
+  if (parameters.showVertices) {
+    const vertexMaterial = new THREE.MeshBasicMaterial({
+      color: parameters.vertexColor || '#e74c3c'
+    });
+    
+    const vertexSize = parameters.vertexSize || 0.05;
+    const sphereGeometry = new THREE.SphereGeometry(vertexSize, 16, 16);
+    
+    // Add a sphere at each vertex position
+    centeredVertices.forEach(vertex => {
+      const sphere = new THREE.Mesh(sphereGeometry, vertexMaterial);
+      sphere.position.copy(vertex);
+      this.state.meshGroup.add(sphere);
+    });
+  }
+}
   /**
    * Render the visualization in 3D
    * @param {Object} THREE - THREE.js library
@@ -260,31 +344,109 @@ export class BasePolytopeVisualization extends Visualization {
            parameters.orbitPoint !== undefined;
   }
 
+
+  /**
+ * Handle visualization-specific parameter updates
+ * Override in subclasses to handle specific parameters
+ * @param {Object} parameters - Updated parameters (only changed ones)
+ */
+handleParameterUpdate(parameters) {
+  // Handle color palette changes
+  if ((parameters.usePalette !== undefined || 
+      parameters.colorPalette !== undefined ||
+      parameters.wireframe !== undefined ||
+      parameters.opacity !== undefined) &&
+      this.state.faceMeshes && 
+      this.state.faceMeshes.length > 0) {
+    
+    if (parameters.usePalette === 'true' || 
+        (this.plugin.parameters.usePalette === 'true' && parameters.colorPalette)) {
+      
+      // Get the selected palette from color scheme manager
+      const colorSchemeManager = this.plugin.core.colorSchemeManager;
+      const palette = colorSchemeManager.getPalette(
+        parameters.colorPalette || this.plugin.parameters.colorPalette || 'default'
+      );
+      
+      // Update each face mesh with a color from the palette
+      this.state.faceMeshes.forEach((faceMesh, i) => {
+        const colorIndex = i % palette.length;
+        const faceColor = palette[colorIndex];
+        
+        // Update material color
+        if (faceMesh.material) {
+          faceMesh.material.color.set(faceColor);
+          
+          // Update other properties if they've changed
+          if (parameters.wireframe !== undefined) {
+            faceMesh.material.wireframe = parameters.wireframe;
+          }
+          
+          if (parameters.opacity !== undefined) {
+            faceMesh.material.transparent = parameters.opacity < 1;
+            faceMesh.material.opacity = parameters.opacity;
+          }
+        }
+      });
+    } else if (parameters.usePalette === 'none') {
+      // Switch back to single color
+      const faceColor = this.plugin.parameters.faceColor || '#3498db';
+      
+      // Update each face mesh with the single color
+      this.state.faceMeshes.forEach(faceMesh => {
+        if (faceMesh.material) {
+          faceMesh.material.color.set(faceColor);
+          
+          // Update other properties if they've changed
+          if (parameters.wireframe !== undefined) {
+            faceMesh.material.wireframe = parameters.wireframe;
+          }
+          
+          if (parameters.opacity !== undefined) {
+            faceMesh.material.transparent = parameters.opacity < 1;
+            faceMesh.material.opacity = parameters.opacity;
+          }
+        }
+      });
+    }
+  }
+  
+  // Default implementation (empty for base class)
+  // Subclasses should override this method for specific parameter handling
+}
   /**
    * Clean up meshes and resources
    */
-  cleanupMeshes() {
-    if (!this.state.meshGroup) return;
-    
-    // Remove mesh group from scene
-    if (this.state.meshGroup.parent) {
-      this.state.meshGroup.parent.remove(this.state.meshGroup);
-    }
-    
-    // Dispose of geometries and materials
-    this.state.meshGroup.traverse(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(material => material.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
-    
-    this.state.meshGroup = null;
+  /**
+ * Clean up meshes and resources
+ */
+cleanupMeshes() {
+  if (!this.state.meshGroup) return;
+  
+  // Clear the face meshes reference
+  if (this.state.faceMeshes) {
+    this.state.faceMeshes = [];
   }
+  
+  // Remove mesh group from scene
+  if (this.state.meshGroup.parent) {
+    this.state.meshGroup.parent.remove(this.state.meshGroup);
+  }
+  
+  // Dispose of geometries and materials
+  this.state.meshGroup.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(material => material.dispose());
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
+  
+  this.state.meshGroup = null;
+}
 
   /**
    * Clean up resources

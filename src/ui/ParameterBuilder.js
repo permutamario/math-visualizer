@@ -173,6 +173,8 @@ export class ParameterBuilder {
     return this;
   }
 
+  
+
   /**
    * Build the parameter schema
    * @returns {Object} Parameter schema with structural and visual sections
