@@ -21,80 +21,8 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Get base parameters common to all polytopes
-   * @returns {Object} Parameter schema with structural and visual parameters
-   */
-  static getBaseParameters() {
-    return {
-      structural: [],
-      visual: [
-        {
-          id: 'wireframe',
-          type: 'checkbox',
-          label: 'Wireframe',
-          default: false
-        },
-        {
-          id: 'rotation',
-          type: 'checkbox',
-          label: 'Auto-rotate',
-          default: false
-        },
-        {
-          id: 'showEdges',
-          type: 'checkbox',
-          label: 'Show Edges',
-          default: true
-        },
-        {
-          id: 'showVertices',
-          type: 'checkbox',
-          label: 'Show Vertices',
-          default: false
-        },
-        {
-          id: 'vertexSize',
-          type: 'slider',
-          label: 'Vertex Size',
-          min: 0.01,
-          max: 0.2,
-          step: 0.01,
-          default: 0.05
-        },
-        {
-          id: 'faceColor',
-          type: 'color',
-          label: 'Face Color',
-          default: '#3498db'
-        },
-        {
-          id: 'edgeColor',
-          type: 'color',
-          label: 'Edge Color',
-          default: '#2c3e50'
-        },
-        {
-          id: 'vertexColor',
-          type: 'color',
-          label: 'Vertex Color',
-          default: '#e74c3c'
-        },
-        {
-          id: 'opacity',
-          type: 'slider',
-          label: 'Opacity',
-          min: 0.1,
-          max: 1,
-          step: 0.1,
-          default: 1
-        }
-      ]
-    };
-  }
-
-  /**
-   * Get specific parameters for this visualization
-   * Override in subclasses to provide additional parameters
+   * Get common parameters for all polytope visualizations
+   * This is used by the plugin to build the parameter schema
    * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
@@ -212,7 +140,7 @@ export class BasePolytopeVisualization extends Visualization {
    * Render the visualization in 3D
    * @param {Object} THREE - THREE.js library
    * @param {Object} scene - THREE.js scene
-   * @param {Object} parameters - Visualization parameters
+   * @param {Object} parameters - Current parameters
    */
   render3D(THREE, scene, parameters) {
     try {
@@ -290,8 +218,8 @@ export class BasePolytopeVisualization extends Visualization {
   }
 
   /**
-   * Handle parameter updates
-   * @param {Object} parameters - Updated parameters
+   * Handle parameter updates - only the changed parameters are passed
+   * @param {Object} parameters - Updated parameters (only changed ones)
    */
   update(parameters) {
     // Handle rotation separately
@@ -311,11 +239,25 @@ export class BasePolytopeVisualization extends Visualization {
   /**
    * Handle visualization-specific parameter updates
    * Override in subclasses to handle specific parameters
-   * @param {Object} parameters - Updated parameters
+   * @param {Object} parameters - Updated parameters (only changed ones)
    */
   handleParameterUpdate(parameters) {
     // Default implementation does nothing
     // Subclasses should override this method
+  }
+
+  /**
+   * Determine if the polytope should be rebuilt after a parameter change
+   * Override in subclasses that need special rebuild logic
+   * @param {Object} parameters - New parameters (only changed ones)
+   * @returns {boolean} Whether to rebuild the polytope
+   */
+  shouldRebuildOnUpdate(parameters) {
+    // Default implementation rebuilds for any of these core parameter changes
+    return parameters.visualizationType !== undefined || 
+           parameters.solidType !== undefined ||
+           parameters.rootType !== undefined ||
+           parameters.orbitPoint !== undefined;
   }
 
   /**

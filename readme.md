@@ -23,7 +23,7 @@ The framework follows an event-driven, component-based architecture with clear s
 - **Plugin-based Architecture**: Easily extend with custom visualizations
 - **Dual Rendering Support**: 2D canvas and 3D WebGL environments
 - **Responsive UI**: Adapts to both desktop and mobile devices
-- **Parameter Controls**: Intuitive UI for adjusting visualization parameters
+- **Intuitive Parameter System**: Simplified fluent interface for defining UI controls
 - **Theme Support**: Light and dark mode with customizable color schemes
 - **Export Capabilities**: Save visualizations as PNG images
 
@@ -46,10 +46,10 @@ Components interact primarily through events and well-defined interfaces:
         ▼                      ▼                       │
 ┌───────────────┐      ┌───────────────┐      ┌───────┴───────┐
 │ PluginSystem  │      │ Parameter     │      │ Rendering     │
-│ ----------    │◄────►│ Manager       │◄────►│ Manager       │
+│ ----------    │◄────►│ Builder       │◄────►│ Manager       │
 │ Loads/Manages │      │ ----------    │      │ ----------    │
-│ Plugins       │      │ Validates     │      │ Manages 2D/3D │
-└───────┬───────┘      │ Parameters    │      │ Environments  │
+│ Plugins       │      │ Creates UI    │      │ Manages 2D/3D │
+└───────┬───────┘      │ Controls      │      │ Environments  │
         │              └───────────────┘      └───────────────┘
         ▼                                             ▲
 ┌───────────────┐                            ┌────────┴──────┐
@@ -64,7 +64,7 @@ Components interact primarily through events and well-defined interfaces:
 
 - **AppCore**: Central controller that coordinates all components
 - **StateManager**: Manages application state with subscription capabilities
-- **ParameterManager**: Validates and processes visualization parameters
+- **ParameterBuilder**: Creates UI controls with a simplified fluent interface
 - **EventEmitter**: Provides event-based communication between components
 - **ColorSchemeManager**: Handles theme colors and palette management
 - **PluginDiscovery**: Dynamically loads available plugins
@@ -84,9 +84,9 @@ Components interact primarily through events and well-defined interfaces:
 
 ### Plugin System
 
-- **Plugin**: Base class for all visualization plugins
+- **Plugin**: Base class for all visualization plugins with streamlined parameter definition
 - **Visualization**: Base class for rendering implementations
-- **ParameterSchema**: Defines UI controls and parameters
+- **ParameterBuilder**: Fluent interface for defining UI controls
 
 ### Plugin Lifecycle
 
@@ -104,14 +104,14 @@ The framework implements a well-defined lifecycle for plugins:
 
 3. **Loading**:
    - The `load()` method is called on the plugin
-   - Default parameters are established from schema
+   - Parameters are defined using the fluent ParameterBuilder interface
    - Visualizations are created and initialized
-   - UI controls are built based on the parameter schema
+   - UI controls are built based on the parameter definitions
    - The appropriate rendering environment (2D/3D) is activated
 
 4. **Interaction**:
-   - Parameter changes from UI are validated and passed to the plugin
-   - The plugin updates its state and visualization
+   - Parameter changes from UI are passed to the plugin's onParameterChanged method
+   - The plugin updates its state and passes just changed parameters to visualization
    - Rendering is triggered to reflect changes
    - Action buttons trigger plugin methods
 
@@ -172,11 +172,10 @@ When a user interacts with the framework, the following sequence occurs:
 
 3. **Plugin Management**:
    - For plugin selection: AppCore loads the selected plugin
-   - For parameter changes: AppCore validates the parameter and forwards to the plugin
+   - For parameter changes: AppCore forwards to the plugin's onParameterChanged method
 
 4. **Parameter Processing**:
-   - Plugin's `onParameterChanged()` method is called
-   - Plugin updates its state and passes changes to visualizations
+   - Plugin updates its state and passes only changed parameters to visualizations
    - Visualization's `update()` method handles specific parameter changes
 
 5. **Rendering**:
@@ -196,6 +195,7 @@ src/plugins/your-plugin/
 ```javascript
 // src/plugins/your-plugin/index.js
 import { Plugin } from '../../core/Plugin.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 import { YourVisualization } from './YourVisualization.js';
 
 export default class YourPlugin extends Plugin {
@@ -204,35 +204,60 @@ export default class YourPlugin extends Plugin {
   static description = "Description of your plugin";
   static renderingType = "2d"; // or "3d"
 
+  // Define parameters using the fluent interface
+  defineParameters() {
+    return createParameters()
+      .addSlider('paramName', 'Parameter Label', 50, { min: 0, max: 100, step: 1 })
+      .addColor('color', 'Color', '#3498db', 'visual');
+  }
+  
+  // Define available actions
+  defineActions() {
+    return [
+      ...super.defineActions(),
+      {
+        id: 'custom-action',
+        label: 'Custom Action'
+      }
+    ];
+  }
+
+  // Initialize visualization
   async _initializeDefaultVisualization() {
     const visualization = new YourVisualization(this);
     this.registerVisualization('default', visualization);
     this.currentVisualization = visualization;
     await visualization.initialize(this.parameters);
   }
-
-  getParameterSchema() {
-    return {
-      structural: [
-        {
-          id: 'paramName',
-          type: 'slider',
-          label: 'Parameter Label',
-          min: 0,
-          max: 100,
-          step: 1,
-          default: 50
-        }
-      ],
-      visual: [
-        {
-          id: 'color',
-          type: 'color',
-          label: 'Color',
-          default: '#3498db'
-        }
-      ]
-    };
+  
+  // Handle parameter changes
+  onParameterChanged(parameterId, value) {
+    // Update parameter value
+    this.parameters[parameterId] = value;
+    
+    // Update visualization with just the changed parameter
+    if (this.currentVisualization) {
+      this.currentVisualization.update({ [parameterId]: value });
+    }
+    
+    // Update UI
+    this.giveParameters(false);
+    
+    // Request render
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
+    }
+  }
+  
+  // Handle custom actions
+  executeAction(actionId, ...args) {
+    if (actionId === 'custom-action') {
+      // Handle custom action
+      return true;
+    }
+    
+    // Let parent handle standard actions
+    return super.executeAction(actionId, ...args);
   }
 }
 ```
@@ -255,7 +280,14 @@ export class YourVisualization extends Visualization {
   }
 
   update(parameters) {
-    // Update based on parameter changes
+    // Update based on changed parameters only
+    if (parameters.paramName !== undefined) {
+      // Handle paramName change
+    }
+    
+    if (parameters.color !== undefined) {
+      // Handle color change
+    }
   }
 
   // For 2D rendering
@@ -297,20 +329,48 @@ Add your plugin to `src/plugins/plugin_list.json`:
 ]
 ```
 
-## Parameter Types
+## Parameter Builder System
 
-The framework supports these parameter control types:
+The new parameter builder system provides a simple, intuitive interface for defining UI controls:
 
-- **slider**: Range slider with min/max/step
-- **checkbox**: Boolean toggle
-- **color**: Color picker
-- **dropdown**: Selection from options
-- **number**: Numeric input field
-- **text**: Text input field
+```javascript
+// Import the parameter builder
+import { createParameters } from '../../ui/ParameterBuilder.js';
+
+// Define parameters using fluent interface
+defineParameters() {
+  return createParameters()
+    .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
+    .addColor('fillColor', 'Fill Color', '#3498db')
+    .addCheckbox('stroke', 'Show Outline', true)
+    .addDropdown('shape', 'Shape Type', 'circle', [
+      { value: 'circle', label: 'Circle' },
+      { value: 'square', label: 'Square' },
+      { value: 'triangle', label: 'Triangle' }
+    ])
+    .addNumber('opacity', 'Opacity', 1.0, { min: 0, max: 1, step: 0.1 })
+    .addText('label', 'Label Text', 'Hello World');
+}
+```
+
+Available parameter types:
+
+- **addSlider**: Range slider with min/max/step
+- **addCheckbox**: Boolean toggle
+- **addColor**: Color picker
+- **addDropdown**: Selection from options
+- **addNumber**: Numeric input field
+- **addText**: Text input field
 
 Parameters are organized into two categories:
-- **structural**: Core parameters defining the visualization structure
-- **visual**: Parameters affecting visual appearance
+- **structural**: Core parameters defining the visualization structure (default for sliders, dropdowns, numbers, text)
+- **visual**: Parameters affecting visual appearance (default for color, checkbox)
+
+You can override the default category by passing a category parameter:
+```javascript
+.addColor('borderColor', 'Border Color', '#000000', 'structural')
+.addCheckbox('showGrid', 'Show Grid', true, 'structural')
+```
 
 ## User Interface
 

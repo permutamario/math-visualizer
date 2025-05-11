@@ -12,6 +12,7 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
 
   /**
    * Get specific parameters for this visualization
+   * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
     return {
@@ -36,25 +37,36 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
 
   /**
    * Initialize the visualization
+   * @param {Object} parameters - Visualization parameters
    */
   async initialize(parameters) {
+    // Call parent initialization first
     await super.initialize(parameters);
+    
+    // Set solid type from parameters
     this.solidType = parameters.solidType || 'tetrahedron';
+    
     return true;
   }
 
   /**
-   * Update the visualization
+   * Handle specific parameter updates
+   * @param {Object} parameters - Changed parameters only
    */
-  update(parameters) {
-    super.update(parameters);
+  handleParameterUpdate(parameters) {
+    // Check if solid type has changed
     if (parameters.solidType !== undefined) {
       this.solidType = parameters.solidType;
     }
+    
+    // Parent class will handle requesting a render
   }
 
   /**
    * Get the vertices for this platonic solid
+   * @param {Object} THREE - THREE.js library
+   * @param {Object} parameters - Visualization parameters
+   * @returns {Array<THREE.Vector3>} Array of vertices
    */
   getVertices(THREE, parameters) {
     // Get the solid type from parameters, falling back to instance state
@@ -94,6 +106,9 @@ export class PlatonicVisualization extends BasePolytopeVisualization {
 
   /**
    * Extract unique vertices from a geometry
+   * @param {Object} THREE - THREE.js library
+   * @param {THREE.BufferGeometry} geometry - Geometry to extract vertices from
+   * @returns {Array<THREE.Vector3>} Array of unique vertices
    */
   extractVertices(THREE, geometry) {
     const vertices = [];

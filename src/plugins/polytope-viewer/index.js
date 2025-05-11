@@ -1,6 +1,8 @@
 // src/plugins/polytope-viewer/index.js
 import { Plugin } from '../../core/Plugin.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 import { BasePolytopeVisualization } from './BasePolytopeVisualization.js';
+
 // Import visualization classes directly to ensure they're available
 import { PlatonicVisualization } from './visualizations/PlatonicVisualization.js';
 import { PermutahedronVisualization } from './visualizations/PermutahedronVisualization.js';
@@ -57,6 +59,89 @@ export default class PolytopeViewerPlugin extends Plugin {
   }
 
   /**
+   * Define parameters for this plugin
+   * @returns {ParameterBuilder} Parameter builder
+   */
+  defineParameters() {
+    // Visualization type selector options
+    const visualizationTypeOptions = this.visualizationTypes.map(vt => ({
+      value: vt.id,
+      label: vt.name
+    }));
+    
+    // Current visualization type, defaulting to first one if not set
+    const currentType = this.parameters?.visualizationType || 
+                      (this.visualizationTypes.length > 0 ? 
+                       this.visualizationTypes[0].id : '');
+    
+    // Create parameter builder
+    const params = createParameters()
+      .addDropdown('visualizationType', 'Polytope Class', currentType, visualizationTypeOptions)
+      .addCheckbox('wireframe', 'Wireframe', false, 'visual')
+      .addCheckbox('rotation', 'Auto-rotate', false, 'visual')
+      .addCheckbox('showEdges', 'Show Edges', true, 'visual')
+      .addCheckbox('showVertices', 'Show Vertices', false, 'visual')
+      .addSlider('vertexSize', 'Vertex Size', 0.05, { min: 0.01, max: 0.2, step: 0.01 }, 'visual')
+      .addColor('faceColor', 'Face Color', '#3498db', 'visual')
+      .addColor('edgeColor', 'Edge Color', '#2c3e50', 'visual')
+      .addColor('vertexColor', 'Vertex Color', '#e74c3c', 'visual')
+      .addSlider('opacity', 'Opacity', 1, { min: 0.1, max: 1, step: 0.1 }, 'visual');
+    
+    // Add visualization-specific parameters if available
+    if (this.currentVisualization) {
+      const vizClass = this.currentVisualization.constructor;
+      
+      // Check if the visualization class has static parameters
+      if (vizClass && typeof vizClass.getParameters === 'function') {
+        const vizParams = vizClass.getParameters();
+        
+        // Add visualization-specific structural parameters
+        if (vizParams.structural && vizParams.structural.length > 0) {
+          for (const param of vizParams.structural) {
+            // Add to our parameter builder based on type
+            switch(param.type) {
+              case 'dropdown':
+                params.addDropdown(param.id, param.label, param.default, param.options);
+                break;
+              case 'slider':
+                params.addSlider(param.id, param.label, param.default, { 
+                  min: param.min, 
+                  max: param.max, 
+                  step: param.step 
+                });
+                break;
+              case 'text':
+                params.addText(param.id, param.label, param.default);
+                break;
+              // Add other types as needed
+            }
+          }
+        }
+      }
+    }
+    
+    return params;
+  }
+
+  /**
+   * Define available actions
+   * @returns {Array<Action>} List of available actions
+   */
+  defineActions() {
+    return [
+      ...super.defineActions(),
+      {
+        id: 'reset-camera',
+        label: 'Reset Camera'
+      },
+      {
+        id: 'toggle-rotation',
+        label: 'Toggle Rotation'
+      }
+    ];
+  }
+
+  /**
    * Load the plugin
    * Called when the plugin is selected
    */
@@ -74,8 +159,8 @@ export default class PolytopeViewerPlugin extends Plugin {
         // Continue with hard-coded visualizations
       }
       
-      // Set up default parameters from full schema
-      const schema = this.getParameterSchema();
+      // Set up default parameters from parameter builder
+      const schema = this.defineParameters().build();
       this.parameters = this._getDefaultParametersFromSchema(schema);
       
       // Set default visualization type if not already set
@@ -89,12 +174,12 @@ export default class PolytopeViewerPlugin extends Plugin {
       // Mark as loaded
       this.isLoaded = true;
       
-      // Give parameters to UI after visualization is fully initialized
+      // Give parameters to UI
       this.giveParameters(true);
       
       // Update actions
       if (this.core && this.core.uiManager) {
-        const actions = this.getActions();
+        const actions = this.defineActions();
         this.core.uiManager.updateActions(actions);
       }
       
@@ -274,66 +359,11 @@ export default class PolytopeViewerPlugin extends Plugin {
     
     return true;
   }
-  
-  /**
-   * Get the parameter schema combining plugin, base, and visualization parameters
-   */
-  getParameterSchema() {
-    // Visualization type selector options
-    const visualizationTypeOptions = this.visualizationTypes?.map(vt => ({
-      value: vt.id,
-      label: vt.name
-    })) || [];
-    
-    // Current visualization type, defaulting to first one if not set
-    const currentType = this.parameters?.visualizationType || 
-                      (this.visualizationTypes && this.visualizationTypes.length > 0 ? 
-                       this.visualizationTypes[0].id : '');
-    
-    // Plugin parameter
-    const pluginParam = {
-      id: 'visualizationType',
-      type: 'dropdown',
-      label: 'Polytope Class',
-      options: visualizationTypeOptions,
-      default: currentType
-    };
-    
-    // Start with base parameters from BasePolytopeVisualization
-    const baseParams = BasePolytopeVisualization.getBaseParameters();
-    
-    // Get visualization-specific parameters if visualization class is available
-    let vizParams = { structural: [], visual: [] };
-    
-    if (this.visualizationTypes) {
-      const vizInfo = this.visualizationTypes.find(vt => vt.id === currentType);
-      
-      if (vizInfo && vizInfo.class && vizInfo.class.getParameters) {
-        vizParams = vizInfo.class.getParameters();
-      } else if (this.currentVisualization && 
-                 this.currentVisualization.constructor && 
-                 this.currentVisualization.constructor.getParameters) {
-        // Fallback to current visualization if available
-        vizParams = this.currentVisualization.constructor.getParameters();
-      }
-    }
-    
-    // Combine all parameters
-    return {
-      structural: [
-        pluginParam,
-        ...baseParams.structural,
-        ...vizParams.structural
-      ],
-      visual: [
-        ...baseParams.visual,
-        ...vizParams.visual
-      ]
-    };
-  }
 
   /**
    * Handle parameter changes
+   * @param {string} parameterId - ID of the changed parameter
+   * @param {any} value - New parameter value 
    */
   async onParameterChanged(parameterId, value) {
     // Check if we're in the middle of a visualization switch
@@ -342,18 +372,18 @@ export default class PolytopeViewerPlugin extends Plugin {
       return;
     }
     
+    // Update the parameter value
+    this.parameters[parameterId] = value;
+    
     // Special handling for visualization type changes
     if (parameterId === 'visualizationType') {
       await this.switchVisualization(value);
       return;
     }
     
-    // For regular parameter changes, update the parameter value
-    this.parameters[parameterId] = value;
-    
-    // Update visualization with the parameter change
+    // Update visualization with only the changed parameter
     if (this.currentVisualization) {
-      // Create a parameter update object to avoid reference issues
+      // Create a parameter update object with just the changed parameter
       const paramUpdate = { [parameterId]: value };
       this.currentVisualization.update(paramUpdate);
       
@@ -391,23 +421,24 @@ export default class PolytopeViewerPlugin extends Plugin {
         throw new Error(`Visualization type ${visualizationType} not found`);
       }
       
-      // Dispose current visualization
-      if (this.currentVisualization) {
-        this.currentVisualization.dispose();
+      // Check if this visualization already exists
+      if (!this.visualizations.has(visualizationType)) {
+        // Create new visualization instance
+        const visualization = new vizInfo.class(this);
+        this.registerVisualization(visualizationType, visualization);
       }
       
-      // Create new visualization instance
-      const visualization = new vizInfo.class(this);
+      // Save current visualization to dispose later
+      const oldVisualization = this.currentVisualization;
       
-      // Register the new visualization
-      this.registerVisualization(vizInfo.id, visualization);
-      this.currentVisualization = visualization;
+      // Get the visualization instance
+      this.currentVisualization = this.visualizations.get(visualizationType);
       
       // Preserve common parameters across visualizations
       const commonParams = this.preserveCommonParameters(this.parameters);
       
       // Get a fresh set of parameters for the new visualization
-      const schema = this.getParameterSchema();
+      const schema = this.defineParameters().build();
       const defaultParams = this._getDefaultParametersFromSchema(schema);
       
       // Merge with preserved common parameters
@@ -422,6 +453,11 @@ export default class PolytopeViewerPlugin extends Plugin {
       
       // Initialize with merged parameters - await this to ensure visualization is ready
       await this.currentVisualization.initialize(this.parameters);
+      
+      // Dispose old visualization now that new one is initialized
+      if (oldVisualization && oldVisualization !== this.currentVisualization) {
+        oldVisualization.dispose();
+      }
       
       // Now that initialization is complete, update UI with new schema
       this.giveParameters(true);
@@ -470,24 +506,10 @@ export default class PolytopeViewerPlugin extends Plugin {
   }
   
   /**
-   * Get available actions
-   */
-  getActions() {
-    return [
-      ...super.getActions(),
-      {
-        id: 'reset-camera',
-        label: 'Reset Camera'
-      },
-      {
-        id: 'toggle-rotation',
-        label: 'Toggle Rotation'
-      }
-    ];
-  }
-  
-  /**
    * Execute an action
+   * @param {string} actionId - ID of the action to execute
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
    */
   executeAction(actionId, ...args) {
     // Don't process actions during visualization switching
@@ -501,7 +523,7 @@ export default class PolytopeViewerPlugin extends Plugin {
       const newValue = !this.parameters.rotation;
       this.parameters.rotation = newValue;
       
-      // Update visualization
+      // Update visualization with just the changed parameter
       if (this.currentVisualization) {
         this.currentVisualization.update({ rotation: newValue });
       }
