@@ -133,7 +133,7 @@ export class Plugin {
         type: 'dropdown',
         label: 'Current Visualization',
         options: this._getVisualizationOptions(),
-        default: this.currentVisualization ? this._getVisualizationId(this.currentVisualization) : ''
+        default: this.currentVisualization
       };
 
       console.log("I gave visualization with", this.currentVisualization);
