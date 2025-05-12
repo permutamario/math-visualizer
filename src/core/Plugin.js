@@ -177,6 +177,7 @@ export class Plugin {
     };
     
     // Send to UI manager
+    console.log("Parameter data I sent", parameterData);
     this.core.uiManager.updatePluginParameterGroups(parameterData, rebuild);
   }
   
