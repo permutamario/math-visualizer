@@ -363,11 +363,11 @@ updateActions(actions) {
     }
   }
 
+  
   /**
-   * Register event handlers for the layout
-   * @private
-   */
-  /**
+ * Register event handlers for the layout
+ * @private
+ *//**
  * Register event handlers for the layout
  * @private
  */
@@ -391,8 +391,14 @@ _registerLayoutEvents() {
     }
   });
   
+  // Add handler for plugin selection events
   this.layout.on('pluginSelect', (pluginId) => {
-    this.emit('pluginSelect', pluginId);
+    // Forward to the AppCore to load the plugin
+    if (this.core && typeof this.core.loadPlugin === 'function') {
+      this.core.loadPlugin(pluginId);
+    } else {
+      this.emit('pluginSelect', pluginId); // Fallback to emitting event
+    }
   });
 }
 
