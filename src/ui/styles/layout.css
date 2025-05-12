@@ -21,6 +21,10 @@
     left: 20px;
     max-height: calc(40vh - 90px);
   }
+
+  #advanced-panel {
+  display: none !important;
+}
   
   /* Export panel (left side, below visual panel) */
   #export-panel {
