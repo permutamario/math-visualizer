@@ -30,9 +30,11 @@ export class AppCore {
     this.visualParameters = { schema: [], values: {} };
     this.structuralParameters = { schema: [], values: {} };
     
+    // Action management
+    this._actions = new Map(); // Store actions by ID
+    
     // Callback collections
     this._parameterCallbacks = [];
-    this._actionCallbacks = [];
     
     // Plugin data
     this.availablePlugins = [];
@@ -138,9 +140,9 @@ export class AppCore {
       this.colorSchemeManager.cleanup();
     }
     
-    // Clear callbacks
+    // Clear callbacks and actions
     this._parameterCallbacks = [];
-    this._actionCallbacks = [];
+    this.clearActions();
     
     // Reset state
     this.availablePlugins = [];
@@ -160,6 +162,9 @@ export class AppCore {
       if (this.uiManager) {
         this.uiManager.showLoading(`Loading plugin...`);
       }
+      
+      // Clear any existing actions before loading the new plugin
+      this.clearActions();
       
       const success = await this.pluginLoader.loadPlugin(pluginId);
       
@@ -370,94 +375,123 @@ export class AppCore {
   }
 
   /**
-   * Registers action buttons for the UI
-   * @param {Array<Object>} actions - Array of action definitions
+   * Add an action to the application
+   * @param {string} id - Unique action identifier
+   * @param {string} label - Human-readable label
+   * @param {Function} callback - Function to execute when action is triggered
+   * @param {Object} options - Additional options (icon, shortcut, etc.)
+   * @returns {boolean} Whether the action was added successfully
    */
-  registerActions(actions) {
-    if (!Array.isArray(actions)) {
-      console.error("Actions must be an array");
-      return;
+  addAction(id, label, callback, options = {}) {
+    if (!id || typeof id !== 'string') {
+      console.error("Action ID must be a non-empty string");
+      return false;
     }
     
-    // Update UI
+    if (typeof callback !== 'function') {
+      console.error("Action callback must be a function");
+      return false;
+    }
+    
+    // Create action definition
+    const action = {
+      id,
+      label: label || id,
+      callback,
+      ...options
+    };
+    
+    // Store the action
+    this._actions.set(id, action);
+    
+    // Notify UI of action change
+    this._notifyActionsChanged();
+    
+    return true;
+  }
+  
+  /**
+   * Remove an action by ID
+   * @param {string} id - Action ID to remove
+   * @returns {boolean} Whether the action was found and removed
+   */
+  removeAction(id) {
+    const removed = this._actions.delete(id);
+    
+    if (removed) {
+      // Notify UI of action change
+      this._notifyActionsChanged();
+    }
+    
+    return removed;
+  }
+  
+  /**
+   * Clear all registered actions
+   */
+  clearActions() {
+    const hadActions = this._actions.size > 0;
+    
+    this._actions.clear();
+    
+    if (hadActions) {
+      // Notify UI of action change
+      this._notifyActionsChanged();
+    }
+  }
+  
+  /**
+   * Get all registered actions
+   * @returns {Array<Object>} Array of action definitions
+   */
+  getActions() {
+    return Array.from(this._actions.values());
+  }
+  
+  /**
+   * Notify UI that actions have changed
+   * @private
+   */
+  _notifyActionsChanged() {
+    const actions = this.getActions();
+    
+    // Emit action changed event
+    if (this.events) {
+      this.events.emit('actionsChanged', actions);
+    }
+    
+    // Update UI with new actions
     if (this.uiManager) {
       this.uiManager.updateActions(actions);
     }
   }
 
   /**
-   * Registers a callback for action execution
-   * @param {Function} callback - Function to call when an action is executed
-   * @returns {Function} The callback function for removal reference
-   */
-  onAction(callback) {
-    if (typeof callback !== 'function') {
-      console.error("Action callback must be a function");
-      return null;
-    }
-    
-    this._actionCallbacks.push(callback);
-    return callback; // Return for later removal
-  }
-
-  /**
-   * Removes an action callback
-   * @param {Function} callback - The callback to remove
-   * @returns {boolean} Whether the callback was found and removed
-   */
-  removeActionCallback(callback) {
-    const index = this._actionCallbacks.indexOf(callback);
-    if (index !== -1) {
-      this._actionCallbacks.splice(index, 1);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Executes an action and notifies listeners
+   * Executes an action by ID
    * @param {string} actionId - ID of the action to execute
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether the action was handled
+   * @param {...any} args - Arguments to pass to the action callback
+   * @returns {any} Result of the action execution
    */
   executeAction(actionId, ...args) {
-    let handled = false;
+    const action = this._actions.get(actionId);
     
-    // Call plugin's action handler if available
-    const activePlugin = this.getActivePlugin();
-    if (activePlugin && typeof activePlugin.executeAction === 'function') {
+    if (action && typeof action.callback === 'function') {
       try {
-        handled = activePlugin.executeAction(actionId, ...args) || handled;
+        return action.callback(...args);
       } catch (error) {
-        console.error(`Error executing action ${actionId} in plugin:`, error);
+        console.error(`Error executing action ${actionId}:`, error);
+        
+        // Notify user of error
+        if (this.uiManager) {
+          this.uiManager.showError(`Action failed: ${error.message}`);
+        }
+        
+        return false;
       }
     }
     
-    // Call registered callbacks
-    handled = this._triggerActionCallbacks(actionId, ...args) || handled;
-    
-    return handled;
-  }
-
-  /**
-   * Triggers action callbacks
-   * @param {string} actionId - Action ID
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether any callback returned true
-   * @private
-   */
-  _triggerActionCallbacks(actionId, ...args) {
-    let handled = false;
-    
-    this._actionCallbacks.forEach(callback => {
-      try {
-        handled = callback(actionId, ...args) || handled;
-      } catch (error) {
-        console.error("Error in action callback:", error);
-      }
-    });
-    
-    return handled;
+    console.warn(`Action not found: ${actionId}`);
+    return false;
   }
 
   /**
