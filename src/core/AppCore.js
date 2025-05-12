@@ -1,4 +1,4 @@
-// src/core/AppCore.js - Modified version to start with no plugin
+// src/core/AppCore.js - Improved version
 
 import { discoverPlugins, getFirstPluginId } from './PluginDiscovery.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -20,10 +20,10 @@ export class AppCore {
     // Create core components
     this.events = new EventEmitter();
     this.state = new StateManager();
-    this.renderingManager = new RenderingManager(this);
-    this.uiManager = new UIManager(this);
+    this.renderingManager = null; // Initialize in initialize() to avoid circular dependencies
+    this.uiManager = null; // Initialize in initialize() to avoid circular dependencies
     this.colorSchemeManager = new ColorSchemeManager(this);
-    this.renderModeManager = new RenderModeManager(this);
+    this.renderModeManager = null; // Initialize in initialize() to avoid circular dependencies
     
     // Application state
     this.loadedPlugin = null;
@@ -51,8 +51,15 @@ export class AppCore {
     try {
       console.log("Initializing Math Visualization Framework...");
       
-      // Initialize core components
-      await this.colorSchemeManager.initialize(); // Initialize color schemes first
+      // Initialize color schemes first (UI appearance depends on this)
+      await this.colorSchemeManager.initialize();
+      
+      // Initialize managers that depend on this reference
+      this.renderingManager = new RenderingManager(this);
+      this.uiManager = new UIManager(this);
+      this.renderModeManager = new RenderModeManager(this);
+      
+      // Initialize other core components
       await this.renderingManager.initialize();
       await this.uiManager.initialize();
       
@@ -95,29 +102,35 @@ export class AppCore {
     
     // Add color palette parameter for all rendering types
     if (this.colorSchemeManager) {
-      standardParams.colorPalette = {
-        id: 'colorPalette',
-        type: 'dropdown',
-        label: 'Color Palette',
-        options: this.colorSchemeManager.getPaletteNames().map(name => ({
-          value: name, 
-          label: name
-        })),
-        default: 'default',
-        category: 'visual'
-      };
+      const paletteNames = this.colorSchemeManager.getPaletteNames();
+      if (paletteNames && paletteNames.length > 0) {
+        standardParams.colorPalette = {
+          id: 'colorPalette',
+          type: 'dropdown',
+          label: 'Color Palette',
+          options: paletteNames.map(name => ({
+            value: name, 
+            label: name
+          })),
+          default: 'default',
+          category: 'visual'
+        };
+      }
     }
     
     // Add 3D-specific parameters
     if (renderingType === '3d' && this.renderModeManager) {
-      standardParams.renderMode = {
-        id: 'renderMode',
-        type: 'dropdown',
-        label: 'Render Style',
-        options: this.renderModeManager.getAvailableModes(),
-        default: 'standard',
-        category: 'visual'
-      };
+      const renderModes = this.renderModeManager.getAvailableModes();
+      if (renderModes && renderModes.length > 0) {
+        standardParams.renderMode = {
+          id: 'renderMode',
+          type: 'dropdown',
+          label: 'Render Style',
+          options: renderModes,
+          default: 'standard',
+          category: 'visual'
+        };
+      }
       
       standardParams.opacity = {
         id: 'opacity',
@@ -140,6 +153,11 @@ export class AppCore {
    * @returns {Promise<boolean>} Whether loading was successful
    */
   async loadPlugin(pluginId) {
+    if (!pluginId) {
+      console.error("Cannot load plugin: No plugin ID provided");
+      return false;
+    }
+    
     try {
       // Store reference to previous plugin for recovery if needed
       if (this.loadedPlugin) {
@@ -167,10 +185,10 @@ export class AppCore {
         this.renderingManager.stopRenderLoop();
       }
       
+      // Show loading indicator
+      this.uiManager.showLoading(`Loading ${pluginMetadata.name}...`);
+      
       try {
-        // Show loading indicator
-        this.uiManager.showLoading(`Loading ${pluginMetadata.name}...`);
-        
         // Unload current plugin if any
         if (this.loadedPlugin) {
           try {
@@ -189,7 +207,6 @@ export class AppCore {
           this.uiManager.showError(`Error setting up rendering environment: ${renderingError.message}`);
           console.error(`Error setting up rendering environment:`, renderingError);
           
-          // Restore rendering if it was active
           if (wasRendering) {
             this.renderingManager.startRenderLoop();
           }
@@ -202,77 +219,75 @@ export class AppCore {
         const plugin = new pluginMetadata.PluginClass(this);
         
         // Load the plugin
-        try {
-          const success = await plugin.load();
+        const success = await plugin.load();
+        
+        if (success) {
+          this.loadedPlugin = plugin;
           
-          if (success) {
-            this.loadedPlugin = plugin;
-            
-            // Update UI with currently active plugin
-            this.uiManager.updatePlugins(this.availablePlugins, pluginId);
-            
-            // Update actions
-            const actions = this.loadedPlugin.defineActions();
-            this.uiManager.updateActions(actions);
-
-            
-            // Restore rendering if it was active
-            if (wasRendering) {
-              this.renderingManager.startRenderLoop();
-            } else {
-              // Force a single render to show the new plugin
-              this.renderingManager.requestRender();
-            }
-            
-            console.log(`Plugin ${pluginId} loaded successfully`);
-            this.uiManager.hideLoading();
-            this.uiManager.showNotification(`${pluginMetadata.name} loaded successfully`);
-          } else {
-            this.uiManager.hideLoading();
-            this.uiManager.showError(`Failed to load plugin "${pluginMetadata.name}"`);
-            console.error(`Failed to load plugin ${pluginId}`);
-            
-            // Restore rendering if it was active
-            if (wasRendering) {
-              this.renderingManager.startRenderLoop();
-            }
-          }
+          // Update UI with currently active plugin
+          this.uiManager.updatePlugins(this.availablePlugins, pluginId);
           
-          return success;
-        } catch (loadError) {
-          // Show detailed error message to user
-          this.uiManager.hideLoading();
-          this.uiManager.showError(`Error loading plugin "${pluginMetadata.name}": ${loadError.message}`);
+          // Update actions
+          const actions = this.loadedPlugin.defineActions();
+          this.uiManager.updateActions(actions);
           
-          // Log detailed error
-          console.error(`Error loading plugin ${pluginId}:`, loadError);
-          
-          // Restore rendering if it was active
+          // Restore rendering if it was active or force a single render
           if (wasRendering) {
             this.renderingManager.startRenderLoop();
+          } else {
+            this.renderingManager.requestRender();
           }
           
-          // If a previous plugin was active, try to reload it
-          if (this.previousPluginId) {
-            console.log(`Attempting to reload previous plugin ${this.previousPluginId}`);
-            const previousId = this.previousPluginId;
-            this.previousPluginId = null; // Prevent loop if reloading fails
-            return this.loadPlugin(previousId);
-          }
+          this.uiManager.hideLoading();
+          this.uiManager.showNotification(`${pluginMetadata.name} loaded successfully`);
           
+          return true;
+        } else {
+          console.error(`Plugin ${pluginId} load() returned false`);
+          this.tryRecoverPreviousPlugin();
+          this.uiManager.showError(`Failed to load plugin "${pluginMetadata.name}"`);
           return false;
         }
+      } catch (error) {
+        console.error(`Error loading plugin ${pluginId}:`, error);
+        this.uiManager.showError(`Error loading plugin "${pluginMetadata.name}": ${error.message}`);
+        this.tryRecoverPreviousPlugin();
+        return false;
       } finally {
         // Ensure loading indicator is hidden in all cases
         this.uiManager.hideLoading();
+        
+        // Ensure rendering is restored if it was active
+        if (wasRendering && !this.renderingManager.rendering) {
+          this.renderingManager.startRenderLoop();
+        }
       }
     } catch (error) {
-      // Show error message to user for any other errors
+      console.error(`Uncaught error in loadPlugin for ${pluginId}:`, error);
       this.uiManager.hideLoading();
       this.uiManager.showError(`Error loading plugin "${pluginId}": ${error.message}`);
-      
-      console.error(`Error loading plugin ${pluginId}:`, error);
       return false;
+    }
+  }
+  
+  /**
+   * Try to recover by loading the previous plugin
+   * @private
+   */
+  tryRecoverPreviousPlugin() {
+    // If a previous plugin was active, try to reload it
+    if (this.previousPluginId) {
+      console.log(`Attempting to reload previous plugin ${this.previousPluginId}`);
+      const previousId = this.previousPluginId;
+      this.previousPluginId = null; // Prevent loop if reloading fails
+      
+      // Use setTimeout to break the call stack and prevent recursion issues
+      setTimeout(() => {
+        this.loadPlugin(previousId).catch(err => {
+          console.error("Failed to recover previous plugin:", err);
+          // Don't show additional error to user to avoid error spam
+        });
+      }, 100);
     }
   }
   
@@ -281,7 +296,6 @@ export class AppCore {
    */
   showPluginSelector() {
     if (this.uiManager && this.uiManager.layout) {
-      // Call the appropriate method based on layout type
       if (typeof this.uiManager.layout.openSelectionWindow === 'function') {
         this.uiManager.layout.openSelectionWindow();
       }
@@ -290,6 +304,7 @@ export class AppCore {
   
   /**
    * Toggle Fullscreen mode
+   * @returns {boolean} Whether fullscreen mode is now enabled
    */
   toggleFullscreenMode() {
     const isFullscreen = !this.state.get('isFullscreen', false);
@@ -307,19 +322,19 @@ export class AppCore {
     
     return isFullscreen;
   }
-
   
   /**
    * Handle parameter changes from UI
    * @param {string} parameterId - ID of the changed parameter
    * @param {any} value - New parameter value
+   * @param {string} group - Parameter group (optional)
    */
-  handleParameterChange(parameterId, value) {
+  handleParameterChange(parameterId, value, group) {
     if (!this.loadedPlugin) return;
     
     try {
       // Update parameter value in the plugin
-      this.loadedPlugin.onParameterChanged(parameterId, value);
+      this.loadedPlugin.onParameterChanged(parameterId, value, group);
       
       // Request render
       if (this.renderingManager) {
@@ -332,41 +347,7 @@ export class AppCore {
       }
     }
   }
-
-  /**
- * Update UI based on plugin parameters
- * @param {Plugin} plugin - The plugin whose parameters to use
- * @param {boolean} rebuild - Whether to rebuild the entire UI
- */
-updatePluginParameters(plugin, rebuild = false) {
-  if (!plugin || !this.uiManager) return;
   
-  try {
-    // Get merged schema that includes visualization parameters if rebuilding
-    const schema = rebuild ? plugin.getMergedParameterSchema() : null;
-    
-    // Update UI based on current plugin state
-    if (rebuild) {
-      this.uiManager.buildControlsFromSchema(schema, plugin.parameters);
-    } else {
-      this.uiManager.updateControls(plugin.parameters);
-    }
-    
-    // Request a render update if rendering manager exists
-    if (this.renderingManager) {
-      this.renderingManager.requestRender();
-    }
-  } catch (error) {
-    console.error('Error updating plugin parameters:', error);
-    // Fall back to just using the plugin's direct parameters
-    if (rebuild) {
-      const fallbackSchema = plugin.defineParameters().build();
-      this.uiManager.buildControlsFromSchema(fallbackSchema, plugin.parameters);
-    } else {
-      this.uiManager.updateControls(plugin.parameters);
-    }
-  }
-}
   /**
    * Execute an action
    * @param {string} actionId - ID of the action to execute
@@ -374,25 +355,34 @@ updatePluginParameters(plugin, rebuild = false) {
    * @returns {boolean} Whether the action was handled
    */
   executeAction(actionId, ...args) {
-    if (!this.loadedPlugin) return false;
-    
-    try {
-      // Handle app-level actions
-      if (actionId === 'toggle-theme') {
+    // Handle app-level actions
+    if (actionId === 'toggle-theme') {
+      if (this.colorSchemeManager) {
         const currentScheme = this.colorSchemeManager.getActiveScheme();
         const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
-        
         this.colorSchemeManager.setActiveScheme(newScheme);
         return true;
       }
-      
-      // Let the plugin handle the action
-      return this.loadedPlugin.executeAction(actionId, ...args);
-    } catch (error) {
-      console.error(`Error executing action ${actionId}:`, error);
-      this.uiManager.showError(`Error executing action "${actionId}": ${error.message}`);
       return false;
     }
+    
+    if (actionId === 'toggle-fullscreen') {
+      this.toggleFullscreenMode();
+      return true;
+    }
+    
+    // Delegate to plugin if one is loaded
+    if (this.loadedPlugin) {
+      try {
+        return this.loadedPlugin.executeAction(actionId, ...args);
+      } catch (error) {
+        console.error(`Error executing action ${actionId}:`, error);
+        this.uiManager.showError(`Error executing action "${actionId}": ${error.message}`);
+        return false;
+      }
+    }
+    
+    return false;
   }
   
   /**
@@ -416,18 +406,16 @@ updatePluginParameters(plugin, rebuild = false) {
       // Start the rendering loop
       this.renderingManager.startRenderLoop();
       
-      // MODIFIED: Don't load a plugin automatically, instead show the "Select a Plugin" message
-      // The RenderingManager will show the message when no plugin is loaded
+      // Just show the "Select a Plugin" message initially
       this.renderingManager.requestRender();
       
-      // Show the plugin selector after a short delay to let UI initialize
-      setTimeout(() => {
-        // Only open the selection window if this is the initial startup
-        if (this.isInitialStartup) {
+      // Show the plugin selector after a short delay if this is initial startup
+      if (this.isInitialStartup) {
+        setTimeout(() => {
           this.showPluginSelector();
           this.isInitialStartup = false;
-        }
-      }, 500);
+        }, 500);
+      }
       
       return true;
     } catch (error) {
@@ -443,26 +431,38 @@ updatePluginParameters(plugin, rebuild = false) {
    * Clean up resources when the application is shutting down
    */
   cleanup() {
+    // Unload loaded plugin first
+    if (this.loadedPlugin) {
+      try {
+        this.loadedPlugin.unload();
+      } catch (error) {
+        console.error("Error unloading plugin during cleanup:", error);
+      }
+      this.loadedPlugin = null;
+    }
+    
     // Clean up rendering
     if (this.renderingManager) {
       this.renderingManager.cleanup();
-    }
-    
-    // Unload loaded plugin
-    if (this.loadedPlugin) {
-      this.loadedPlugin.unload();
+      this.renderingManager = null;
     }
     
     // Clean up UI
     if (this.uiManager) {
       this.uiManager.cleanup();
+      this.uiManager = null;
+    }
+    
+    // Clean up color scheme manager
+    if (this.colorSchemeManager) {
+      this.colorSchemeManager.cleanup();
     }
     
     // Reset state
-    this.loadedPlugin = null;
     this.previousPluginId = null;
     this.availablePlugins = [];
     this.initialized = false;
+    this.isInitialStartup = true;
     
     console.log("Application cleaned up");
   }

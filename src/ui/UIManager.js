@@ -1,4 +1,4 @@
-// src/ui/UIManager.js
+// src/ui/UIManager.js - Improved version
 
 import { EventEmitter } from '../core/EventEmitter.js';
 import { UIBuilder } from './UIBuilder.js';
@@ -57,17 +57,7 @@ export class UIManager extends EventEmitter {
       await this.layout.initialize();
       
       // Register layout event handlers
-      this.layout.on('parameterChange', (parameterId, value, group) => {
-        this.emit('parameterChange', parameterId, value, group);
-      });
-      
-      this.layout.on('action', (actionId, ...args) => {
-        this.emit('action', actionId, ...args);
-      });
-      
-      this.layout.on('pluginSelect', (pluginId) => {
-        this.emit('pluginSelect', pluginId);
-      });
+      this._registerLayoutEvents();
       
       // Listen for window resize
       window.addEventListener('resize', this._handleResize);
@@ -103,6 +93,12 @@ export class UIManager extends EventEmitter {
    */
   updatePluginParameterGroups(parameterData, rebuild = false) {
     try {
+      // Validate parameter data
+      if (!parameterData) {
+        console.warn("Invalid parameter data provided to updatePluginParameterGroups");
+        return;
+      }
+      
       // Store parameter groups
       if (parameterData.pluginParameters) {
         this.parameterGroups.plugin = parameterData.pluginParameters;
@@ -120,8 +116,6 @@ export class UIManager extends EventEmitter {
       if (this.layout && typeof this.layout.updateParameterGroups === 'function') {
         this.layout.updateParameterGroups(this.parameterGroups, rebuild);
       }
-      
-      console.log("UI parameter groups updated", rebuild ? "(rebuilt)" : "(values only)");
     } catch (error) {
       console.error("Failed to update parameter groups:", error);
     }
@@ -188,11 +182,11 @@ export class UIManager extends EventEmitter {
       const parameterData = {
         pluginParameters: {
           schema: pluginParams,
-          values: values
+          values: values || {}
         },
         visualizationParameters: {
           schema: visualizationParams,
-          values: values
+          values: values || {}
         },
         advancedParameters: {
           schema: [],
@@ -214,6 +208,8 @@ export class UIManager extends EventEmitter {
    */
   updateControls(values) {
     try {
+      if (!values) return;
+      
       console.warn("Using deprecated updateControls method, consider updating to use parameter groups");
       
       // Update each value in the appropriate group
@@ -230,8 +226,8 @@ export class UIManager extends EventEmitter {
    * @param {Array<Action>} actions - Available actions
    */
   updateActions(actions) {
-    if (this.layout) {
-      this.layout.updateActions(actions);
+    if (this.layout && typeof this.layout.updateActions === 'function') {
+      this.layout.updateActions(actions || []);
     }
   }
   
@@ -241,8 +237,8 @@ export class UIManager extends EventEmitter {
    * @param {string} activePluginId - Currently active plugin ID
    */
   updatePlugins(plugins, activePluginId) {
-    if (this.layout) {
-      this.layout.updatePlugins(plugins, activePluginId);
+    if (this.layout && typeof this.layout.updatePlugins === 'function') {
+      this.layout.updatePlugins(plugins || [], activePluginId);
     }
   }
   
@@ -251,8 +247,10 @@ export class UIManager extends EventEmitter {
    * @param {string} message - Error message
    */
   showError(message) {
-    if (this.layout) {
+    if (this.layout && typeof this.layout.showError === 'function') {
       this.layout.showError(message);
+    } else {
+      console.error("UI Error:", message);
     }
   }
   
@@ -262,8 +260,10 @@ export class UIManager extends EventEmitter {
    * @param {number} duration - Duration in milliseconds (default: 3000)
    */
   showNotification(message, duration = 3000) {
-    if (this.layout) {
+    if (this.layout && typeof this.layout.showNotification === 'function') {
       this.layout.showNotification(message, duration);
+    } else {
+      console.log("UI Notification:", message);
     }
   }
   
@@ -272,7 +272,7 @@ export class UIManager extends EventEmitter {
    * @param {string} message - Loading message
    */
   showLoading(message = 'Loading...') {
-    if (this.layout) {
+    if (this.layout && typeof this.layout.showLoading === 'function') {
       this.layout.showLoading(message);
     }
   }
@@ -281,7 +281,7 @@ export class UIManager extends EventEmitter {
    * Hide loading indicator
    */
   hideLoading() {
-    if (this.layout) {
+    if (this.layout && typeof this.layout.hideLoading === 'function') {
       this.layout.hideLoading();
     }
   }
@@ -326,20 +326,23 @@ export class UIManager extends EventEmitter {
       }
       
       // Initialize new layout
-      this.layout.initialize();
+      this.layout.initialize().then(() => {
+        // Register layout event handlers
+        this._registerLayoutEvents();
+        
+        // Rebuild controls with stored parameter groups
+        if (this.layout && typeof this.layout.updateParameterGroups === 'function') {
+          this.layout.updateParameterGroups(this.parameterGroups, true);
+        }
+        
+        console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
+      }).catch(error => {
+        console.error("Failed to initialize new layout:", error);
+      });
       
-      // Register layout event handlers
-      this._registerLayoutEvents();
-      
-      // Rebuild controls with stored parameter groups
-      if (this.layout && typeof this.layout.updateParameterGroups === 'function') {
-        this.layout.updateParameterGroups(this.parameterGroups, true);
-      }
-      
-      console.log(`Layout changed to ${this.isMobile ? 'mobile' : 'desktop'}`);
     } else {
       // Just notify layout of resize
-      if (this.layout) {
+      if (this.layout && typeof this.layout.handleResize === 'function') {
         this.layout.handleResize();
       }
     }
@@ -350,6 +353,11 @@ export class UIManager extends EventEmitter {
    * @private
    */
   _registerLayoutEvents() {
+    if (!this.layout) return;
+    
+    // Remove all existing listeners first
+    this.layout.removeAllListeners();
+    
     // Register standard events
     this.layout.on('parameterChange', (parameterId, value, group) => {
       this.emit('parameterChange', parameterId, value, group);
@@ -382,12 +390,12 @@ export class UIManager extends EventEmitter {
     
     // Remove any fullscreen buttons
     const desktopFullscreenBtn = document.getElementById('desktop-fullscreen-button');
-    if (desktopFullscreenBtn) {
+    if (desktopFullscreenBtn && desktopFullscreenBtn.parentNode) {
       desktopFullscreenBtn.parentNode.removeChild(desktopFullscreenBtn);
     }
     
     const mobileFullscreenBtn = document.getElementById('mobile-fullscreen-button');
-    if (mobileFullscreenBtn) {
+    if (mobileFullscreenBtn && mobileFullscreenBtn.parentNode) {
       mobileFullscreenBtn.parentNode.removeChild(mobileFullscreenBtn);
     }
   }
@@ -397,6 +405,8 @@ export class UIManager extends EventEmitter {
    * @param {Object} colorScheme - Color scheme to apply
    */
   updateTheme(colorScheme) {
+    if (!colorScheme) return;
+    
     // Apply theme colors using the utility function
     if (typeof applyThemeColors === 'function') {
       applyThemeColors(colorScheme);
@@ -416,7 +426,7 @@ export class UIManager extends EventEmitter {
       root.style.setProperty('--control-bg', isDark ? '#333333' : '#ffffff');
       root.style.setProperty('--control-border', isDark ? '#555555' : '#cccccc');
       root.style.setProperty('--control-active', isDark ? '#3c4043' : '#e8f0fe');
-      root.style.setProperty('--control-focus', isDark ? '#8ab4f8' : '#3367d6');
+      root.style.setProperty('--control-focus', colorScheme.accent);
       root.style.setProperty('--error-color', isDark ? '#f28b82' : '#d93025');
       root.style.setProperty('--success-color', isDark ? '#81c995' : '#0f9d58');
       root.style.setProperty('--warning-color', isDark ? '#fdd663' : '#f29900');
@@ -454,18 +464,11 @@ export class UIManager extends EventEmitter {
     }
     
     // Ensure no stray buttons exist
-    const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
-    existingDesktopButtons.forEach(button => {
-      if (button.parentNode) button.parentNode.removeChild(button);
-    });
-    
-    const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
-    existingMobileButtons.forEach(button => {
-      if (button.parentNode) button.parentNode.removeChild(button);
-    });
+    this._cleanupThemeButtons();
     
     // Get the current scheme
     const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+    if (!currentScheme) return;
     
     // Create appropriate button based on layout type
     if (this.isMobile) {
@@ -477,9 +480,7 @@ export class UIManager extends EventEmitter {
       
       // Add click handler
       mobileToggle.addEventListener('click', () => {
-        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
-        const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
-        this.core.colorSchemeManager.setActiveScheme(newScheme);
+        this.emit('action', 'toggle-theme');
       });
       
       // Add to document
@@ -494,15 +495,29 @@ export class UIManager extends EventEmitter {
       
       // Add click handler
       desktopToggle.addEventListener('click', () => {
-        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
-        const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
-        this.core.colorSchemeManager.setActiveScheme(newScheme);
+        this.emit('action', 'toggle-theme');
       });
       
       // Add to document
       document.body.appendChild(desktopToggle);
       this.themeToggleButton = desktopToggle;
     }
+  }
+
+  /**
+   * Clean up existing theme buttons
+   * @private
+   */
+  _cleanupThemeButtons() {
+    const existingDesktopButtons = document.querySelectorAll('.theme-toggle');
+    existingDesktopButtons.forEach(button => {
+      if (button.parentNode) button.parentNode.removeChild(button);
+    });
+    
+    const existingMobileButtons = document.querySelectorAll('.mobile-theme-toggle');
+    existingMobileButtons.forEach(button => {
+      if (button.parentNode) button.parentNode.removeChild(button);
+    });
   }
 
   /**
@@ -546,6 +561,8 @@ export class UIManager extends EventEmitter {
       advanced: { schema: [], values: {} }
     };
     this.initialized = false;
+    this.themeToggleButton = null;
+    this.mobileThemeToggleButton = null;
     
     console.log("UI manager cleaned up");
   }

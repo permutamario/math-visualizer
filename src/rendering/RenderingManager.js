@@ -1,4 +1,4 @@
-// src/rendering/RenderingManager.js - Modified version
+// src/rendering/RenderingManager.js - Improved version
 
 import { Canvas2DEnvironment } from './Canvas2DEnvironment.js';
 import { ThreeJSEnvironment } from './ThreeJSEnvironment.js';
@@ -15,7 +15,7 @@ export class RenderingManager {
     this.core = core;
     this.canvas = null;
     
-    // Initialize the environments object properly
+    // Initialize environments
     this.environments = {
       '2d': null,
       '3d': null
@@ -36,7 +36,7 @@ export class RenderingManager {
   }
 
   /**
-   * Handle Resize
+   * Handle window resize
    */
   handleResize() {
     // Resize the canvas first
@@ -44,13 +44,11 @@ export class RenderingManager {
     
     // Then let the current environment handle the resize if it exists
     if (this.currentEnvironment) {
-      console.log(`Handling resize for ${this.environments['2d'] === this.currentEnvironment ? '2D' : '3D'} environment`);
+      console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
       this.currentEnvironment.handleResize();
       
       // Request a render to update the view
       this.requestRender();
-    } else {
-      console.log("No active environment to resize");
     }
   }
   
@@ -67,7 +65,6 @@ export class RenderingManager {
       this.canvas = document.getElementById(canvasId);
       
       if (!this.canvas) {
-        // Create new canvas
         console.log(`Canvas with id ${canvasId} not found, creating new one`);
         this.canvas = document.createElement('canvas');
         this.canvas.id = canvasId;
@@ -77,21 +74,11 @@ export class RenderingManager {
       // Set canvas size
       this.resizeCanvas();
       
-      // Ensure environments object is initialized
-      if (!this.environments) {
-        console.log("Initializing environments object");
-        this.environments = {
-          '2d': null,
-          '3d': null
-        };
-      }
+      // Create environment instances but don't initialize or activate them yet
+      this.environments['2d'] = new Canvas2DEnvironment(this.canvas, this.core);
+      this.environments['3d'] = new ThreeJSEnvironment(this.canvas, this.core);
       
-      // Create initial environment instances but don't initialize or activate them yet
-      console.log("Creating environment instances");
-      this.environments['2d'] = this._createEnvironment('2d');
-      this.environments['3d'] = this._createEnvironment('3d');
-      
-      // Initialize and activate the 2D environment by default to show the welcome message
+      // Initialize and activate the 2D environment by default for welcome message
       await this.setEnvironment('2d');
       
       // Listen for window resize
@@ -117,27 +104,9 @@ export class RenderingManager {
   }
   
   /**
-   * Create a new environment instance
-   * @param {string} type - Environment type ('2d' or '3d')
-   * @returns {Object} New environment instance
-   * @private
-   */
-  _createEnvironment(type) {
-    console.log(`Creating ${type} environment`);
-    
-    if (type === '2d') {
-      return new Canvas2DEnvironment(this.canvas, this.core);
-    } else if (type === '3d') {
-      return new ThreeJSEnvironment(this.canvas, this.core);
-    }
-    
-    throw new Error(`Unknown environment type: ${type}`);
-  }
-  
-  /**
    * Set the current rendering environment
    * @param {string} type - Environment type ('2d' or '3d')
-   * @returns {boolean} Whether environment change was successful
+   * @returns {Promise<boolean>} Whether environment change was successful
    */
   async setEnvironment(type) {
     // Validate environment type
@@ -149,24 +118,9 @@ export class RenderingManager {
     try {
       console.log(`Setting environment to ${type}...`);
       
-      // Validate environments object exists
-      if (!this.environments) {
-        console.error("Environments object is undefined");
-        this.environments = {
-          '2d': null,
-          '3d': null
-        };
-      }
-      
-      // Check if the environment instance exists
-      if (!this.environments[type]) {
-        console.log(`Creating new ${type} environment instance`);
-        this.environments[type] = this._createEnvironment(type);
-      }
-      
-      // Dispose of current environment completely if it exists
+      // Dispose of current environment if it exists
       if (this.currentEnvironment) {
-        // Make sure to stop rendering before we dispose the environment
+        // Pause rendering during transition
         const wasRendering = this.rendering;
         if (wasRendering) {
           this.stopRenderLoop();
@@ -204,7 +158,6 @@ export class RenderingManager {
       await this.currentEnvironment.activate();
       
       // Ensure the canvas is properly sized for the new environment
-      console.log("Resizing for new environment");
       this.resizeCanvas();
       this.currentEnvironment.handleResize();
       
@@ -259,10 +212,12 @@ export class RenderingManager {
     const container = this.canvas.parentElement || document.body;
     const { width, height } = container.getBoundingClientRect();
     
-    console.log(`Resizing main canvas to ${width}x${height}`);
-    
-    this.canvas.width = width;
-    this.canvas.height = height;
+    // Only resize if dimensions have changed
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      console.log(`Resizing main canvas to ${width}x${height}`);
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
   }
   
   /**
@@ -298,19 +253,24 @@ export class RenderingManager {
     const deltaTime = (timestamp - this.lastFrameTime) / 1000;
     this.lastFrameTime = timestamp;
     
-    // Get active plugin
-    const activePlugin = this.core.getActivePlugin();
+    // Cap the delta time to prevent large jumps
+    const cappedDeltaTime = Math.min(deltaTime, 0.1);
     
-    // Update animation
+    // Get active plugin and visualization
+    const activePlugin = this.core.getActivePlugin();
+    let needsRender = false;
+    
+    // Update animation if there's an active visualization
     if (activePlugin) {
       const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.animate(deltaTime);
+      if (visualization && typeof visualization.animate === 'function') {
+        // If animate returns true, we need to render
+        needsRender = visualization.animate(cappedDeltaTime) || false;
       }
     }
     
-    // Render if requested or animating
-    if (this.renderRequested || this.shouldRenderEveryFrame()) {
+    // Render if requested, needed by animation, or environment needs continuous rendering
+    if (this.renderRequested || needsRender || this.shouldRenderEveryFrame()) {
       this.render();
       this.renderRequested = false;
     }
@@ -335,7 +295,7 @@ export class RenderingManager {
     const activePlugin = this.core.getActivePlugin();
     if (activePlugin && activePlugin.getCurrentVisualization()) {
       const visualization = activePlugin.getCurrentVisualization();
-      // Check for animation flag or property
+      // Check for animation flag
       return visualization.isAnimating || false;
     }
     
@@ -357,35 +317,38 @@ export class RenderingManager {
     }
   }
   
+  /**
+   * Render the current visualization
+   */
   render() {
-  if (!this.currentEnvironment) {
-    console.log("Cannot render: no active environment");
-    return;
+    if (!this.currentEnvironment) {
+      console.warn("Cannot render: no active environment");
+      return;
+    }
+    
+    const activePlugin = this.core.getActivePlugin();
+    if (!activePlugin) {
+      // Show welcome message when no plugin is loaded
+      this.renderNoPluginMessage();
+      return;
+    }
+    
+    const visualization = activePlugin.getCurrentVisualization();
+    if (!visualization) {
+      console.warn("Cannot render: no active visualization");
+      return;
+    }
+    
+    // Merge all parameter collections for the visualization
+    const combinedParameters = {
+      ...activePlugin.pluginParameters,
+      ...activePlugin.visualizationParameters,
+      ...activePlugin.advancedParameters
+    };
+    
+    // Render using the current environment
+    this.currentEnvironment.render(visualization, combinedParameters);
   }
-  
-  const activePlugin = this.core.getActivePlugin();
-  if (!activePlugin) {
-    console.log("No active plugin, showing welcome message");
-    this.renderNoPluginMessage();
-    return;
-  }
-  
-  const visualization = activePlugin.getCurrentVisualization();
-  if (!visualization) {
-    console.log("Cannot render: no active visualization");
-    return;
-  }
-  
-  // Merge all parameter collections before passing to render
-  const combinedParameters = {
-    ...activePlugin.pluginParameters,
-    ...activePlugin.visualizationParameters,
-    ...activePlugin.advancedParameters
-  };
-  
-  // Render using the current environment
-  this.currentEnvironment.render(visualization, combinedParameters);
-}
   
   /**
    * Render a message when no plugin is loaded
@@ -399,7 +362,7 @@ export class RenderingManager {
       if (!ctx) return;
       
       // Clear canvas with the background color
-      ctx.fillStyle = this.currentEnvironment.backgroundColor;
+      ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       
       // Set up transformations to center the text
@@ -409,8 +372,12 @@ export class RenderingManager {
       const centerX = this.canvas.width / 2;
       const centerY = this.canvas.height / 2;
       
+      // Use theme colors from CSS variables if available
+      const textColor = getComputedStyle(document.body).getPropertyValue('--text-color') || '#333333';
+      const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color') || '#1a73e8';
+      
       ctx.font = '30px sans-serif';
-      ctx.fillStyle = 'var(--text-color)';
+      ctx.fillStyle = textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('Select a Plugin', centerX, centerY - 20);
@@ -444,7 +411,7 @@ export class RenderingManager {
         
         ctx.quadraticCurveTo(controlX, controlY, arrowEndX, arrowEndY);
         
-        ctx.strokeStyle = 'var(--accent-color)';
+        ctx.strokeStyle = accentColor;
         ctx.lineWidth = 2;
         ctx.stroke();
         
@@ -463,7 +430,7 @@ export class RenderingManager {
           arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
         );
         ctx.closePath();
-        ctx.fillStyle = 'var(--accent-color)';
+        ctx.fillStyle = accentColor;
         ctx.fill();
       }
       
@@ -475,22 +442,22 @@ export class RenderingManager {
    * Export the current visualization as a PNG
    */
   exportAsPNG() {
-    if (!this.canvas) return;
+    if (!this.canvas) return false;
     
     const activePlugin = this.core.getActivePlugin();
     const filename = activePlugin ? 
                     `${activePlugin.constructor.id}-${Date.now()}.png` : 
                     `visualization-${Date.now()}.png`;
     
-    // Force a render to ensure latest state
-    this.render();
-    
-    // Create a download link
-    const link = document.createElement('a');
-    link.download = filename;
-    
     try {
-      // Try to get the image data - may fail if using 3D
+      // Force a render to ensure latest state
+      this.render();
+      
+      // Create a download link
+      const link = document.createElement('a');
+      link.download = filename;
+      
+      // Try to get the image data - may need special handling for 3D
       let imageData;
       
       // For 3D environment, use the renderer's output
@@ -520,12 +487,16 @@ export class RenderingManager {
       link.click();
       
       console.log(`Exported visualization as ${filename}`);
+      return true;
     } catch (error) {
       console.error("Error exporting as PNG:", error);
+      
       // Notify user of error
       if (this.core && this.core.uiManager) {
         this.core.uiManager.showError(`Failed to export as PNG: ${error.message}`);
       }
+      
+      return false;
     }
   }
   
@@ -539,7 +510,7 @@ export class RenderingManager {
   
   /**
    * Get the current environment
-   * @returns {RenderingEnvironment} Current rendering environment
+   * @returns {Object} Current rendering environment
    */
   getCurrentEnvironment() {
     return this.currentEnvironment;
@@ -554,14 +525,22 @@ export class RenderingManager {
     
     // Dispose of current environment
     if (this.currentEnvironment) {
-      this.currentEnvironment.dispose();
+      try {
+        this.currentEnvironment.dispose();
+      } catch (error) {
+        console.error("Error disposing current environment during cleanup:", error);
+      }
       this.currentEnvironment = null;
     }
     
     // Clean up environment instances
     Object.keys(this.environments).forEach(key => {
       if (this.environments[key]) {
-        this.environments[key].dispose();
+        try {
+          this.environments[key].dispose();
+        } catch (error) {
+          console.error(`Error disposing ${key} environment during cleanup:`, error);
+        }
         this.environments[key] = null;
       }
     });
@@ -571,6 +550,14 @@ export class RenderingManager {
     if (this.core && this.core.events) {
       this.core.events.off('colorSchemeChanged', this.updateBackgroundColors);
     }
+    
+    // Reset properties
+    this.canvas = null;
+    this.environments = { '2d': null, '3d': null };
+    this.animationId = null;
+    this.lastFrameTime = 0;
+    this.rendering = false;
+    this.renderRequested = false;
     
     console.log("Rendering manager cleaned up");
   }
