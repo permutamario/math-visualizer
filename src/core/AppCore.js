@@ -254,7 +254,7 @@ addParametersVisual(parameters) {
   
   this._processParameters(parameters, 'visual');
   
-  // Update UI - FIXED: calls updatePluginParameterGroups instead of updateParameterGroups
+  // Update UI 
   if (this.uiManager) {
     this.uiManager.updatePluginParameterGroups({
       visualizationParameters: { 
@@ -277,7 +277,7 @@ addParametersStructural(parameters) {
   
   this._processParameters(parameters, 'structural');
   
-  // Update UI - FIXED: calls updatePluginParameterGroups instead of updateParameterGroups
+  // Update UI 
   if (this.uiManager) {
     this.uiManager.updatePluginParameterGroups({
       pluginParameters: { 
