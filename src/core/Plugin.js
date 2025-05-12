@@ -166,8 +166,7 @@ export class Plugin {
           ...this.visualizationParameters,
           // Ensure currentVisualization is included if we have multiple visualizations
           ...(this.visualizations.size > 1 ? {
-            currentVisualization: this.currentVisualization ? 
-                                 this._getVisualizationId(this.currentVisualization) : ''
+            currentVisualization: this.currentVisualization
           } : {})
         }
       },
