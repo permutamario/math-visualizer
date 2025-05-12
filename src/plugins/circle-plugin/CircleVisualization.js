@@ -20,7 +20,7 @@ export class CircleVisualization extends Visualization {
     };
     
     // Flag to control animation - false since this is a static visualization
-    this.isAnimating = false;
+    this.isAnimating = true;
   }
 
   /**
