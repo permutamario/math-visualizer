@@ -362,90 +362,57 @@ export class RenderingManager {
   /**
    * Render a message when no plugin is loaded
    */
-  renderNoPluginMessage() {
-    if (!this.currentEnvironment || !this.canvas) return;
+  renderNoPluginMessage() {/**
+ * Render a simple message when no plugin is loaded
+ */
+renderNoPluginMessage() {
+  if (!this.currentEnvironment || !this.canvas) return;
+  
+  // Only 2D environment supports this for now
+  if (this.environments['2d'] === this.currentEnvironment) {
+    const ctx = this.currentEnvironment.getContext();
+    if (!ctx) return;
     
-    // Only 2D environment supports this for now
-    if (this.environments['2d'] === this.currentEnvironment) {
-      const ctx = this.currentEnvironment.getContext();
-      if (!ctx) return;
-      
-      // Clear canvas with the background color
-      ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      
-      // Set up transformations to center the text
-      ctx.save();
-      
-      // Draw instruction text
-      const centerX = this.canvas.width / 2;
-      const centerY = this.canvas.height / 2;
-      
-      // Use theme colors from CSS variables if available
-      const textColor = getComputedStyle(document.body).getPropertyValue('--text-color') || '#333333';
-      const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color') || '#1a73e8';
-      
-      ctx.font = '30px sans-serif';
-      ctx.fillStyle = textColor;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Select a Plugin', centerX, centerY - 20);
-      
-      // Add a smaller instruction
-      ctx.font = '16px sans-serif';
-      ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
-      
-      // Draw an arrow pointing to the plugin selector button
-      const pluginButton = document.querySelector('.plugin-selector-button') || 
-                           document.getElementById('mobile-plugin-button');
-      
-      if (pluginButton) {
-        const buttonRect = pluginButton.getBoundingClientRect();
-        const canvasRect = this.canvas.getBoundingClientRect();
-        
-        // Calculate relative position
-        const arrowEndX = buttonRect.left + buttonRect.width/2 - canvasRect.left;
-        const arrowEndY = buttonRect.top + buttonRect.height/2 - canvasRect.top;
-        
-        // Draw arrow from center to button
-        const arrowStartX = centerX;
-        const arrowStartY = centerY + 60;
-        
-        ctx.beginPath();
-        ctx.moveTo(arrowStartX, arrowStartY);
-        
-        // Create a curved arrow using bezier
-        const controlX = (arrowStartX + arrowEndX) / 2;
-        const controlY = arrowStartY + 30;
-        
-        ctx.quadraticCurveTo(controlX, controlY, arrowEndX, arrowEndY);
-        
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Add arrowhead
-        const angle = Math.atan2(arrowEndY - controlY, arrowEndX - controlX);
-        const arrowSize = 10;
-        
-        ctx.beginPath();
-        ctx.moveTo(arrowEndX, arrowEndY);
-        ctx.lineTo(
-          arrowEndX - arrowSize * Math.cos(angle - Math.PI/6),
-          arrowEndY - arrowSize * Math.sin(angle - Math.PI/6)
-        );
-        ctx.lineTo(
-          arrowEndX - arrowSize * Math.cos(angle + Math.PI/6),
-          arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
-        );
-        ctx.closePath();
-        ctx.fillStyle = accentColor;
-        ctx.fill();
+    // Clear canvas with the background color
+    ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Get canvas dimensions for centering
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    
+    // Use theme colors from CSS variables or color scheme manager if available
+    let textColor = '#333333';
+    
+    // Try to get color from color scheme manager first
+    if (this.core && this.core.colorSchemeManager) {
+      const scheme = this.core.colorSchemeManager.getActiveScheme();
+      if (scheme && scheme.text) {
+        textColor = scheme.text;
       }
-      
-      ctx.restore();
+    } 
+    // Fallback to CSS variables if color scheme manager not available
+    else {
+      const computedTextColor = getComputedStyle(document.body).getPropertyValue('--text-color');
+      if (computedTextColor) {
+        textColor = computedTextColor;
+      }
     }
+    
+    // Set text properties
+    ctx.font = '30px sans-serif';
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Draw main heading
+    ctx.fillText('Select a Plugin', centerX, centerY - 20);
+    
+    // Draw instruction with smaller font
+    ctx.font = '16px sans-serif';
+    ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
   }
+}
   
   /**
    * Provide direct access to rendering environment for plugins
