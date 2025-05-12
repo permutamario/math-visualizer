@@ -1,4 +1,6 @@
 // src/core/Plugin.js - Improved version
+import { createParameters } from '../ui/ParameterBuilder.js';
+
 export class Plugin {
   static id = "base-plugin";
   static name = "Base Plugin";
@@ -118,38 +120,37 @@ export class Plugin {
    * @param {boolean} rebuild - Whether to rebuild UI controls
    */
   giveParameters(rebuild = false) {
-  if (!this.core || !this.core.uiManager) return;
-  
-  // Create schema objects for UI
-  const pluginSchema = this.definePluginParameters();
-  
-  // Get visualization parameters
-  let visualizationSchema = [];
-  
-  // Always add currentVisualization selector at the top if we have multiple visualizations
-  if (this.visualizations.size > 1) {
-    // Use ParameterBuilder consistently
-    const builder = createParameters();
+    if (!this.core || !this.core.uiManager) return;
     
-    // Get visualization options in the format expected by addDropdown
-    const vizOptions = this._getVisualizationOptions();
-    const currentVizId = this.currentVisualization ? 
-      this._getVisualizationId(this.currentVisualization) : '';
+    // Create schema objects for UI
+    const pluginSchema = this.definePluginParameters();
     
-    visualizationSchema = builder
-      .addDropdown('currentVisualization', 'Current Visualization', currentVizId, vizOptions)
-      .build();
+    // Get visualization parameters
+    let visualizationSchema = [];
     
-    // Add rest of visualization parameters
-    const vizParams = this.getVisualizationParameters();
-    if (Array.isArray(vizParams)) {
-      visualizationSchema = [...visualizationSchema, ...vizParams];
+    // Always add currentVisualization selector at the top if we have multiple visualizations
+    if (this.visualizations.size > 1) {
+      // Use ParameterBuilder consistently
+      const builder = createParameters();
+      
+      // Get visualization options in the format expected by addDropdown
+      const vizOptions = this._getVisualizationOptions();
+      const currentVizId = this.currentVisualization ? 
+        this._getVisualizationId(this.currentVisualization) : '';
+      
+      visualizationSchema = builder
+        .addDropdown('currentVisualization', 'Current Visualization', currentVizId, vizOptions)
+        .build();
+      
+      // Add rest of visualization parameters
+      const vizParams = this.getVisualizationParameters();
+      if (Array.isArray(vizParams)) {
+        visualizationSchema = [...visualizationSchema, ...vizParams];
+      }
+    } else {
+      // Just use visualization parameters if only one visualization
+      visualizationSchema = this.getVisualizationParameters();
     }
-  } else {
-    // Just use visualization parameters if only one visualization
-    visualizationSchema = this.getVisualizationParameters();
-  }
-  
     
     const advancedSchema = this.defineAdvancedParameters();
     
@@ -177,7 +178,7 @@ export class Plugin {
     };
     
     // Send to UI manager
-    console.log("Parameter data I sent", parameterData);
+    console.log("I built with parameter data", parameterData);
     this.core.uiManager.updatePluginParameterGroups(parameterData, rebuild);
   }
   
@@ -545,27 +546,25 @@ export class Plugin {
    * @returns {Array<Object>} Visualization options
    * @private
    */
-_getVisualizationOptions() {
-  return Array.from(this.visualizations.entries()).map(([id, viz]) => {
-    // Try to get a nice display name from visualizationTypes if available
-    let label = id;
-    
-    if (this.visualizationTypes) {
-      const vizType = this.visualizationTypes.find(vt => vt.id === id);
-      if (vizType && vizType.name) {
-        label = vizType.name;
-        return { value: id, label: label };
+  _getVisualizationOptions() {
+    return Array.from(this.visualizations.entries()).map(([id, viz]) => {
+      // Try to get a nice display name from visualizationTypes if available
+      let label = id;
+      
+      if (this.visualizationTypes) {
+        const vizType = this.visualizationTypes.find(vt => vt.id === id);
+        if (vizType && vizType.name) {
+          label = vizType.name;
+        }
+      } else if (viz.constructor.name && viz.constructor.name !== 'Function') {
+        // Fallback to class name if visualizationTypes not available
+        label = viz.constructor.name;
       }
-    }
-    
-    // Fallback to class name if visualizationTypes not available
-    if (viz.constructor.name && viz.constructor.name !== 'Function') {
-      label = viz.constructor.name;
-    }
-    
-    return { value: id, label: label };
-  });
-}
+      
+      // Return in format expected by addDropdown
+      return { value: id, label: label };
+    });
+  }
   
   /**
    * Helper to get visualization ID from instance
