@@ -1,23 +1,25 @@
 // src/plugins/circle-plugin/CircleVisualization.js
 import { Visualization } from '../../core/Visualization.js';
-import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * A simple circle visualization
+ * Implementing the Math Visualization Framework philosophy
  */
 export class CircleVisualization extends Visualization {
   constructor(plugin) {
     super(plugin);
     
-    // Initialize state
+    // Internal state for animation and rendering
     this.state = {
-      radius: 100,
-      fillColor: '#3498db',
-      hasStroke: true,
-      strokeColor: '#000000'
+      radius: 100,             // Base radius value
+      scaledRadius: 100,       // Radius after applying global scale
+      fillColor: '#3498db',    // Fill color
+      hasStroke: true,         // Whether to show outline
+      strokeColor: '#000000',  // Outline color
+      phase: 0                 // Animation phase (not used in this implementation)
     };
     
-    // Set animation flag to false as this visualization is static
+    // Flag to control animation - false since this is a static visualization
     this.isAnimating = false;
   }
 
@@ -27,23 +29,50 @@ export class CircleVisualization extends Visualization {
    * @static
    */
   static getParameters() {
-    return createParameters()
-      .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
-      .addColor('fillColor', 'Fill Color', '#3498db')
-      .addCheckbox('hasStroke', 'Show Outline', true)
-      .addColor('strokeColor', 'Outline Color', '#000000')
-      .build();
+    return [
+      {
+        id: 'radius',
+        type: 'slider',
+        label: 'Radius',
+        default: 100,
+        min: 10,
+        max: 200,
+        step: 5
+      },
+      {
+        id: 'fillColor',
+        type: 'color',
+        label: 'Fill Color',
+        default: '#3498db'
+      },
+      {
+        id: 'hasStroke',
+        type: 'checkbox',
+        label: 'Show Outline',
+        default: true
+      },
+      {
+        id: 'strokeColor',
+        type: 'color',
+        label: 'Outline Color',
+        default: '#000000'
+      }
+    ];
   }
 
   /**
    * Initialize the visualization
-   * @param {Object} parameters - Visualization parameters
+   * @param {Object} parameters - Combined parameters from all groups
    * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
     try {
-      // Update state with initial parameters
+      // Call parent initialization first
+      await super.initialize(parameters);
+      
+      // Initialize state with provided parameters
       this.updateState(parameters);
+      
       return true;
     } catch (error) {
       console.error("Error initializing CircleVisualization:", error);
@@ -52,12 +81,16 @@ export class CircleVisualization extends Visualization {
   }
 
   /**
-   * Update the visualization
-   * @param {Object} parameters - Changed parameters only
+   * Update the visualization with changed parameters
+   * @param {Object} parameters - Changed parameters only (partial object)
    */
   update(parameters) {
+    if (!parameters) return;
+    
     // Update state with changed parameters
     this.updateState(parameters);
+    
+    // No need to request render - this is handled by the framework
   }
 
   /**
@@ -66,8 +99,6 @@ export class CircleVisualization extends Visualization {
    * @private
    */
   updateState(parameters) {
-    if (!parameters) return;
-    
     // Only update defined parameters
     if (parameters.radius !== undefined) this.state.radius = parameters.radius;
     if (parameters.fillColor !== undefined) this.state.fillColor = parameters.fillColor;
@@ -76,26 +107,27 @@ export class CircleVisualization extends Visualization {
     
     // Handle global scale from plugin parameters
     if (parameters.globalScale !== undefined) {
-      // Apply global scale to radius
       this.state.scaledRadius = this.state.radius * parameters.globalScale;
     } else if (this.state.scaledRadius === undefined) {
       // Initialize scaled radius if not set
-      this.state.scaledRadius = this.state.radius * (parameters.globalScale || 1.0);
+      const globalScale = this.getParameterValue('globalScale', 1.0);
+      this.state.scaledRadius = this.state.radius * globalScale;
     }
   }
 
   /**
    * Render the visualization in 2D
    * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
-   * @param {Object} parameters - Current parameters
+   * @param {Object} parameters - Current parameters from all groups
    */
   render2D(ctx, parameters) {
     if (!ctx) return;
     
-    // Apply global state
+    // Get plugin-level parameters
     const showBoundingBox = parameters.showBoundingBox || false;
     const globalScale = parameters.globalScale || 1.0;
     const showLabels = parameters.showLabels || false;
+    const debugMode = parameters.debugMode || false;
     
     // Calculate scaled radius
     const radius = this.state.radius * globalScale;
@@ -127,12 +159,11 @@ export class CircleVisualization extends Visualization {
     
     // Show radius label if enabled
     if (showLabels) {
-      ctx.fillStyle = '#000000';
       // Use text color from theme if available
       const computedStyle = getComputedStyle(document.documentElement);
       const textColor = computedStyle.getPropertyValue('--text-color')?.trim() || '#000000';
-      ctx.fillStyle = textColor;
       
+      ctx.fillStyle = textColor;
       ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -155,7 +186,7 @@ export class CircleVisualization extends Visualization {
     }
     
     // Draw debug info if in debug mode
-    if (parameters.debugMode) {
+    if (debugMode) {
       this.drawDebugInfo(ctx, parameters);
     }
     
@@ -166,6 +197,7 @@ export class CircleVisualization extends Visualization {
    * Draw debug information
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {Object} parameters - Current parameters
+   * @private
    */
   drawDebugInfo(ctx, parameters) {
     ctx.save();
@@ -190,8 +222,8 @@ export class CircleVisualization extends Visualization {
   }
 
   /**
-   * Handle user interaction
-   * @param {string} type - Interaction type
+   * Handle user interaction events from the rendering environment
+   * @param {string} type - Interaction type (e.g., "click", "mousemove")
    * @param {Object} event - Event data
    * @returns {boolean} Whether the interaction was handled
    */
@@ -201,7 +233,7 @@ export class CircleVisualization extends Visualization {
       const distance = Math.sqrt(event.x * event.x + event.y * event.y);
       
       // Get current scaled radius
-      const globalScale = this.plugin.pluginParameters.globalScale || 1.0;
+      const globalScale = this.getParameterValue('globalScale', 1.0);
       const scaledRadius = this.state.radius * globalScale;
       
       // Check if click is within or near the circle border (within 10px)
@@ -209,8 +241,8 @@ export class CircleVisualization extends Visualization {
         // Toggle stroke
         const newStrokeState = !this.state.hasStroke;
         
-        // Update parameter in plugin
-        this.plugin.updateParameter('hasStroke', newStrokeState, 'visualization');
+        // Use the plugin's updateParameter method to ensure UI is updated
+        this.requestParameterUpdate('hasStroke', newStrokeState);
         
         return true;
       }
@@ -220,8 +252,8 @@ export class CircleVisualization extends Visualization {
         // Generate a random color
         const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
         
-        // Update parameter in plugin
-        this.plugin.updateParameter('fillColor', randomColor, 'visualization');
+        // Update parameter through plugin
+        this.requestParameterUpdate('fillColor', randomColor);
         
         return true;
       }
@@ -231,10 +263,20 @@ export class CircleVisualization extends Visualization {
   }
 
   /**
+   * Animation method - not used in this static visualization
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * @returns {boolean} Whether animation should continue
+   */
+  animate(deltaTime) {
+    // This visualization is static, so no animation is needed
+    return this.isAnimating;
+  }
+
+  /**
    * Clean up resources
    */
   dispose() {
-    // Nothing specific to clean up for this simple visualization
+    // Clean up resources - nothing to do for this simple visualization
     this.isAnimating = false;
   }
 }
