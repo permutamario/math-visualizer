@@ -90,7 +90,7 @@ this.handleTouchEnd = this.handleTouchEnd.bind(this);
    * Activate the 2D environment
    * @returns {boolean} Whether activation was successful
    */
-  ctivate() {
+  activate() {
   if (this.active) return true;
   
   if (!this.initialized) {
