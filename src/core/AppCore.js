@@ -94,29 +94,35 @@ export class AppCore {
    * Starts the application
    * @returns {Promise<boolean>} Whether startup was successful
    */
-  async start() {
-    try {
-      if (!this.isInitialStartup) {
-        console.warn("Application already started");
-        return true;
-      }
-      
-      // Start the rendering loop
-      this.animationManager.startRenderLoop();
-      
+  
+/**
+ * Starts the application
+ * @returns {Promise<boolean>} Whether startup was successful
+ */
+async start() {
+  try {
+    if (!this.isInitialStartup) {
+      console.warn("Application already started");
+      return true;
+    }
+    
+    // Instead of calling a non-existent startRenderLoop method,
+    // request a single frame to kickstart the rendering process
+    this.animationManager.requestFrame(() => {
       // Show the "Select a Plugin" message
       this.requestRenderRefresh();
-      
-      this.isInitialStartup = false;
-      return true;
-    } catch (error) {
-      console.error("Failed to start application:", error);
-      if (this.uiManager) {
-        this.uiManager.showError(`Failed to start application: ${error.message}`);
-      }
-      return false;
+    });
+    
+    this.isInitialStartup = false;
+    return true;
+  } catch (error) {
+    console.error("Failed to start application:", error);
+    if (this.uiManager) {
+      this.uiManager.showError(`Failed to start application: ${error.message}`);
     }
+    return false;
   }
+}
 
 
   // Add this method to AppCore.js
