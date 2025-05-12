@@ -123,20 +123,6 @@ export class Plugin {
     return false;
   }
   
-  /**
-   * Execute an action
-   * @param {string} actionId - Action ID
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether the action was handled
-   */
-  executeAction(actionId, ...args) {
-    // Forward to plugin's action handler if it exists
-    if (typeof this._definition.executeAction === 'function') {
-      return this._definition.executeAction(actionId, ...args);
-    }
-    
-    return false;
-  }
   
   /**
    * Clean up event handlers
