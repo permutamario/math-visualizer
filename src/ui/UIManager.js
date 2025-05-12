@@ -38,50 +38,54 @@ export class UIManager extends EventEmitter {
     this._handleResize = this._handleResize.bind(this);
   }
   
-  /**
-   * Initialize the UIManager
-   * @returns {Promise<boolean>} Whether initialization was successful
-   */
-  async initialize() {
-    if (this.initialized) return true;
-    
-    try {
-      // Create appropriate layout
-      if (this.isMobile) {
-        this.layout = new MobileLayout(this);
-      } else {
-        this.layout = new DesktopLayout(this);
-      }
-      
-      // Initialize the layout
-      await this.layout.initialize();
-      
-      // Register layout event handlers
-      this._registerLayoutEvents();
-      
-      // Listen for window resize
-      window.addEventListener('resize', this._handleResize);
-      
-      // Set up theme handling if ColorSchemeManager is available
-      if (this.core && this.core.colorSchemeManager) {
-        // Apply initial theme
-        this.updateTheme(this.core.colorSchemeManager.getActiveScheme());
-        
-        // Listen for theme changes
-        this.core.events.on('colorSchemeChanged', this.updateTheme);
-        
-        // Create theme toggle buttons
-        this.createThemeToggleButtons();
-      }
-      
-      this.initialized = true;
-      console.log(`UI manager initialized with ${this.isMobile ? 'mobile' : 'desktop'} layout`);
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize UI manager:", error);
-      return false;
+ // Add this method to handle action events from the layout
+/**
+ * Initialize the UIManager
+ * @returns {Promise<boolean>} Whether initialization was successful
+ */
+async initialize() {
+  if (this.initialized) return true;
+  
+  try {
+    // Create appropriate layout
+    if (this.isMobile) {
+      this.layout = new MobileLayout(this);
+    } else {
+      this.layout = new DesktopLayout(this);
     }
+    
+    // Initialize the layout
+    await this.layout.initialize();
+    
+    // Register layout event handlers
+    this._registerLayoutEvents();
+    
+    // Listen for window resize
+    window.addEventListener('resize', this._handleResize);
+    
+    // Set up theme handling if ColorSchemeManager is available
+    if (this.core && this.core.colorSchemeManager) {
+      // Apply initial theme
+      this.updateTheme(this.core.colorSchemeManager.getActiveScheme());
+      
+      // Listen for theme changes
+      this.core.events.on('colorSchemeChanged', this.updateTheme);
+      
+      // Subscribe to action changes
+      this.core.events.on('actionsChanged', this.updateActions.bind(this));
+      
+      // Create theme toggle buttons
+      this.createThemeToggleButtons();
+    }
+    
+    this.initialized = true;
+    console.log(`UI manager initialized with ${this.isMobile ? 'mobile' : 'desktop'} layout`);
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize UI manager:", error);
+    return false;
   }
+}
   
   /**
    * Update UI with parameter groups
@@ -225,11 +229,22 @@ export class UIManager extends EventEmitter {
    * Update available actions
    * @param {Array<Action>} actions - Available actions
    */
-  updateActions(actions) {
-    if (this.layout && typeof this.layout.updateActions === 'function') {
-      this.layout.updateActions(actions || []);
+  /**
+ * Update available actions
+ * @param {Array<Object>} actions - Available actions
+ */
+updateActions(actions) {
+  try {
+    if (!this.layout || typeof this.layout.updateActions !== 'function') {
+      return;
     }
+
+    // Pass the actions directly to the layout
+    this.layout.updateActions(actions || []);
+  } catch (error) {
+    console.error("Failed to update actions:", error);
   }
+}
   
   /**
    * Update available plugins
@@ -352,25 +367,34 @@ export class UIManager extends EventEmitter {
    * Register event handlers for the layout
    * @private
    */
-  _registerLayoutEvents() {
-    if (!this.layout) return;
-    
-    // Remove all existing listeners first
-    this.layout.removeAllListeners();
-    
-    // Register standard events
-    this.layout.on('parameterChange', (parameterId, value, group) => {
-      this.emit('parameterChange', parameterId, value, group);
-    });
-    
-    this.layout.on('action', (actionId, ...args) => {
-      this.emit('action', actionId, ...args);
-    });
-    
-    this.layout.on('pluginSelect', (pluginId) => {
-      this.emit('pluginSelect', pluginId);
-    });
-  }
+  /**
+ * Register event handlers for the layout
+ * @private
+ */
+_registerLayoutEvents() {
+  if (!this.layout) return;
+  
+  // Remove all existing listeners first
+  this.layout.removeAllListeners();
+  
+  // Register standard events
+  this.layout.on('parameterChange', (parameterId, value, group) => {
+    this.emit('parameterChange', parameterId, value, group);
+  });
+  
+  // Updated action handling to use core.executeAction
+  this.layout.on('action', (actionId, ...args) => {
+    if (this.core && typeof this.core.executeAction === 'function') {
+      this.core.executeAction(actionId, ...args);
+    } else {
+      this.emit('action', actionId, ...args); // Fallback to emitting event
+    }
+  });
+  
+  this.layout.on('pluginSelect', (pluginId) => {
+    this.emit('pluginSelect', pluginId);
+  });
+}
 
   /**
    * Clean up UI elements that might cause duplicates

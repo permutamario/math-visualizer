@@ -163,6 +163,8 @@ export class PluginLoader {
         await this.currentPlugin.unload();
       }
       
+      // Clear Actions
+      this.core.clearActions();
       // Clear the plugin reference
       this.currentPlugin = null;
       
