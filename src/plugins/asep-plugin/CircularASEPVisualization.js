@@ -4,6 +4,7 @@ import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Circular ASEP model - particles move in a circular arrangement
+ * Uses continuous-time Markov chain dynamics with exponential clocks
  */
 export class CircularASEPVisualization extends BaseASEPVisualization {
   constructor(plugin) {
@@ -23,8 +24,8 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     return createParameters()
       .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
       .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
-      .addSlider('rightJumpProb', 'Right Jump Probability', 0.7, { min: 0.0, max: 1.0, step: 0.05 })
-      .addSlider('leftJumpProb', 'Left Jump Probability', 0.3, { min: 0.0, max: 1.0, step: 0.05 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 0.7, { min: 0.1, max: 3.0, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.3, { min: 0.0, max: 1.0, step: 0.1 })
       .addSlider('updateSpeed', 'Update Speed', 1.0, { min: 0.2, max: 3.0, step: 0.1 })
       .build();
   }
@@ -42,6 +43,9 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     
     // Create initial particles with random positions
     this.createParticles(parameters);
+    
+    // Store the number of particles for parameter synchronization
+    this.state.particleCount = this.state.particles.length;
     
     // Set update interval based on speed
     this.state.updateInterval = 500 / (parameters.updateSpeed || 1.0);
@@ -82,39 +86,134 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Implement probability-based jump attempt with circular boundary
+   * Create initial particles with random positions and initialize their jump clocks
+   * @param {Object} parameters - Visualization parameters
+   */
+  createParticles(parameters) {
+    if (!parameters || !parameters.numParticles || !parameters.numBoxes) {
+      console.error("Cannot create particles: missing parameters");
+      return;
+    }
+
+    const numParticles = Math.min(parameters.numParticles, parameters.numBoxes);
+    const numBoxes = parameters.numBoxes;
+    
+    // Generate unique random positions
+    const positions = [];
+    while (positions.length < numParticles) {
+      const pos = Math.floor(Math.random() * numBoxes);
+      if (!positions.includes(pos)) {
+        positions.push(pos);
+      }
+    }
+
+    // Get particle color from the palette
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+    
+    // Get jump rates from parameters
+    const rightRate = parameters.rightJumpRate !== undefined ? parameters.rightJumpRate : 0.7;
+    const leftRate = parameters.leftJumpRate !== undefined ? parameters.leftJumpRate : 0.3;
+    
+    // Create particles with jump clocks
+    for (let i = 0; i < numParticles; i++) {
+      this.state.particles.push({
+        id: i,
+        position: positions[i],
+        isJumping: false,
+        jumpProgress: 0,
+        startPosition: positions[i],
+        targetPosition: positions[i],
+        color: particleColor,
+        originalColor: particleColor,
+        radius: this.state.particleRadius,
+        jumpSpeed: 2.0,
+        jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
+        insideProgress: 0,
+        // Continuous-time Markov chain specific properties
+        rightJumpRate: rightRate,
+        leftJumpRate: leftRate,
+        rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
+        leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate)
+      });
+    }
+  }
+  
+  /**
+   * Check if a right jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
+   */
+  isValidRightJump(particle, targetPosition) {
+    // For circular system, all positions are valid with wraparound
+    const numBoxes = this.state.boxes.length;
+    return true; // All jumps are valid in circular system
+  }
+  
+  /**
+   * Check if a left jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
+   */
+  isValidLeftJump(particle, targetPosition) {
+    // For circular system, all positions are valid with wraparound
+    const numBoxes = this.state.boxes.length;
+    return true; // All jumps are valid in circular system
+  }
+  
+  /**
+   * Implement continuous-time Markov chain jumps using exponential clocks
    * @param {Object} particle - Particle to attempt jump with
    */
   attemptParticleJump(particle) {
-    // Get jump probabilities
-    const rightProb = this.getParameterValue('rightJumpProb', 0.7);
-    const leftProb = this.getParameterValue('leftJumpProb', 0.3);
+    // Skip if particle is already jumping
+    if (particle.isJumping) return;
     
-    // Make sure probabilities are valid
-    const totalProb = Math.min(rightProb + leftProb, 1.0);
-    
-    // Generate random number for jump decision
-    const rand = Math.random();
+    // Get current time
+    const currentTime = this.state.currentTime;
     const numBoxes = this.state.boxes.length;
     
-    if (rand < rightProb) {
-      // Attempt to jump right (clockwise)
+    // Initialize jump times if they don't exist
+    if (particle.rightJumpTime === undefined) {
+      particle.rightJumpRate = this.getParameterValue('rightJumpRate', 0.7);
+      particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
+    }
+    
+    if (particle.leftJumpTime === undefined) {
+      particle.leftJumpRate = this.getParameterValue('leftJumpRate', 0.3);
+      particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
+    }
+    
+    // Check if it's time for a right jump (clockwise)
+    if (particle.rightJumpTime <= currentTime) {
+      // Attempt to jump right (with circular wraparound)
       const targetPos = (particle.position + 1) % numBoxes;
       
       // Check if position is not occupied
       if (!this.isPositionOccupied(targetPos, particle)) {
         this.startJumpAnimation(particle, targetPos);
+      } else {
+        // Reschedule the jump attempt if failed due to occupancy
+        particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
       }
-    } else if (rand < totalProb) {
-      // Attempt to jump left (counterclockwise)
+      return;
+    }
+    
+    // Check if it's time for a left jump (counterclockwise)
+    if (particle.leftJumpTime <= currentTime) {
+      // Attempt to jump left (with circular wraparound)
       const targetPos = (particle.position - 1 + numBoxes) % numBoxes;
       
       // Check if position is not occupied
       if (!this.isPositionOccupied(targetPos, particle)) {
         this.startJumpAnimation(particle, targetPos);
+      } else {
+        // Reschedule the jump attempt if failed due to occupancy
+        particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
       }
+      return;
     }
-    // Otherwise, particle stays put
   }
   
   /**
@@ -125,10 +224,37 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
+   * Complete a jump for a particle with special handling for circular boundaries
+   * @param {Object} particle - Particle that completed jump
+   * @param {Array} particlesToRemove - Array to add particles to remove to
+   */
+  completeJump(particle, particlesToRemove) {
+    // Complete the jump
+    particle.isJumping = false;
+    particle.jumpProgress = 0;
+    particle.position = particle.targetPosition;
+    particle.color = particle.originalColor;
+    particle.jumpState = 'none';
+    particle.insideProgress = 0;
+    
+    // Schedule new jump times based on rates
+    const rightRate = this.getParameterValue('rightJumpRate', 0.7);
+    const leftRate = this.getParameterValue('leftJumpRate', 0.3);
+    
+    particle.rightJumpTime = this.state.currentTime + this.generateExponentialTime(rightRate);
+    particle.leftJumpTime = this.state.currentTime + this.generateExponentialTime(leftRate);
+  }
+  
+  /**
    * Handle parameter updates
    * @param {Object} parameters - New parameter values
    */
   handleParameterUpdate(parameters) {
+    // Update the jump rates
+    if (parameters.rightJumpRate !== undefined || parameters.leftJumpRate !== undefined) {
+      // Update handled by the base class
+    }
+    
     // Update the update interval based on speed
     if (parameters.updateSpeed !== undefined) {
       this.state.updateInterval = 500 / parameters.updateSpeed;
@@ -329,11 +455,32 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   drawSpecificDebugInfo(ctx, startY) {
     let y = startY;
     
-    ctx.fillText(`Right Prob: ${this.getParameterValue('rightJumpProb', 0.7).toFixed(2)}`, 20, y);
+    ctx.fillText(`Right Rate: ${this.getParameterValue('rightJumpRate', 0.7).toFixed(2)}`, 20, y);
     y += 20;
-    ctx.fillText(`Left Prob: ${this.getParameterValue('leftJumpProb', 0.3).toFixed(2)}`, 20, y);
+    ctx.fillText(`Left Rate: ${this.getParameterValue('leftJumpRate', 0.3).toFixed(2)}`, 20, y);
     y += 20;
     ctx.fillText(`Radius: ${this.state.radius.toFixed(0)}px`, 20, y);
+    y += 20;
+    
+    // Find next event
+    let nextEvent = "None";
+    let nextTime = Infinity;
+    
+    for (const particle of this.state.particles) {
+      if (!particle.isJumping) {
+        if (particle.rightJumpTime < nextTime) {
+          nextEvent = `Right (${particle.id})`;
+          nextTime = particle.rightJumpTime;
+        }
+        if (particle.leftJumpTime < nextTime) {
+          nextEvent = `Left (${particle.id})`;
+          nextTime = particle.leftJumpTime;
+        }
+      }
+    }
+    
+    const timeToNext = Math.max(0, nextTime - this.state.currentTime).toFixed(2);
+    ctx.fillText(`Next event: ${nextEvent} in ${timeToNext}s`, 20, y);
   }
   
   /**
@@ -366,8 +513,8 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
             this.state.particles.splice(particleIndex, 1);
             
             // Update particle count in parameters
-            const newCount = this.getParameterValue('numParticles', 0) - 1;
-            this.plugin.updateParameter('numParticles', Math.max(0, newCount), 'visualization');
+            const newCount = this.state.particles.length;
+            this.plugin.updateParameter('numParticles', newCount, 'visualization');
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
@@ -375,6 +522,10 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
               colorPalette: this.getParameterValue('colorPalette')
             };
             const particleColor = this.getColorFromPalette(currentParams, this.state.colorIndices.particle);
+            
+            // Get jump rates
+            const rightRate = this.getParameterValue('rightJumpRate', 0.7);
+            const leftRate = this.getParameterValue('leftJumpRate', 0.3);
             
             this.state.particles.push({
               id: maxId + 1,
@@ -388,11 +539,16 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
               radius: this.state.particleRadius,
               jumpSpeed: 2.0,
               jumpState: 'none',
-              insideProgress: 0
+              insideProgress: 0,
+              // Continuous-time Markov chain specific properties
+              rightJumpRate: rightRate,
+              leftJumpRate: leftRate,
+              rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
+              leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate)
             });
             
             // Update particle count in parameters
-            const newCount = this.getParameterValue('numParticles', 0) + 1;
+            const newCount = this.state.particles.length;
             this.plugin.updateParameter('numParticles', newCount, 'visualization');
           }
           

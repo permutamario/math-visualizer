@@ -21,11 +21,6 @@ export default class ASEPPlugin extends Plugin {
     // Define available visualization types
     this.visualizationTypes = [
       {
-        id: 'closed',
-        name: 'Closed System',
-        class: ClosedASEPVisualization
-      },
-      {
         id: 'open',
         name: 'Open System',
         class: OpenASEPVisualization
