@@ -1,499 +1,518 @@
-// src/rendering/RenderingManager.js - Improved version
+// src/core/Plugin.js - Improved version
+export class Plugin {
+  static id = "base-plugin";
+  static name = "Base Plugin";
+  static description = "Abstract base plugin - do not use directly";
+  static renderingType = "2d"; // "2d" or "3d"
 
-import { Canvas2DEnvironment } from './Canvas2DEnvironment.js';
-import { ThreeJSEnvironment } from './ThreeJSEnvironment.js';
-
-/**
- * Manages rendering environments and animation loop
- */
-export class RenderingManager {
-  /**
-   * Create a new RenderingManager
-   * @param {AppCore} core - Reference to the application core
-   */
   constructor(core) {
+    // Core application reference
     this.core = core;
-    this.canvas = null;
     
-    // Initialize environments
-    this.environments = {
-      '2d': null,
-      '3d': null
+    // Parameter collections
+    this.pluginParameters = {};       // Global plugin parameters
+    this.visualizationParameters = {}; // Current visualization parameters
+    this.advancedParameters = {};     // Advanced parameters
+    
+    // Visualization management
+    this.isLoaded = false;
+    this.currentVisualization = null;
+    this.visualizations = new Map();
+    
+    // Validate this is not instantiated directly
+    if (this.constructor === Plugin) {
+      throw new Error("Plugin is an abstract class and cannot be instantiated directly");
+    }
+  }
+
+  /**
+   * Plugin initialization method
+   * @returns {Promise<boolean>} Whether loading was successful
+   */
+  async load() {
+    if (this.isLoaded) return true;
+    
+    try {
+      // Initialize plugin parameters
+      const pluginSchema = this.definePluginParameters();
+      this.pluginParameters = this._getDefaultValuesFromSchema(pluginSchema);
+      
+      // Initialize advanced parameters if any
+      const advancedSchema = this.defineAdvancedParameters();
+      this.advancedParameters = this._getDefaultValuesFromSchema(advancedSchema);
+      
+      // Initialize visualizations
+      await this._initializeDefaultVisualization();
+      
+      // Initialize visualization parameters after visualization is selected
+      if (this.currentVisualization) {
+        const visualizationSchema = this.getVisualizationParameters();
+        this.visualizationParameters = this._getDefaultValuesFromSchema(visualizationSchema);
+      }
+      
+      // Mark as loaded
+      this.isLoaded = true;
+      
+      // Give parameters to the UI manager
+      this.giveParameters(true);
+      
+      // Update actions
+      if (this.core && this.core.uiManager) {
+        const actions = this.defineActions();
+        this.core.uiManager.updateActions(actions);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Error loading plugin ${this.constructor.id}:`, error);
+      await this.unload();
+      return false;
+    }
+  }
+
+  /**
+   * Plugin cleanup method
+   * @returns {Promise<boolean>} Whether unloading was successful
+   */
+  async unload() {
+    if (!this.isLoaded) return true;
+    
+    try {
+      // Clean up current visualization
+      if (this.currentVisualization) {
+        this.currentVisualization.dispose();
+        this.currentVisualization = null;
+      }
+      
+      // Clean up all visualizations
+      for (const visualization of this.visualizations.values()) {
+        if (visualization !== this.currentVisualization) {
+          try {
+            visualization.dispose();
+          } catch (error) {
+            console.error("Error disposing visualization:", error);
+          }
+        }
+      }
+      
+      // Clear all visualizations
+      this.visualizations.clear();
+      
+      // Clear parameters
+      this.pluginParameters = {};
+      this.visualizationParameters = {};
+      this.advancedParameters = {};
+      
+      // Mark as unloaded
+      this.isLoaded = false;
+      
+      return true;
+    } catch (error) {
+      console.error(`Error unloading plugin ${this.constructor.id}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send parameters to UI
+   * @param {boolean} rebuild - Whether to rebuild UI controls
+   */
+  giveParameters(rebuild = false) {
+    if (!this.core || !this.core.uiManager) return;
+    
+    // Create schema objects for UI
+    const pluginSchema = this.definePluginParameters();
+    
+    // Get visualization parameters
+    let visualizationSchema = [];
+    
+    // Always add currentVisualization selector at the top if we have multiple visualizations
+    if (this.visualizations.size > 1) {
+      const currentVisualizationParam = {
+        id: 'currentVisualization',
+        type: 'dropdown',
+        label: 'Current Visualization',
+        options: this._getVisualizationOptions(),
+        default: this.currentVisualization ? this._getVisualizationId(this.currentVisualization) : ''
+      };
+      
+      // Add to the beginning of visualization parameter list
+      visualizationSchema = [currentVisualizationParam];
+      
+      // Add rest of visualization parameters
+      const vizParams = this.getVisualizationParameters();
+      if (Array.isArray(vizParams)) {
+        visualizationSchema = [...visualizationSchema, ...vizParams];
+      }
+    } else {
+      // Just use visualization parameters if only one visualization
+      visualizationSchema = this.getVisualizationParameters();
+    }
+    
+    const advancedSchema = this.defineAdvancedParameters();
+    
+    // Format parameters for UI manager
+    const parameterData = {
+      pluginParameters: {
+        schema: pluginSchema,
+        values: this.pluginParameters
+      },
+      visualizationParameters: {
+        schema: visualizationSchema,
+        values: {
+          ...this.visualizationParameters,
+          // Ensure currentVisualization is included if we have multiple visualizations
+          ...(this.visualizations.size > 1 ? {
+            currentVisualization: this.currentVisualization ? 
+                                 this._getVisualizationId(this.currentVisualization) : ''
+          } : {})
+        }
+      },
+      advancedParameters: {
+        schema: advancedSchema,
+        values: this.advancedParameters
+      }
     };
     
-    this.currentEnvironment = null;
-    this.animationId = null;
-    this.lastFrameTime = 0;
-    this.rendering = false;
-    this.renderRequested = false;
+    // Send to UI manager
+    this.core.uiManager.updatePluginParameterGroups(parameterData, rebuild);
+  }
+  
+  /**
+   * Define plugin-level parameters
+   * @returns {Array} Array of parameter definitions
+   */
+  definePluginParameters() {
+    // Override in subclass
+    return [];
+  }
+  
+  /**
+   * Define advanced parameters
+   * @returns {Array} Array of parameter definitions
+   */
+  defineAdvancedParameters() {
+    // Override in subclass
+    return [];
+  }
+  
+  /**
+   * Get parameters for the current visualization
+   * @returns {Array} Array of parameter definitions
+   */
+  getVisualizationParameters() {
+    // Get visualization-specific parameters if a visualization is active
+    if (this.currentVisualization) {
+      const vizClass = this.currentVisualization.constructor;
+      
+      // Check if the visualization class has a getParameters method
+      if (vizClass && typeof vizClass.getParameters === 'function') {
+        return vizClass.getParameters();
+      }
+    }
     
-    // Bind methods
-    this.animate = this.animate.bind(this);
-    this.render = this.render.bind(this);
-    this.handleResize = this.handleResize.bind(this);
-    this.updateBackgroundColors = this.updateBackgroundColors.bind(this);
-    this.renderNoPluginMessage = this.renderNoPluginMessage.bind(this);
+    return [];
   }
 
   /**
-   * Handle window resize
+   * Handle parameter changes
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - New value
+   * @param {string} parameterGroup - Parameter group (optional)
    */
-  handleResize() {
-    // Resize the canvas first
-    this.resizeCanvas();
-    
-    // Then let the current environment handle the resize if it exists
-    if (this.currentEnvironment) {
-      console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
-      this.currentEnvironment.handleResize();
-      
-      // Request a render to update the view
-      this.requestRender();
+  onParameterChanged(parameterId, value, parameterGroup = null) {
+    // Special case for visualization switching
+    if (parameterId === 'currentVisualization' && this.visualizations.has(value)) {
+      this.setVisualization(value);
+      return;
     }
-  }
-  
-  /**
-   * Initialize the rendering manager
-   * @param {string} canvasId - ID of the canvas element (default: 'visualization-canvas')
-   * @returns {Promise<boolean>} Whether initialization was successful
-   */
-  async initialize(canvasId = 'visualization-canvas') {
-    try {
-      console.log("Initializing RenderingManager...");
-      
-      // Get or create canvas element
-      this.canvas = document.getElementById(canvasId);
-      
-      if (!this.canvas) {
-        console.log(`Canvas with id ${canvasId} not found, creating new one`);
-        this.canvas = document.createElement('canvas');
-        this.canvas.id = canvasId;
-        document.body.appendChild(this.canvas);
+    
+    // Determine which group this parameter belongs to if not specified
+    if (!parameterGroup) {
+      if (this.pluginParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'plugin';
+      } else if (this.visualizationParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'visualization';
+      } else if (this.advancedParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'advanced';
       }
-      
-      // Set canvas size
-      this.resizeCanvas();
-      
-      // Create environment instances but don't initialize or activate them yet
-      this.environments['2d'] = new Canvas2DEnvironment(this.canvas, this.core);
-      this.environments['3d'] = new ThreeJSEnvironment(this.canvas, this.core);
-      
-      // Initialize and activate the 2D environment by default for welcome message
-      await this.setEnvironment('2d');
-      
-      // Listen for window resize
-      window.addEventListener('resize', this.handleResize);
-      
-      // Subscribe to color scheme changes if available
-      if (this.core && this.core.events && this.core.colorSchemeManager) {
-        this.core.events.on('colorSchemeChanged', this.updateBackgroundColors);
+    }
+    
+    // Update the appropriate parameter collection
+    switch (parameterGroup) {
+      case 'plugin':
+        this.pluginParameters[parameterId] = value;
         
-        // Also set initial colors from current scheme
-        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
-        if (currentScheme) {
-          this.updateBackgroundColors(currentScheme);
+        // Update all visualizations with plugin parameters
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
         }
-      }
-      
-      console.log("RenderingManager initialized successfully");
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize rendering manager:", error);
-      return false;
-    }
-  }
-  
-  /**
-   * Set the current rendering environment
-   * @param {string} type - Environment type ('2d' or '3d')
-   * @returns {Promise<boolean>} Whether environment change was successful
-   */
-  async setEnvironment(type) {
-    // Validate environment type
-    if (type !== '2d' && type !== '3d') {
-      console.error(`Invalid environment type: ${type}`);
-      return false;
-    }
-    
-    try {
-      console.log(`Setting environment to ${type}...`);
-      
-      // Dispose of current environment if it exists
-      if (this.currentEnvironment) {
-        // Pause rendering during transition
-        const wasRendering = this.rendering;
-        if (wasRendering) {
-          this.stopRenderLoop();
-        }
+        break;
         
-        // Fully dispose the current environment
-        try {
-          console.log("Disposing current environment");
-          this.currentEnvironment.dispose();
-        } catch (disposeError) {
-          console.error("Error disposing current environment:", disposeError);
-          // Continue anyway
-        }
+      case 'visualization':
+        this.visualizationParameters[parameterId] = value;
         
-        this.currentEnvironment = null;
-        
-        // Small delay to ensure DOM updates
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Restart rendering if it was running
-        if (wasRendering) {
-          this.startRenderLoop();
+        // Update visualization with visualization-specific parameters
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
         }
-      }
-      
-      // Initialize the environment if needed
-      if (!this.environments[type].initialized) {
-        console.log(`Initializing ${type} environment`);
-        await this.environments[type].initialize();
-      }
-      
-      // Set and activate new environment
-      console.log(`Activating ${type} environment`);
-      this.currentEnvironment = this.environments[type];
-      await this.currentEnvironment.activate();
-      
-      // Ensure the canvas is properly sized for the new environment
-      this.resizeCanvas();
-      this.currentEnvironment.handleResize();
-      
-      // Apply current color scheme if available
-      if (this.core && this.core.colorSchemeManager) {
-        const currentScheme = this.core.colorSchemeManager.getActiveScheme();
-        if (currentScheme && this.currentEnvironment && 
-            typeof this.currentEnvironment.updateBackgroundColor === 'function') {
-          this.currentEnvironment.updateBackgroundColor(currentScheme);
+        break;
+        
+      case 'advanced':
+        this.advancedParameters[parameterId] = value;
+        
+        // Update visualization with advanced parameters
+        if (this.currentVisualization) {
+          this.currentVisualization.update({ [parameterId]: value });
         }
+        break;
+    }
+    
+    // Request render from the core
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
+    }
+  }
+  
+  /**
+   * Define available actions
+   * @returns {Array} Array of action definitions
+   */
+  defineActions() {
+    return [
+      {
+        id: "export-png",
+        label: "Export as PNG"
+      },
+      {
+        id: "reset-parameters",
+        label: "Reset Parameters"
       }
+    ];
+  }
+  
+  /**
+   * Update a single parameter 
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - New value
+   * @param {string} parameterGroup - Parameter group (optional)
+   * @param {boolean} updateUI - Whether to update the UI
+   */
+  updateParameter(parameterId, value, parameterGroup = null, updateUI = true) {
+    // Special case for visualization switching
+    if (parameterId === 'currentVisualization' && this.visualizations.has(value)) {
+      this.setVisualization(value);
+      return;
+    }
+    
+    // Determine which group this parameter belongs to if not specified
+    if (!parameterGroup) {
+      if (this.pluginParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'plugin';
+      } else if (this.visualizationParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'visualization';
+      } else if (this.advancedParameters.hasOwnProperty(parameterId)) {
+        parameterGroup = 'advanced';
+      }
+    }
+    
+    // Update parameter in correct collection
+    switch (parameterGroup) {
+      case 'plugin':
+        this.pluginParameters[parameterId] = value;
+        break;
+        
+      case 'visualization':
+        this.visualizationParameters[parameterId] = value;
+        break;
+        
+      case 'advanced':
+        this.advancedParameters[parameterId] = value;
+        break;
+    }
+    
+    // Update visualization
+    if (this.currentVisualization) {
+      this.currentVisualization.update({ [parameterId]: value });
+    }
+    
+    // Update UI if requested
+    if (updateUI && this.core && this.core.uiManager) {
+      // Use updateParameterValue method if available
+      if (typeof this.core.uiManager.updateParameterValue === 'function') {
+        this.core.uiManager.updateParameterValue(parameterId, value, parameterGroup);
+      } else {
+        // Fall back to full parameters update
+        this.giveParameters(false);
+      }
+    }
+    
+    // Request a render
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
+    }
+  }
+
+  /**
+   * Reset parameters to their default values
+   * @param {Array<string>} groups - Parameter groups to reset
+   * @param {boolean} updateUI - Whether to update the UI
+   */
+  resetParameters(groups = ['plugin', 'visualization', 'advanced'], updateUI = true) {
+    if (groups.includes('plugin')) {
+      const pluginSchema = this.definePluginParameters();
+      this.pluginParameters = this._getDefaultValuesFromSchema(pluginSchema);
+    }
+    
+    if (groups.includes('visualization')) {
+      const visualizationSchema = this.getVisualizationParameters();
+      this.visualizationParameters = this._getDefaultValuesFromSchema(visualizationSchema);
       
-      // Request a render to ensure the new environment is rendered
-      this.requestRender();
-      
-      console.log(`Environment set to ${type} successfully`);
-      return true;
-    } catch (error) {
-      console.error(`Error setting environment to ${type}:`, error);
-      return false;
-    }
-  }
-  
-  /**
-   * Update background colors in all rendering environments
-   * @param {Object} colorScheme - Color scheme to apply
-   */
-  updateBackgroundColors(colorScheme) {
-    if (!colorScheme) return;
-    
-    console.log(`Updating rendering background colors to match theme: ${colorScheme.id}`);
-    
-    // Update both environments if they exist and have the method
-    Object.values(this.environments).forEach(env => {
-      if (env && typeof env.updateBackgroundColor === 'function') {
-        env.updateBackgroundColor(colorScheme);
-      }
-    });
-    
-    // Request a render to show the changes if we're currently rendering
-    if (this.rendering || this.currentEnvironment) {
-      this.requestRender();
-    }
-  }
-  
-  /**
-   * Resize the canvas to fill its container
-   */
-  resizeCanvas() {
-    if (!this.canvas) return;
-    
-    const container = this.canvas.parentElement || document.body;
-    const { width, height } = container.getBoundingClientRect();
-    
-    // Only resize if dimensions have changed
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      console.log(`Resizing main canvas to ${width}x${height}`);
-      this.canvas.width = width;
-      this.canvas.height = height;
-    }
-  }
-  
-  /**
-   * Start the animation/render loop
-   */
-  startRenderLoop() {
-    if (this.animationId) return;
-    
-    this.rendering = true;
-    this.lastFrameTime = performance.now();
-    this.animationId = requestAnimationFrame(this.animate);
-    console.log("Render loop started");
-  }
-  
-  /**
-   * Stop the animation/render loop
-   */
-  stopRenderLoop() {
-    if (!this.animationId) return;
-    
-    cancelAnimationFrame(this.animationId);
-    this.animationId = null;
-    this.rendering = false;
-    console.log("Render loop stopped");
-  }
-  
-  /**
-   * Animation loop callback
-   * @param {number} timestamp - Current timestamp
-   */
-  animate(timestamp) {
-    // Calculate delta time in seconds
-    const deltaTime = (timestamp - this.lastFrameTime) / 1000;
-    this.lastFrameTime = timestamp;
-    
-    // Cap the delta time to prevent large jumps
-    const cappedDeltaTime = Math.min(deltaTime, 0.1);
-    
-    // Get active plugin and visualization
-    const activePlugin = this.core.getActivePlugin();
-    let needsRender = false;
-    
-    // Update animation if there's an active visualization
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization && typeof visualization.animate === 'function') {
-        // If animate returns true, we need to render
-        needsRender = visualization.animate(cappedDeltaTime) || false;
+      // Preserve currentVisualization
+      const currentVizId = this._getVisualizationId(this.currentVisualization);
+      if (currentVizId) {
+        this.visualizationParameters.currentVisualization = currentVizId;
       }
     }
     
-    // Render if requested, needed by animation, or environment needs continuous rendering
-    if (this.renderRequested || needsRender || this.shouldRenderEveryFrame()) {
-      this.render();
-      this.renderRequested = false;
+    if (groups.includes('advanced')) {
+      const advancedSchema = this.defineAdvancedParameters();
+      this.advancedParameters = this._getDefaultValuesFromSchema(advancedSchema);
     }
     
-    // Continue animation loop
-    if (this.rendering) {
-      this.animationId = requestAnimationFrame(this.animate);
+    // Update visualization with all parameters
+    if (this.currentVisualization) {
+      this.currentVisualization.update({
+        ...this.pluginParameters,
+        ...this.visualizationParameters,
+        ...this.advancedParameters
+      });
+    }
+    
+    // Update UI if requested
+    if (updateUI) {
+      this.giveParameters(true);
+    }
+    
+    // Request a render
+    if (this.core && this.core.renderingManager) {
+      this.core.renderingManager.requestRender();
     }
   }
-  
+
   /**
-   * Determine if rendering should occur every frame
-   * @returns {boolean} Whether to render every frame
+   * Execute an action
+   * @param {string} actionId - Action ID
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
    */
-  shouldRenderEveryFrame() {
-    // Check if environment needs continuous rendering (like 3D)
-    if (this.currentEnvironment && this.currentEnvironment.requiresContinuousRendering) {
-      return true;
+  executeAction(actionId, ...args) {
+    // Handle common actions
+    switch (actionId) {
+      case "export-png":
+        // Export as PNG using core
+        if (this.core && this.core.renderingManager) {
+          return this.core.renderingManager.exportAsPNG();
+        }
+        return false;
+        
+      case "reset-parameters":
+        // Reset to default parameters
+        this.resetParameters(['plugin', 'visualization', 'advanced'], true);
+        
+        // Show notification if possible
+        if (this.core && this.core.uiManager) {
+          this.core.uiManager.showNotification("Parameters reset to defaults");
+        }
+        return true;
+        
+      case "reset-view":
+        // Reset camera/view in the rendering manager
+        if (this.core && this.core.renderingManager) {
+          const environment = this.core.renderingManager.getCurrentEnvironment();
+          if (environment && typeof environment.resetCamera === 'function') {
+            environment.resetCamera();
+            return true;
+          }
+        }
+        return false;
     }
     
-    // Check if active plugin requires continuous rendering
-    const activePlugin = this.core.getActivePlugin();
-    if (activePlugin && activePlugin.getCurrentVisualization()) {
-      const visualization = activePlugin.getCurrentVisualization();
-      // Check for animation flag
-      return visualization.isAnimating || false;
-    }
-    
+    // Action not handled
     return false;
   }
   
   /**
-   * Request a render on the next animation frame
+   * Get the current visualization
+   * @returns {Visualization|null} Current visualization or null
    */
-  requestRender() {
-    this.renderRequested = true;
-    
-    // If the render loop isn't running, do a one-time render
-    if (!this.rendering) {
-      requestAnimationFrame(() => {
-        this.render();
-        this.renderRequested = false;
-      });
-    }
+  getCurrentVisualization() {
+    return this.currentVisualization;
   }
   
   /**
-   * Render the current visualization
+   * Set the current visualization by ID
+   * @param {string} visualizationId - Visualization ID
+   * @returns {Promise<boolean>} Whether the change was successful
    */
-  render() {
-    if (!this.currentEnvironment) {
-      console.warn("Cannot render: no active environment");
-      return;
+  async setVisualization(visualizationId) {
+    // Check if the visualization exists
+    if (!this.visualizations.has(visualizationId)) {
+      console.error(`Visualization ${visualizationId} not found in plugin ${this.constructor.id}`);
+      return false;
     }
-    
-    const activePlugin = this.core.getActivePlugin();
-    if (!activePlugin) {
-      // Show welcome message when no plugin is loaded
-      this.renderNoPluginMessage();
-      return;
-    }
-    
-    const visualization = activePlugin.getCurrentVisualization();
-    if (!visualization) {
-      console.warn("Cannot render: no active visualization");
-      return;
-    }
-    
-    // Merge all parameter collections for the visualization
-    const combinedParameters = {
-      ...activePlugin.pluginParameters,
-      ...activePlugin.visualizationParameters,
-      ...activePlugin.advancedParameters
-    };
-    
-    // Render using the current environment
-    this.currentEnvironment.render(visualization, combinedParameters);
-  }
-  
-  /**
-   * Render a message when no plugin is loaded
-   */
-  renderNoPluginMessage() {
-    if (!this.currentEnvironment || !this.canvas) return;
-    
-    // Only 2D environment supports this for now
-    if (this.environments['2d'] === this.currentEnvironment) {
-      const ctx = this.currentEnvironment.getContext();
-      if (!ctx) return;
-      
-      // Clear canvas with the background color
-      ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      
-      // Set up transformations to center the text
-      ctx.save();
-      
-      // Draw instruction text
-      const centerX = this.canvas.width / 2;
-      const centerY = this.canvas.height / 2;
-      
-      // Use theme colors from CSS variables if available
-      const textColor = getComputedStyle(document.body).getPropertyValue('--text-color') || '#333333';
-      const accentColor = getComputedStyle(document.body).getPropertyValue('--accent-color') || '#1a73e8';
-      
-      ctx.font = '30px sans-serif';
-      ctx.fillStyle = textColor;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('Select a Plugin', centerX, centerY - 20);
-      
-      // Add a smaller instruction
-      ctx.font = '16px sans-serif';
-      ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
-      
-      // Draw an arrow pointing to the plugin selector button
-      const pluginButton = document.querySelector('.plugin-selector-button') || 
-                           document.getElementById('mobile-plugin-button');
-      
-      if (pluginButton) {
-        const buttonRect = pluginButton.getBoundingClientRect();
-        const canvasRect = this.canvas.getBoundingClientRect();
-        
-        // Calculate relative position
-        const arrowEndX = buttonRect.left + buttonRect.width/2 - canvasRect.left;
-        const arrowEndY = buttonRect.top + buttonRect.height/2 - canvasRect.top;
-        
-        // Draw arrow from center to button
-        const arrowStartX = centerX;
-        const arrowStartY = centerY + 60;
-        
-        ctx.beginPath();
-        ctx.moveTo(arrowStartX, arrowStartY);
-        
-        // Create a curved arrow using bezier
-        const controlX = (arrowStartX + arrowEndX) / 2;
-        const controlY = arrowStartY + 30;
-        
-        ctx.quadraticCurveTo(controlX, controlY, arrowEndX, arrowEndY);
-        
-        ctx.strokeStyle = accentColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Add arrowhead
-        const angle = Math.atan2(arrowEndY - controlY, arrowEndX - controlX);
-        const arrowSize = 10;
-        
-        ctx.beginPath();
-        ctx.moveTo(arrowEndX, arrowEndY);
-        ctx.lineTo(
-          arrowEndX - arrowSize * Math.cos(angle - Math.PI/6),
-          arrowEndY - arrowSize * Math.sin(angle - Math.PI/6)
-        );
-        ctx.lineTo(
-          arrowEndX - arrowSize * Math.cos(angle + Math.PI/6),
-          arrowEndY - arrowSize * Math.sin(angle + Math.PI/6)
-        );
-        ctx.closePath();
-        ctx.fillStyle = accentColor;
-        ctx.fill();
-      }
-      
-      ctx.restore();
-    }
-  }
-  
-  /**
-   * Export the current visualization as a PNG
-   */
-  exportAsPNG() {
-    if (!this.canvas) return false;
-    
-    const activePlugin = this.core.getActivePlugin();
-    const filename = activePlugin ? 
-                    `${activePlugin.constructor.id}-${Date.now()}.png` : 
-                    `visualization-${Date.now()}.png`;
     
     try {
-      // Force a render to ensure latest state
-      this.render();
-      
-      // Create a download link
-      const link = document.createElement('a');
-      link.download = filename;
-      
-      // Try to get the image data - may need special handling for 3D
-      let imageData;
-      
-      // For 3D environment, use the renderer's output
-      if (this.currentEnvironment && 
-          this.currentEnvironment.getRenderer && 
-          typeof this.currentEnvironment.getRenderer === 'function') {
-        
-        const renderer = this.currentEnvironment.getRenderer();
-        if (renderer) {
-          // Force a render to ensure the image is up to date
-          renderer.render(
-            this.currentEnvironment.getScene(), 
-            this.currentEnvironment.getCamera()
-          );
-          
-          // Get the image data as a data URL
-          imageData = renderer.domElement.toDataURL('image/png');
-        }
+      // Show loading indicator if available
+      if (this.core && this.core.uiManager) {
+        this.core.uiManager.showLoading(`Switching visualization...`);
       }
       
-      // If we couldn't get the image data from the environment, use the main canvas
-      if (!imageData) {
-        imageData = this.canvas.toDataURL('image/png');
+      // Clean up current visualization if any
+      if (this.currentVisualization) {
+        this.currentVisualization.dispose();
       }
       
-      link.href = imageData;
-      link.click();
+      // Set new visualization
+      this.currentVisualization = this.visualizations.get(visualizationId);
       
-      console.log(`Exported visualization as ${filename}`);
+      // Reset visualization parameters to defaults from the new visualization
+      const vizSchema = this.getVisualizationParameters();
+      this.visualizationParameters = this._getDefaultValuesFromSchema(vizSchema);
+      
+      // Ensure currentVisualization parameter is set
+      this.visualizationParameters.currentVisualization = visualizationId;
+      
+      // Initialize the new visualization with all parameters
+      const combinedParams = {
+        ...this.pluginParameters,
+        ...this.visualizationParameters,
+        ...this.advancedParameters
+      };
+      
+      await this.currentVisualization.initialize(combinedParams);
+      
+      // Update UI to reflect visualization-specific parameters
+      this.giveParameters(true);
+      
+      // Hide loading indicator
+      if (this.core && this.core.uiManager) {
+        this.core.uiManager.hideLoading();
+      }
+      
+      // Request a render
+      if (this.core && this.core.renderingManager) {
+        this.core.renderingManager.requestRender();
+      }
+      
       return true;
     } catch (error) {
-      console.error("Error exporting as PNG:", error);
+      console.error(`Error setting visualization ${visualizationId}:`, error);
       
-      // Notify user of error
+      // Hide loading indicator
       if (this.core && this.core.uiManager) {
-        this.core.uiManager.showError(`Failed to export as PNG: ${error.message}`);
+        this.core.uiManager.hideLoading();
+        this.core.uiManager.showError(`Error switching visualization: ${error.message}`);
       }
       
       return false;
@@ -501,64 +520,78 @@ export class RenderingManager {
   }
   
   /**
-   * Get the canvas element
-   * @returns {HTMLCanvasElement} Canvas element
+   * Register a visualization with this plugin
+   * @param {string} id - Visualization ID
+   * @param {Visualization} visualization - Visualization instance
    */
-  getCanvas() {
-    return this.canvas;
+  registerVisualization(id, visualization) {
+    this.visualizations.set(id, visualization);
   }
   
   /**
-   * Get the current environment
-   * @returns {Object} Current rendering environment
+   * Initialize the default visualization (abstract)
+   * @returns {Promise<boolean>} Whether initialization was successful
+   * @private
    */
-  getCurrentEnvironment() {
-    return this.currentEnvironment;
+  async _initializeDefaultVisualization() {
+    throw new Error("_initializeDefaultVisualization must be implemented by subclass");
   }
   
   /**
-   * Clean up resources when the manager is no longer needed
+   * Helper to get visualization options
+   * @returns {Array<Object>} Visualization options
+   * @private
    */
-  cleanup() {
-    // Stop rendering
-    this.stopRenderLoop();
-    
-    // Dispose of current environment
-    if (this.currentEnvironment) {
-      try {
-        this.currentEnvironment.dispose();
-      } catch (error) {
-        console.error("Error disposing current environment during cleanup:", error);
+  _getVisualizationOptions() {
+    return Array.from(this.visualizations.entries()).map(([id, viz]) => {
+      // Try to get a nice display name 
+      let label = id;
+      
+      // If visualization class has a static name property, use that
+      if (viz.constructor.name && viz.constructor.name !== 'Function') {
+        label = viz.constructor.name;
       }
-      this.currentEnvironment = null;
-    }
-    
-    // Clean up environment instances
-    Object.keys(this.environments).forEach(key => {
-      if (this.environments[key]) {
-        try {
-          this.environments[key].dispose();
-        } catch (error) {
-          console.error(`Error disposing ${key} environment during cleanup:`, error);
-        }
-        this.environments[key] = null;
-      }
+      
+      return { value: id, label: label };
     });
+  }
+  
+  /**
+   * Helper to get visualization ID from instance
+   * @param {Visualization} visualization - Visualization instance
+   * @returns {string} Visualization ID
+   * @private
+   */
+  _getVisualizationId(visualization) {
+    if (!visualization) return '';
     
-    // Remove resize listener and color scheme listener
-    window.removeEventListener('resize', this.handleResize);
-    if (this.core && this.core.events) {
-      this.core.events.off('colorSchemeChanged', this.updateBackgroundColors);
+    // Find the ID from the visualizations map
+    for (const [id, viz] of this.visualizations.entries()) {
+      if (viz === visualization) {
+        return id;
+      }
     }
     
-    // Reset properties
-    this.canvas = null;
-    this.environments = { '2d': null, '3d': null };
-    this.animationId = null;
-    this.lastFrameTime = 0;
-    this.rendering = false;
-    this.renderRequested = false;
+    return '';
+  }
+  
+  /**
+   * Extract default parameter values from a schema
+   * @param {Array} schema - Parameter schema
+   * @returns {Object} Default parameter values
+   * @private
+   */
+  _getDefaultValuesFromSchema(schema) {
+    const defaults = {};
     
-    console.log("Rendering manager cleaned up");
+    if (Array.isArray(schema)) {
+      schema.forEach(param => {
+        if (param && param.id && param.default !== undefined) {
+          defaults[param.id] = param.default;
+        }
+      });
+    }
+    
+    return defaults;
   }
 }
