@@ -215,47 +215,6 @@ this.handleTouchEnd = this.handleTouchEnd.bind(this);
   completeRender(ctx) {
     ctx.restore();
   }
-  
-  /**
-   * Render the scene using the active plugin
-   * @param {Object} parameters - Current parameters
-   */
-  render(parameters) {
-    if (!this.active || !this.ctx) return;
-    
-    // Clear canvas with the background color
-    this.ctx.fillStyle = this.backgroundColor;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // Set up camera transformations
-    this.ctx.save();
-    
-    // Apply camera transformations:
-    // 1. Translate to center of canvas
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-    this.ctx.translate(centerX, centerY);
-    
-    // 2. Apply scale
-    this.ctx.scale(this.camera.scale, this.camera.scale);
-    
-    // 3. Apply rotation (in radians)
-    this.ctx.rotate((this.camera.rotation * Math.PI) / 180);
-    
-    // 4. Apply translation
-    this.ctx.translate(this.camera.x, this.camera.y);
-    
-    // Get current plugin
-    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    
-    // Call plugin's render method if plugin exists and has a render2D method
-    if (activePlugin && typeof activePlugin.render2D === 'function') {
-      activePlugin.render2D(this.ctx, parameters);
-    }
-    
-    // Restore context
-    this.ctx.restore();
-  }
 
   /*
   * Dispose. Remove data. Used for tear down
