@@ -30,10 +30,6 @@ export class Plugin {
     this.isLoaded = false;
     this._eventHandlers = [];
     
-    // Store for visualizations
-    this.visualizations = new Map();
-    this.currentVisualization = null;
-    this.visualizationTypes = [];
     
     // Parameter storage
     this.pluginParameters = {};
