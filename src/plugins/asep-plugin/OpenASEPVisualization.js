@@ -14,6 +14,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Flag to track time since last entry attempt
     this.state.timeSinceEntryAttempt = 0;
+    
+    // Track entering particles that are not yet in the system
+    this.state.enteringParticles = [];
   }
   
   /**
@@ -39,6 +42,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   async initialize(parameters) {
     // Call base initialize to clear any existing state and setup animation
     await super.initialize(parameters);
+    
+    // Reset entering particles array
+    this.state.enteringParticles = [];
     
     // Create boxes
     this.createBoxes(parameters);
@@ -189,8 +195,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Using time accumulation to handle very small deltaTime values properly
     const probability = entryRate * this.state.timeSinceEntryAttempt * 0.1;
     
-    // Check if first position is empty
-    if (Math.random() < probability && !this.isPositionOccupied(0)) {
+    // Check if first position is empty and no particle is currently entering
+    if (Math.random() < probability && 
+        !this.isPositionOccupied(0) && 
+        !this.state.enteringParticles.length) {
       this.generateNewParticleFromLeft();
       // Reset time since last attempt after success
       this.state.timeSinceEntryAttempt = 0;
@@ -200,10 +208,51 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     if (this.state.timeSinceEntryAttempt > 5.0) {
       this.state.timeSinceEntryAttempt = 5.0;
     }
+    
+    // Update entering particles animation
+    this.updateEnteringParticles(deltaTime);
   }
   
   /**
-   * Generate a new particle from the left boundary
+   * Update animations for particles entering from the left
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   */
+  updateEnteringParticles(deltaTime) {
+    const particlesToComplete = [];
+    
+    // Update each entering particle
+    this.state.enteringParticles.forEach(particle => {
+      // Update progress
+      particle.enterProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
+      
+      // Check if entry is complete
+      if (particle.enterProgress >= 1.0) {
+        particlesToComplete.push(particle);
+      }
+    });
+    
+    // Complete entry for finished particles
+    particlesToComplete.forEach(particle => {
+      // Move from entering array to main particles array
+      this.state.enteringParticles = this.state.enteringParticles.filter(p => p !== particle);
+      
+      // Place particle in first box
+      particle.enterProgress = 0;
+      particle.position = 0;
+      particle.isJumping = false;
+      
+      // Add to main particles array
+      this.state.particles.push(particle);
+      
+      // Schedule next jump
+      if (!this.state.isPaused) {
+        this.scheduleNextJump(particle);
+      }
+    });
+  }
+  
+  /**
+   * Generate a new particle from the left boundary with entry animation
    */
   generateNewParticleFromLeft() {
     // Get particle color from palette
@@ -215,10 +264,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Find the highest ID to create a new unique ID
     const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
     
-    // Create the new particle
+    // Get the position of the first box for the animation
+    const firstBox = this.state.boxes[0];
+    
+    // Create the new particle with entry animation
     const newParticle = {
       id: maxId + 1,
-      position: 0,
+      position: 0, // Will be in position 0 when done entering
       isJumping: false,
       jumpProgress: 0,
       startPosition: 0,
@@ -228,22 +280,22 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       radius: this.state.particleRadius,
       jumpSpeed: 2.0,
       jumpState: 'none',
-      insideProgress: 0
+      insideProgress: 0,
+      // Entry animation properties
+      enterProgress: 0,
+      isEntering: true,
+      entryX: firstBox.x - firstBox.size, // Start position outside the first box
+      entryY: firstBox.y
     };
     
-    // Add to particles array
-    this.state.particles.push(newParticle);
+    // Add to entering particles array instead of main particles
+    this.state.enteringParticles.push(newParticle);
     
     // Increase particle count
     this.state.particleCount++;
     
     // Update particle count in parameters
     this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
-    
-    // Schedule a jump for the new particle
-    if (!this.state.isPaused) {
-      this.scheduleNextJump(newParticle);
-    }
   }
   
   /**
@@ -291,8 +343,53 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Draw the lattice and connections to boundaries
     this.drawOpenBoxes(ctx, parameters);
     
-    // Draw particles
+    // Draw standard particles
     this.drawParticles(ctx, parameters);
+    
+    // Draw entering particles
+    this.drawEnteringParticles(ctx, parameters);
+  }
+  
+  /**
+   * Draw particles that are in the process of entering from the left
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
+   */
+  drawEnteringParticles(ctx, parameters) {
+    if (!this.state.enteringParticles.length) return;
+    
+    const boxSize = this.state.boxSize;
+    // Get the first box for position reference
+    const firstBox = this.state.boxes[0];
+    if (!firstBox) return;
+    
+    // Get jump color from palette for the animation
+    const jumpColor = this.getColorFromPalette(parameters, this.state.colorIndices.jump);
+    
+    // Draw each entering particle
+    this.state.enteringParticles.forEach(particle => {
+      ctx.save();
+      
+      // Calculate position based on progress
+      const progress = particle.enterProgress;
+      const startX = firstBox.x - boxSize - 30; // Starting position far left of first box
+      const endX = firstBox.x; // End position at center of first box
+      
+      // Interpolate position
+      const x = startX + (endX - startX) * progress;
+      const y = firstBox.y;
+      
+      // Scale based on progress (grow as it enters)
+      const scale = 0.5 + 0.5 * progress;
+      
+      // Color based on progress (blend from jump color to particle color)
+      ctx.fillStyle = this.lerpColor(jumpColor, particle.originalColor, progress);
+      
+      // Draw the particle
+      this.drawParticle(ctx, particle, x, y, scale);
+      
+      ctx.restore();
+    });
   }
   
   /**
@@ -467,6 +564,25 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
+   * Check if position is occupied, including by entering particles
+   * @param {number} position - Position to check
+   * @param {Object} excludeParticle - Particle to exclude from check
+   * @returns {boolean} True if position is occupied
+   */
+  isPositionOccupied(position, excludeParticle = null) {
+    // First check regular particles using the base method
+    const isOccupiedByRegular = super.isPositionOccupied(position, excludeParticle);
+    if (isOccupiedByRegular) return true;
+    
+    // For position 0, also check entering particles
+    if (position === 0 && this.state.enteringParticles.length > 0) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
    * Handle user interaction
    * @param {string} type - Interaction type (e.g., "click", "mousemove")
    * @param {Object} event - Event data
@@ -501,7 +617,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             // Get particle color from palette
-            const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+            const particleColor = this.getColorFromPalette(
+              { colorPalette: this.getParameterValue('colorPalette') }, 
+              this.state.colorIndices.particle
+            );
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
             this.state.particles.push({
@@ -544,7 +663,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             event.x > leftEdge - 30) {
           
           // Try to generate a particle if first site is empty
-          if (!this.isPositionOccupied(0)) {
+          if (!this.isPositionOccupied(0) && this.state.enteringParticles.length === 0) {
             this.generateNewParticleFromLeft();
             return true;
           }
@@ -553,5 +672,16 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     }
     
     return false;
+  }
+  
+  /**
+   * Dispose resources
+   */
+  dispose() {
+    // Clean up any entering particles
+    this.state.enteringParticles = [];
+    
+    // Call parent dispose method
+    super.dispose();
   }
 }
