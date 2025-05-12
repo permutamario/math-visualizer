@@ -81,11 +81,13 @@ export class DesktopLayout extends BaseLayout {
     document.body.appendChild(this.panels.export);
     
     // Only create advanced panel if needed (bottom right)
-    if (this.parameterGroups.advanced.schema.length > 0) {
-      this.panels.advanced = layoutUtils.createPanel('advanced-panel', 'Advanced Options', 'control-panel advanced-panel');
-      document.body.appendChild(this.panels.advanced);
-    }
-  }
+    /** 
+    *if (this.parameterGroups.advanced.schema.length > 0) {
+    *  this.panels.advanced = layoutUtils.createPanel('advanced-panel', 'Advanced Options', 'control-panel advanced-panel');
+    *  document.body.appendChild(this.panels.advanced);
+    *}
+    */
+  } 
   
   /**
    * Remove existing panels
