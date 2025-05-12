@@ -26,11 +26,9 @@ export class RenderingManager {
     this.animationId = null;
     this.lastFrameTime = 0;
     this.rendering = false;
-    this.renderRequested = false;
     
     // Bind methods
     this.animate = this.animate.bind(this);
-    this.render = this.render.bind(this);
     this.handleResize = this.handleResize.bind(this);
     this.updateBackgroundColors = this.updateBackgroundColors.bind(this);
     this.renderNoPluginMessage = this.renderNoPluginMessage.bind(this);
@@ -77,6 +75,11 @@ export class RenderingManager {
         if (currentScheme) {
           this.updateBackgroundColors(currentScheme);
         }
+      }
+      
+      // If no active plugin, render welcome message
+      if (!this.core.getActivePlugin()) {
+        this.renderNoPluginMessage();
       }
       
       console.log("RenderingManager initialized successfully");
@@ -154,8 +157,10 @@ export class RenderingManager {
         }
       }
       
-      // Request a render to ensure the new environment is rendered
-      this.requestRender();
+      // If no active plugin, render welcome message
+      if (!this.core.getActivePlugin()) {
+        this.renderNoPluginMessage();
+      }
       
       console.log(`Environment set to ${type} successfully`);
       return true;
@@ -193,9 +198,6 @@ export class RenderingManager {
     if (this.currentEnvironment) {
       console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
       this.currentEnvironment.handleResize();
-      
-      // Request a render to update the view
-      this.requestRender();
     }
   }
   
@@ -214,11 +216,6 @@ export class RenderingManager {
         env.updateBackgroundColor(colorScheme);
       }
     });
-    
-    // Request a render to show the changes if we're currently rendering
-    if (this.rendering || this.currentEnvironment) {
-      this.requestRender();
-    }
   }
   
   /**
@@ -250,162 +247,83 @@ export class RenderingManager {
    * @param {number} timestamp - Current timestamp
    */
   animate(timestamp) {
-  const deltaTime = (timestamp - this.lastFrameTime) / 1000;
-  this.lastFrameTime = timestamp;
-  
-  // Get current plugin
-  const plugin = this.core.getActivePlugin();
-  
-  // Only call plugin's animate method if it exists
-  if (plugin && typeof plugin.animate === 'function') {
-    // Plugin decides when to render itself
-    plugin.animate(deltaTime);
-  }
-  
-  // Continue animation loop
-  if (this.rendering) {
-    this.animationId = requestAnimationFrame(this.animate);
-  }
-}
-  
-  /**
-   * Determine if rendering should occur every frame
-   * @returns {boolean} Whether to render every frame
-   */
-  shouldRenderEveryFrame() {
-    // Check if environment needs continuous rendering (like 3D)
-    if (this.currentEnvironment && this.currentEnvironment.requiresContinuousRendering) {
-      return true;
-    }
+    const deltaTime = (timestamp - this.lastFrameTime) / 1000;
+    this.lastFrameTime = timestamp;
     
-    // Check if plugin is animating
-    const activePlugin = this.core.getActivePlugin();
-    if (activePlugin && activePlugin.isAnimating) {
-      return true;
-    }
+    // Get current plugin
+    const plugin = this.core.getActivePlugin();
     
-    return false;
-  }
-  
-  /**
-   * Request a render on the next animation frame
-   */
-  requestRender() {
-    this.renderRequested = true;
-    
-    // If the render loop isn't running, do a one-time render
-    if (!this.rendering) {
-      requestAnimationFrame(() => {
-        this.render();
-        this.renderRequested = false;
-      });
-    }
-  }
-  
-  /**
-   * Render the current scene
-   * Delegates to the plugin's render method if available
-   */
-  render() {
-    if (!this.currentEnvironment) {
-      console.warn("Cannot render: no active environment");
-      return;
-    }
-    
-    const activePlugin = this.core.getActivePlugin();
-    if (!activePlugin) {
-      // Show welcome message when no plugin is loaded
+    // Only call plugin's animate method if it exists
+    if (plugin && typeof plugin.animate === 'function') {
+      // Plugin decides what to do within its animate method
+      // including direct rendering on the environment
+      plugin.animate(deltaTime);
+    } else if (!plugin) {
+      // If no active plugin, render welcome message
       this.renderNoPluginMessage();
-      return;
     }
     
-    // If plugin has a render method, use it with direct environment access
-    if (typeof activePlugin.render === 'function') {
-      const env = this.getEnvironmentForPlugin();
-      const params = this.core.getAllParameters ? this.core.getAllParameters() : {};
-      
-      // Let plugin render directly with environment access
-      activePlugin.render(env, params);
-    } else {
-      // Fallback to older visualization method for backward compatibility
-      const visualization = activePlugin.getCurrentVisualization ? 
-                          activePlugin.getCurrentVisualization() : null;
-      
-      if (!visualization) {
-        console.warn("Cannot render: no active visualization and no render method");
-        return;
-      }
-      
-      // Merge all parameter collections for the visualization
-      const combinedParameters = {
-        ...activePlugin.pluginParameters,
-        ...activePlugin.visualizationParameters,
-        ...activePlugin.advancedParameters
-      };
-      
-      // Render using the current environment (old method)
-      this.currentEnvironment.render(visualization, combinedParameters);
+    // Continue animation loop
+    if (this.rendering) {
+      this.animationId = requestAnimationFrame(this.animate);
     }
   }
   
   /**
-   * Render a message when no plugin is loaded
+   * Render a simple message when no plugin is loaded
    */
-  renderNoPluginMessage() {/**
- * Render a simple message when no plugin is loaded
- */
-renderNoPluginMessage() {
-  if (!this.currentEnvironment || !this.canvas) return;
-  
-  // Only 2D environment supports this for now
-  if (this.environments['2d'] === this.currentEnvironment) {
-    const ctx = this.currentEnvironment.getContext();
-    if (!ctx) return;
+  renderNoPluginMessage() {
+    if (!this.currentEnvironment || !this.canvas) return;
     
-    // Clear canvas with the background color
-    ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
-    // Get canvas dimensions for centering
-    const centerX = this.canvas.width / 2;
-    const centerY = this.canvas.height / 2;
-    
-    // Use theme colors from CSS variables or color scheme manager if available
-    let textColor = '#333333';
-    
-    // Try to get color from color scheme manager first
-    if (this.core && this.core.colorSchemeManager) {
-      const scheme = this.core.colorSchemeManager.getActiveScheme();
-      if (scheme && scheme.text) {
-        textColor = scheme.text;
+    // Only 2D environment supports this for now
+    if (this.environments['2d'] === this.currentEnvironment) {
+      const ctx = this.currentEnvironment.getContext();
+      if (!ctx) return;
+      
+      // Clear canvas with the background color
+      ctx.fillStyle = this.currentEnvironment.backgroundColor || '#f5f5f5';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      
+      // Get canvas dimensions for centering
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+      
+      // Use theme colors from CSS variables or color scheme manager if available
+      let textColor = '#333333';
+      
+      // Try to get color from color scheme manager first
+      if (this.core && this.core.colorSchemeManager) {
+        const scheme = this.core.colorSchemeManager.getActiveScheme();
+        if (scheme && scheme.text) {
+          textColor = scheme.text;
+        }
+      } 
+      // Fallback to CSS variables if color scheme manager not available
+      else {
+        const computedTextColor = getComputedStyle(document.body).getPropertyValue('--text-color');
+        if (computedTextColor) {
+          textColor = computedTextColor;
+        }
       }
-    } 
-    // Fallback to CSS variables if color scheme manager not available
-    else {
-      const computedTextColor = getComputedStyle(document.body).getPropertyValue('--text-color');
-      if (computedTextColor) {
-        textColor = computedTextColor;
-      }
+      
+      // Set text properties
+      ctx.font = '30px sans-serif';
+      ctx.fillStyle = textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Draw main heading
+      ctx.fillText('Select a Plugin', centerX, centerY - 20);
+      
+      // Draw instruction with smaller font
+      ctx.font = '16px sans-serif';
+      ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
     }
-    
-    // Set text properties
-    ctx.font = '30px sans-serif';
-    ctx.fillStyle = textColor;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // Draw main heading
-    ctx.fillText('Select a Plugin', centerX, centerY - 20);
-    
-    // Draw instruction with smaller font
-    ctx.font = '16px sans-serif';
-    ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
   }
-}
   
   /**
    * Provide direct access to rendering environment for plugins
-   * (Key new method for plugin architecture redesign)
+   * (Key method for plugin architecture)
    * @returns {Object} Environment access object
    */
   getEnvironmentForPlugin() {
@@ -453,9 +371,6 @@ renderNoPluginMessage() {
                     `visualization-${Date.now()}.png`;
     
     try {
-      // Force a render to ensure latest state
-      this.render();
-      
       // Create a download link
       const link = document.createElement('a');
       link.download = filename;
@@ -470,11 +385,13 @@ renderNoPluginMessage() {
         
         const renderer = this.currentEnvironment.getRenderer();
         if (renderer) {
-          // Force a render to ensure the image is up to date
-          renderer.render(
-            this.currentEnvironment.getScene(), 
-            this.currentEnvironment.getCamera()
-          );
+          // The 3D renderer may need its own render call to ensure the image is up to date
+          if (renderer.render && this.currentEnvironment.getScene && this.currentEnvironment.getCamera) {
+            renderer.render(
+              this.currentEnvironment.getScene(), 
+              this.currentEnvironment.getCamera()
+            );
+          }
           
           // Get the image data as a data URL
           imageData = renderer.domElement.toDataURL('image/png');
@@ -560,7 +477,6 @@ renderNoPluginMessage() {
     this.animationId = null;
     this.lastFrameTime = 0;
     this.rendering = false;
-    this.renderRequested = false;
     
     console.log("Rendering manager cleaned up");
   }
