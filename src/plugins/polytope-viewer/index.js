@@ -154,32 +154,35 @@ export default class PolytopeViewerPlugin extends Plugin {
    * @private
    */
   async _initializeDefaultVisualization() {
-    if (this.visualizationTypes.length === 0) {
-      console.error("No visualizations available to initialize");
-      return false;
+  try {
+    // Create and register all visualization instances
+    for (const vizType of this.visualizationTypes) {
+      const visualization = new vizType.class(this);
+      this.registerVisualization(vizType.id, visualization);
     }
     
-    // Get the selected visualization type from plugin parameters, or use first available
+    // Set the default visualization as current
     const selectedType = this.pluginParameters.visualizationType || this.visualizationTypes[0].id;
+    this.currentVisualization = this.visualizations.get(selectedType);
     
-    // Find the visualization info
-    const vizInfo = this.visualizationTypes.find(vt => vt.id === selectedType) || 
-                   this.visualizationTypes[0];
+    if (!this.currentVisualization) {
+      // Fallback to first visualization if selected type wasn't found
+      this.currentVisualization = this.visualizations.get(this.visualizationTypes[0].id);
+    }
     
-    // Create and register visualization
-    const visualization = new vizInfo.class(this);
-    this.registerVisualization(vizInfo.id, visualization);
-    this.currentVisualization = visualization;
-    
-    // Initialize with all parameters
-    await visualization.initialize({
+    // Initialize current visualization with all parameters
+    await this.currentVisualization.initialize({
       ...this.pluginParameters,
       ...this.visualizationParameters,
       ...this.advancedParameters
     });
     
     return true;
+  } catch (error) {
+    console.error("Error initializing visualizations:", error);
+    return false;
   }
+}
 
   /**
    * Handle parameter changes for visualization type
