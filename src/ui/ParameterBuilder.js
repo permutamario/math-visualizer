@@ -1,3 +1,5 @@
+// src/ui/ParameterBuilder.js
+
 /**
  * Builder class for creating parameter definitions with a fluent interface
  */
@@ -144,9 +146,69 @@ export class ParameterBuilder {
 }
 
 /**
- * Create a new parameter builder
- * @returns {ParameterBuilder} New parameter builder instance
+ * Create visual parameters with direct core integration
+ * @param {AppCore} core - Reference to the application core
+ * @returns {ParameterBuilder} Enhanced parameter builder
+ */
+export function createVisualParameters(core) {
+  if (!core) {
+    throw new Error("Core reference is required for createVisualParameters");
+  }
+  
+  const builder = new ParameterBuilder();
+  
+  /**
+   * Register parameters with the core and return the builder for chaining
+   * @returns {ParameterBuilder} This builder for chaining
+   */
+  builder.register = function() {
+    if (!core) {
+      console.error("Cannot register parameters: core reference is missing");
+      return this;
+    }
+    
+    core.addParametersVisual(this.build());
+    return this; // Allow chaining
+  };
+  
+  return builder;
+}
+
+/**
+ * Create structural parameters with direct core integration
+ * @param {AppCore} core - Reference to the application core
+ * @returns {ParameterBuilder} Enhanced parameter builder
+ */
+export function createStructuralParameters(core) {
+  if (!core) {
+    throw new Error("Core reference is required for createStructuralParameters");
+  }
+  
+  const builder = new ParameterBuilder();
+  
+  /**
+   * Register parameters with the core and return the builder for chaining
+   * @returns {ParameterBuilder} This builder for chaining
+   */
+  builder.register = function() {
+    if (!core) {
+      console.error("Cannot register parameters: core reference is missing");
+      return this;
+    }
+    
+    core.addParametersStructural(this.build());
+    return this; // Allow chaining
+  };
+  
+  return builder;
+}
+
+/**
+ * Legacy function to create parameters without core integration
+ * @returns {ParameterBuilder} Standard parameter builder
+ * @deprecated Use createVisualParameters or createStructuralParameters with core integration
  */
 export function createParameters() {
+  console.warn("createParameters() is deprecated. Use createVisualParameters() or createStructuralParameters() instead.");
   return new ParameterBuilder();
 }
