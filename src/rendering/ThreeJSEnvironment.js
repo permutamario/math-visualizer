@@ -287,11 +287,10 @@ export class ThreeJSEnvironment {
   }
 
   /**
-   * Render a visualization
-   * @param {Visualization} visualization - Visualization to render
+   * Render a scene using the active plugin
    * @param {Object} parameters - Current parameters
    */
-  render(visualization, parameters) {
+  render(parameters) {
     if (!this.active || !this.renderer || !this.scene || !this.camera) return;
     
     // Update controls if using animation
@@ -300,39 +299,47 @@ export class ThreeJSEnvironment {
       this.updateControls(delta);
     }
     
+    // Get the active plugin
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+    
     // Check if we should apply render mode
-    if (parameters.renderMode && this.core && this.core.renderModeManager && 
-        visualization.state && visualization.state.meshGroup) {
+    if (parameters.renderMode && this.core && this.core.renderModeManager && activePlugin) {
+      // Check if the plugin has a meshGroup
+      const meshGroup = activePlugin.meshGroup || (activePlugin.state ? activePlugin.state.meshGroup : null);
       
-      // Check if render mode or related parameters have changed
-      const renderModeChanged = this.lastRenderMode !== parameters.renderMode;
-      const opacityChanged = this.lastOpacity !== parameters.opacity;
-      const paletteChanged = this.lastColorPalette !== parameters.colorPalette;
-      
-      if (renderModeChanged || opacityChanged || paletteChanged || !this.renderedOnce) {
-        // Apply or update the render mode
-        this.core.renderModeManager.applyRenderMode(
-          this.scene,
-          visualization.state.meshGroup,
-          parameters.renderMode,
-          {
-            opacity: parameters.opacity,
-            colorPalette: this.core.colorSchemeManager.getPalette(
-              parameters.colorPalette || 'default'
-            )
-          }
-        );
+      if (meshGroup) {
+        // Check if render mode or related parameters have changed
+        const renderModeChanged = this.lastRenderMode !== parameters.renderMode;
+        const opacityChanged = this.lastOpacity !== parameters.opacity;
+        const paletteChanged = this.lastColorPalette !== parameters.colorPalette;
         
-        // Store current values to detect changes
-        this.lastRenderMode = parameters.renderMode;
-        this.lastOpacity = parameters.opacity;
-        this.lastColorPalette = parameters.colorPalette;
-        this.renderedOnce = true;
+        if (renderModeChanged || opacityChanged || paletteChanged || !this.renderedOnce) {
+          // Apply or update the render mode
+          this.core.renderModeManager.applyRenderMode(
+            this.scene,
+            meshGroup,
+            parameters.renderMode,
+            {
+              opacity: parameters.opacity,
+              colorPalette: this.core.colorSchemeManager.getPalette(
+                parameters.colorPalette || 'default'
+              )
+            }
+          );
+          
+          // Store current values to detect changes
+          this.lastRenderMode = parameters.renderMode;
+          this.lastOpacity = parameters.opacity;
+          this.lastColorPalette = parameters.colorPalette;
+          this.renderedOnce = true;
+        }
       }
     }
     
-    // Call visualization's 3D render method
-    visualization.render3D(THREE, this.scene, parameters);
+    // Call plugin's 3D render method if it exists
+    if (activePlugin && typeof activePlugin.render3D === 'function') {
+      activePlugin.render3D(THREE, this.scene, parameters);
+    }
     
     // Render the scene
     this.renderer.render(this.scene, this.camera);
