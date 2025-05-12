@@ -27,6 +27,9 @@ export class RenderingManager {
     this.lastFrameTime = 0;
     this.rendering = false;
     
+    // Add a flag to track if a render has been requested
+    this.renderRequested = false;
+    
     // Bind methods
     this.animate = this.animate.bind(this);
     this.handleResize = this.handleResize.bind(this);
@@ -199,6 +202,9 @@ export class RenderingManager {
       console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
       this.currentEnvironment.handleResize();
     }
+    
+    // Request a render to show the updated view
+    this.requestRender();
   }
   
   /**
@@ -216,6 +222,63 @@ export class RenderingManager {
         env.updateBackgroundColor(colorScheme);
       }
     });
+    
+    // Request a render to show the updated colors
+    this.requestRender();
+  }
+  
+  /**
+   * Request a render frame
+   * This triggers a single render of the current scene without requiring animation loop
+   */
+  requestRender() {
+    if (!this.currentEnvironment) return;
+    
+    // If we're already in animation loop, just set a flag
+    if (this.rendering) {
+      this.renderRequested = true;
+      return;
+    }
+    
+    // If not in animation loop, render immediately
+    this._renderFrame();
+  }
+  
+  /**
+   * Internal method to render a single frame
+   * @private
+   */
+  _renderFrame() {
+    if (!this.currentEnvironment) return;
+    
+    // Get current parameters
+    const parameters = this.core && this.core.getAllParameters ? 
+                       this.core.getAllParameters() : {};
+    
+    // Get current plugin
+    const plugin = this.core && this.core.getActivePlugin ? 
+                  this.core.getActivePlugin() : null;
+    
+    if (plugin) {
+      // If a plugin is active, render based on environment type
+      if (this.currentEnvironment === this.environments['2d']) {
+        // 2D rendering
+        if (typeof this.currentEnvironment.render === 'function') {
+          this.currentEnvironment.render(parameters);
+        }
+      } else if (this.currentEnvironment === this.environments['3d']) {
+        // 3D rendering
+        if (typeof this.currentEnvironment.render === 'function') {
+          this.currentEnvironment.render(parameters);
+        }
+      }
+    } else {
+      // If no plugin is active, render welcome message
+      this.renderNoPluginMessage();
+    }
+    
+    // Reset the render requested flag
+    this.renderRequested = false;
   }
   
   /**
@@ -258,9 +321,13 @@ export class RenderingManager {
       // Plugin decides what to do within its animate method
       // including direct rendering on the environment
       plugin.animate(deltaTime);
-    } else if (!plugin) {
-      // If no active plugin, render welcome message
-      this.renderNoPluginMessage();
+    } else if (!plugin || this.renderRequested) {
+      // If no active plugin or a render was requested, render welcome message or current state
+      if (!plugin) {
+        this.renderNoPluginMessage();
+      } else {
+        this._renderFrame();
+      }
     }
     
     // Continue animation loop
@@ -318,6 +385,18 @@ export class RenderingManager {
       // Draw instruction with smaller font
       ctx.font = '16px sans-serif';
       ctx.fillText('Click the plugin button to choose a visualization', centerX, centerY + 20);
+    } else if (this.environments['3d'] === this.currentEnvironment) {
+      // For 3D environment, ensure we have a clean scene
+      if (this.currentEnvironment.scene && this.currentEnvironment.renderer && this.currentEnvironment.camera) {
+        // Clear the scene except for lights
+        this.currentEnvironment.clearScene();
+        
+        // Render the empty scene
+        this.currentEnvironment.renderer.render(
+          this.currentEnvironment.scene,
+          this.currentEnvironment.camera
+        );
+      }
     }
   }
   
@@ -477,6 +556,7 @@ export class RenderingManager {
     this.animationId = null;
     this.lastFrameTime = 0;
     this.rendering = false;
+    this.renderRequested = false;
     
     console.log("Rendering manager cleaned up");
   }
