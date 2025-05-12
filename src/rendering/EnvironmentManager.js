@@ -135,9 +135,7 @@ export class EnvironmentManager {
          this.currentEnvironment.updateBackgroundColor(currentScheme);
        }
      }
-     
-     // Request a render to show environment change
-     this.core.requestRenderRefresh();
+
      
      console.log(`Environment set to ${type} successfully`);
      return true;

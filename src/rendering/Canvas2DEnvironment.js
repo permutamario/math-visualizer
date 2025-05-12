@@ -156,9 +156,15 @@ this.handleTouchEnd = this.handleTouchEnd.bind(this);
    * Handle window resize
    */
   handleResize() {
-    // Nothing special needed for 2D environment
+    // For 2D, we might want to scale content proportionally
     console.log("2D environment handling resize");
-  }
+    
+    // If you want plugins to be notified of resize, you could add:
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+    if (activePlugin && typeof activePlugin.onCanvasResize === 'function') {
+      activePlugin.onCanvasResize(this.canvas.width, this.canvas.height);
+    }
+}
   
   /**
    * Update background color based on color scheme

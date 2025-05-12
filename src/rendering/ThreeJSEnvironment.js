@@ -336,11 +336,6 @@ export class ThreeJSEnvironment {
       }
     }
     
-    // Call plugin's 3D render method if it exists
-    if (activePlugin && typeof activePlugin.render3D === 'function') {
-      activePlugin.render3D(THREE, this.scene, parameters);
-    }
-    
     // Render the scene
     this.renderer.render(this.scene, this.camera);
   }
