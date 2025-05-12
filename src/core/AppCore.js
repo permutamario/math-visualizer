@@ -114,6 +114,27 @@ export class AppCore {
     }
   }
 
+
+  // Add this method to AppCore.js
+
+/**
+ * Request a refresh of the current rendering
+ * Called when parameters change or other events that require re-rendering
+ */
+requestRenderRefresh() {
+  // Return early if no environment manager
+  if (!this.environmentManager) return;
+  
+  // Get current plugin
+  const plugin = this.getActivePlugin();
+  
+  // Get current parameters
+  const parameters = this.getAllParameters();
+  
+  // Render with current environment
+  this.environmentManager.renderWithCurrentEnvironment(plugin, parameters);
+}
+
   /**
    * Cleans up resources when the application is shutting down
    */
