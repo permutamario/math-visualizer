@@ -4,312 +4,483 @@ import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Circular ASEP model - particles move in a circular arrangement
- * Uses continuous-time Markov chain dynamics with exponential clocks
+ * with periodic boundary conditions
  */
 export class CircularASEPVisualization extends BaseASEPVisualization {
   constructor(plugin) {
     super(plugin);
     
-    // Add radius property for circular layout
+    // Add specific state for circular layout
     this.state.radius = 200;
   }
   
   /**
-   * Get parameters specific to this visualization
+   * Define visualization-specific parameters
    * @returns {Array} Array of parameter definitions
    * @static
    */
   static getParameters() {
-    // Parameters specific to circular ASEP visualization
     return createParameters()
-      .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
-      .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
-      .addSlider('rightJumpRate', 'Right Jump Rate', 0.7, { min: 0.1, max: 3.0, step: 0.1 })
-      .addSlider('leftJumpRate', 'Left Jump Rate', 0.3, { min: 0.0, max: 1.0, step: 0.1 })
-      .addSlider('updateSpeed', 'Update Speed', 1.0, { min: 0.2, max: 3.0, step: 0.1 })
+      .addSlider('numSites', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
+      .addSlider('numParticles', 'Number of Particles', 5, { min: 1, max: 15, step: 1 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 0.7, { min: 0.1, max: 2.0, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.3, { min: 0.0, max: 2.0, step: 0.1 })
       .build();
   }
   
   /**
-   * Initialize the visualization with parameters
+   * Initialize the visualization
    * @param {Object} parameters - Parameter values
    */
   async initialize(parameters) {
-    // Call base initialize to clear any existing state and setup animation
-    await super.initialize(parameters);
-    
-    // Create boxes in circular arrangement
-    this.createCircularBoxes(parameters);
-    
-    // Create initial particles with random positions
-    this.createParticles(parameters);
-    
-    // Store the number of particles for parameter synchronization
-    this.state.particleCount = this.state.particles.length;
-    
-    // Set update interval based on speed
-    this.state.updateInterval = 500 / (parameters.updateSpeed || 1.0);
-    
-    return true;
+    try {
+      // Reset state
+      this.state.sites = [];
+      this.state.particles = [];
+      this.state.jumpingParticles = [];
+      this.state.currentTime = 0;
+      this.state.timeScale = 1.0;
+      
+      // Create sites in a circular arrangement
+      this.createCircularSites(parameters);
+      
+      // Create particles
+      this.createParticles(parameters);
+      
+      return true;
+    } catch (error) {
+      console.error("Error initializing CircularASEPVisualization:", error);
+      return false;
+    }
   }
   
   /**
-   * Create boxes for the ASEP lattice in a circular arrangement
+   * Create sites in a circular arrangement
    * @param {Object} parameters - Visualization parameters
    */
-  createCircularBoxes(parameters) {
-    const numBoxes = parameters.numBoxes;
+  createCircularSites(parameters) {
+    const numSites = parameters.numSites || 10;
     const boxSize = this.state.boxSize;
     
-    // Calculate circle radius based on number of boxes
-    // Make sure it's large enough to fit all boxes
-    const radius = Math.max(200, numBoxes * boxSize / (2 * Math.PI) * 1.5);
-    this.state.radius = radius;
+    // Calculate appropriate radius based on number of sites
+    // Ensure the boxes don't overlap
+    this.state.radius = Math.max(150, numSites * boxSize / (2 * Math.PI) * 1.2);
     
-    // Create boxes in circular arrangement
-    for (let i = 0; i < numBoxes; i++) {
-      // Calculate angle for this box
-      const angle = (i / numBoxes) * Math.PI * 2;
+    // Create sites
+    for (let i = 0; i < numSites; i++) {
+      // Calculate angle for this site
+      const angle = (i / numSites) * Math.PI * 2;
       
       // Calculate position on circle
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
+      const x = Math.cos(angle) * this.state.radius;
+      const y = Math.sin(angle) * this.state.radius;
       
-      this.state.boxes.push({
+      this.state.sites.push({
         index: i,
+        angle: angle,
         x: x,
         y: y,
-        angle: angle,
         size: boxSize
       });
     }
   }
   
   /**
-   * Create initial particles with random positions and initialize their jump clocks
+   * Create particles at random positions
    * @param {Object} parameters - Visualization parameters
    */
   createParticles(parameters) {
-    if (!parameters || !parameters.numParticles || !parameters.numBoxes) {
-      console.error("Cannot create particles: missing parameters");
-      return;
-    }
-
-    const numParticles = Math.min(parameters.numParticles, parameters.numBoxes);
-    const numBoxes = parameters.numBoxes;
+    const numSites = this.state.sites.length;
+    const numParticles = Math.min(parameters.numParticles || 5, numSites);
+    const rightJumpRate = parameters.rightJumpRate || 0.7;
+    const leftJumpRate = parameters.leftJumpRate || 0.3;
     
     // Generate unique random positions
     const positions = [];
     while (positions.length < numParticles) {
-      const pos = Math.floor(Math.random() * numBoxes);
+      const pos = Math.floor(Math.random() * numSites);
       if (!positions.includes(pos)) {
         positions.push(pos);
       }
     }
-
-    // Get particle color from the palette
-    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
     
-    // Get jump rates from parameters
-    const rightRate = parameters.rightJumpRate !== undefined ? parameters.rightJumpRate : 0.7;
-    const leftRate = parameters.leftJumpRate !== undefined ? parameters.leftJumpRate : 0.3;
+    // Get particle color
+    const particleColor = this.getColor('particle');
     
-    // Create particles with jump clocks
+    // Create particles
     for (let i = 0; i < numParticles; i++) {
-      this.state.particles.push({
+      const particle = {
         id: i,
-        position: positions[i],
+        siteIndex: positions[i],
         isJumping: false,
         jumpProgress: 0,
-        startPosition: positions[i],
-        targetPosition: positions[i],
+        startSite: positions[i],
+        targetSite: positions[i],
         color: particleColor,
         originalColor: particleColor,
         radius: this.state.particleRadius,
-        jumpSpeed: 2.0,
-        jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
-        insideProgress: 0,
-        // Continuous-time Markov chain specific properties
-        rightJumpRate: rightRate,
-        leftJumpRate: leftRate,
-        rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
-        leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate)
-      });
-    }
-  }
-  
-  /**
-   * Check if a right jump to target position is valid
-   * @param {Object} particle - Particle attempting to jump
-   * @param {number} targetPosition - Position to jump to
-   * @returns {boolean} Whether the jump is valid
-   */
-  isValidRightJump(particle, targetPosition) {
-    // For circular system, all positions are valid with wraparound
-    const numBoxes = this.state.boxes.length;
-    return true; // All jumps are valid in circular system
-  }
-  
-  /**
-   * Check if a left jump to target position is valid
-   * @param {Object} particle - Particle attempting to jump
-   * @param {number} targetPosition - Position to jump to
-   * @returns {boolean} Whether the jump is valid
-   */
-  isValidLeftJump(particle, targetPosition) {
-    // For circular system, all positions are valid with wraparound
-    const numBoxes = this.state.boxes.length;
-    return true; // All jumps are valid in circular system
-  }
-  
-  /**
-   * Implement continuous-time Markov chain jumps using exponential clocks
-   * @param {Object} particle - Particle to attempt jump with
-   */
-  attemptParticleJump(particle) {
-    // Skip if particle is already jumping
-    if (particle.isJumping) return;
-    
-    // Get current time
-    const currentTime = this.state.currentTime;
-    const numBoxes = this.state.boxes.length;
-    
-    // Initialize jump times if they don't exist
-    if (particle.rightJumpTime === undefined) {
-      particle.rightJumpRate = this.getParameterValue('rightJumpRate', 0.7);
-      particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
-    }
-    
-    if (particle.leftJumpTime === undefined) {
-      particle.leftJumpRate = this.getParameterValue('leftJumpRate', 0.3);
-      particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
-    }
-    
-    // Check if it's time for a right jump (clockwise)
-    if (particle.rightJumpTime <= currentTime) {
-      // Attempt to jump right (with circular wraparound)
-      const targetPos = (particle.position + 1) % numBoxes;
+        
+        // CTMC properties
+        rightJumpRate: rightJumpRate,
+        leftJumpRate: leftJumpRate,
+        nextRightJumpTime: 0,
+        nextLeftJumpTime: 0
+      };
       
-      // Check if position is not occupied
-      if (!this.isPositionOccupied(targetPos, particle)) {
-        this.startJumpAnimation(particle, targetPos);
-      } else {
-        // Reschedule the jump attempt if failed due to occupancy
-        particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
-      }
-      return;
-    }
-    
-    // Check if it's time for a left jump (counterclockwise)
-    if (particle.leftJumpTime <= currentTime) {
-      // Attempt to jump left (with circular wraparound)
-      const targetPos = (particle.position - 1 + numBoxes) % numBoxes;
+      // Schedule initial jump events
+      this.scheduleJumpEvents(particle);
       
-      // Check if position is not occupied
-      if (!this.isPositionOccupied(targetPos, particle)) {
-        this.startJumpAnimation(particle, targetPos);
-      } else {
-        // Reschedule the jump attempt if failed due to occupancy
-        particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
-      }
-      return;
+      // Add to particles array
+      this.state.particles.push(particle);
     }
   }
   
   /**
-   * Handle boundary dynamics - empty for circular (no boundaries)
+   * Update the visualization with new parameters
+   * @param {Object} parameters - Changed parameters
    */
-  handleBoundaryDynamics() {
-    // No boundary dynamics for circular system
-  }
-  
-  /**
-   * Complete a jump for a particle with special handling for circular boundaries
-   * @param {Object} particle - Particle that completed jump
-   * @param {Array} particlesToRemove - Array to add particles to remove to
-   */
-  completeJump(particle, particlesToRemove) {
-    // Complete the jump
-    particle.isJumping = false;
-    particle.jumpProgress = 0;
-    particle.position = particle.targetPosition;
-    particle.color = particle.originalColor;
-    particle.jumpState = 'none';
-    particle.insideProgress = 0;
-    
-    // Schedule new jump times based on rates
-    const rightRate = this.getParameterValue('rightJumpRate', 0.7);
-    const leftRate = this.getParameterValue('leftJumpRate', 0.3);
-    
-    particle.rightJumpTime = this.state.currentTime + this.generateExponentialTime(rightRate);
-    particle.leftJumpTime = this.state.currentTime + this.generateExponentialTime(leftRate);
-  }
-  
-  /**
-   * Handle parameter updates
-   * @param {Object} parameters - New parameter values
-   */
-  handleParameterUpdate(parameters) {
-    // Update the jump rates
-    if (parameters.rightJumpRate !== undefined || parameters.leftJumpRate !== undefined) {
-      // Update handled by the base class
-    }
-    
-    // Update the update interval based on speed
-    if (parameters.updateSpeed !== undefined) {
-      this.state.updateInterval = 500 / parameters.updateSpeed;
-    }
-    
-    // If numBoxes or numParticles changed drastically, reset simulation
-    if ((parameters.numBoxes !== undefined && Math.abs(parameters.numBoxes - this.state.boxes.length) > 1) ||
-        (parameters.numParticles !== undefined && Math.abs(parameters.numParticles - this.state.particles.length) > 2)) {
-      // Re-initialize with current parameters
+  update(parameters) {
+    // Handle parameter changes that require regenerating the system
+    if (parameters.numSites !== undefined && 
+        parameters.numSites !== this.state.sites.length) {
+      // Full reset with new parameters
       this.initialize({
         ...this.plugin.pluginParameters,
         ...this.plugin.visualizationParameters,
         ...this.plugin.advancedParameters
       });
+      return;
+    }
+    
+    // Handle particle count changes
+    if (parameters.numParticles !== undefined) {
+      this.updateParticleCount(parameters.numParticles);
+    }
+    
+    // Update jump rates if changed
+    if (parameters.rightJumpRate !== undefined || parameters.leftJumpRate !== undefined) {
+      this.updateJumpRates(parameters);
     }
   }
   
   /**
-   * Render the visualization
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
+   * Update particle count to match target
+   * @param {number} targetCount - Target number of particles
    */
-  render2D(ctx, parameters) {
-    // Draw circular track
-    this.drawCircularTrack(ctx, parameters);
+  updateParticleCount(targetCount) {
+    const currentCount = this.state.particles.length;
     
-    // Draw boxes
-    this.drawCircularBoxes(ctx, parameters);
+    if (targetCount > currentCount) {
+      // Add particles
+      this.addParticles(targetCount - currentCount);
+    } else if (targetCount < currentCount) {
+      // Remove particles
+      this.removeParticles(currentCount - targetCount);
+    }
+  }
+  
+  /**
+   * Add specified number of particles to random empty sites
+   * @param {number} count - Number of particles to add
+   */
+  addParticles(count) {
+    const numSites = this.state.sites.length;
+    const particleColor = this.getColor('particle');
+    const rightJumpRate = this.plugin.visualizationParameters.rightJumpRate || 0.7;
+    const leftJumpRate = this.plugin.visualizationParameters.leftJumpRate || 0.3;
+    
+    // Find empty sites
+    const occupiedSites = this.state.particles.map(p => p.siteIndex);
+    const emptySites = [];
+    
+    for (let i = 0; i < numSites; i++) {
+      if (!occupiedSites.includes(i) && !this.isSiteOccupied(i)) {
+        emptySites.push(i);
+      }
+    }
+    
+    // Add particles to random empty sites
+    for (let i = 0; i < count && emptySites.length > 0; i++) {
+      // Select random empty site
+      const randomIndex = Math.floor(Math.random() * emptySites.length);
+      const siteIndex = emptySites[randomIndex];
+      
+      // Remove site from available list
+      emptySites.splice(randomIndex, 1);
+      
+      // Create particle
+      const newId = Math.max(...this.state.particles.map(p => p.id), -1) + 1;
+      const particle = {
+        id: newId,
+        siteIndex: siteIndex,
+        isJumping: false,
+        jumpProgress: 0,
+        startSite: siteIndex,
+        targetSite: siteIndex,
+        color: particleColor,
+        originalColor: particleColor,
+        radius: this.state.particleRadius,
+        
+        // CTMC properties
+        rightJumpRate: rightJumpRate,
+        leftJumpRate: leftJumpRate,
+        nextRightJumpTime: 0,
+        nextLeftJumpTime: 0
+      };
+      
+      // Schedule jump events
+      this.scheduleJumpEvents(particle);
+      
+      // Add to particles array
+      this.state.particles.push(particle);
+    }
+  }
+  
+  /**
+   * Remove specified number of particles
+   * @param {number} count - Number of particles to remove
+   */
+  removeParticles(count) {
+    // Sort particles by ID and remove the highest IDs
+    const sortedParticles = [...this.state.particles].sort((a, b) => a.id - b.id);
+    const particlesToRemove = sortedParticles.slice(0, count);
+    
+    // Remove particles from main array and jumping array
+    this.state.particles = this.state.particles.filter(p => !particlesToRemove.includes(p));
+    this.state.jumpingParticles = this.state.jumpingParticles.filter(p => !particlesToRemove.includes(p));
+  }
+  
+  /**
+   * Update jump rates for particles
+   * @param {Object} parameters - New parameters
+   */
+  updateJumpRates(parameters) {
+    const rightRate = parameters.rightJumpRate;
+    const leftRate = parameters.leftJumpRate;
+    
+    // Update each particle's rates
+    for (const particle of this.state.particles) {
+      // Update right jump rate if specified
+      if (rightRate !== undefined && particle.rightJumpRate !== rightRate) {
+        // Calculate how far into the clock we are
+        const remainingTime = particle.nextRightJumpTime - this.state.currentTime;
+        
+        if (remainingTime > 0) {
+          // Scale remaining time proportionally to new rate
+          const oldRate = particle.rightJumpRate;
+          const newRemainingTime = rightRate > 0 ? 
+                                   remainingTime * (oldRate / rightRate) : 
+                                   Infinity;
+          
+          particle.nextRightJumpTime = this.state.currentTime + newRemainingTime;
+        } else {
+          // Clock already expired, generate new time
+          particle.nextRightJumpTime = this.state.currentTime + this.generateExponentialTime(rightRate);
+        }
+        
+        // Update the rate
+        particle.rightJumpRate = rightRate;
+      }
+      
+      // Update left jump rate if specified
+      if (leftRate !== undefined && particle.leftJumpRate !== leftRate) {
+        // Calculate how far into the clock we are
+        const remainingTime = particle.nextLeftJumpTime - this.state.currentTime;
+        
+        if (remainingTime > 0) {
+          // Scale remaining time proportionally to new rate
+          const oldRate = particle.leftJumpRate;
+          const newRemainingTime = leftRate > 0 ? 
+                                  remainingTime * (oldRate / leftRate) : 
+                                  Infinity;
+          
+          particle.nextLeftJumpTime = this.state.currentTime + newRemainingTime;
+        } else {
+          // Clock already expired, generate new time
+          particle.nextLeftJumpTime = this.state.currentTime + this.generateExponentialTime(leftRate);
+        }
+        
+        // Update the rate
+        particle.leftJumpRate = leftRate;
+      }
+    }
+  }
+  
+  /**
+   * Get the modular site index (for wraparound)
+   * @param {number} index - Raw site index
+   * @returns {number} Normalized site index with wraparound
+   */
+  getNormalizedSiteIndex(index) {
+    const numSites = this.state.sites.length;
+    return ((index % numSites) + numSites) % numSites;
+  }
+  
+  /**
+   * Update ASEP dynamics by processing jump events
+   */
+  updateParticleDynamics() {
+    // Skip particles that are currently jumping
+    const stationaryParticles = this.state.particles.filter(p => !p.isJumping);
+    
+    // Check each particle for jump events
+    for (const particle of stationaryParticles) {
+      const currentTime = this.state.currentTime;
+      
+      // Check right jump
+      if (particle.nextRightJumpTime <= currentTime) {
+        // Calculate target site (with wraparound)
+        const targetSite = this.getNormalizedSiteIndex(particle.siteIndex + 1);
+        
+        // Check if target site is free
+        if (!this.isSiteOccupied(targetSite)) {
+          // Execute the jump
+          this.startJumpAnimation(particle, targetSite);
+        } else {
+          // Reset the clock even though jump failed
+          particle.nextRightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
+        }
+      }
+      
+      // Check left jump
+      else if (particle.nextLeftJumpTime <= currentTime) {
+        // Calculate target site (with wraparound)
+        const targetSite = this.getNormalizedSiteIndex(particle.siteIndex - 1);
+        
+        // Check if target site is free
+        if (!this.isSiteOccupied(targetSite)) {
+          // Execute the jump
+          this.startJumpAnimation(particle, targetSite);
+        } else {
+          // Reset the clock even though jump failed
+          particle.nextLeftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Calculate interpolated position for a jumping particle
+   * @param {Object} particle - Jumping particle
+   * @returns {Object} Interpolated x,y position
+   */
+  calculateJumpPosition(particle) {
+    const t = particle.jumpProgress;
+    const numSites = this.state.sites.length;
+    
+    // Get start and end sites
+    const startSite = this.state.sites[particle.startSite];
+    const endSite = this.state.sites[particle.targetSite];
+    
+    // Determine if it's a wraparound jump (e.g., from site n-1 to 0)
+    const isWraparound = Math.abs(particle.targetSite - particle.startSite) > 1 &&
+                         Math.abs(particle.targetSite - particle.startSite) !== numSites - 1;
+    
+    // If not a wraparound jump, do simple linear interpolation
+    if (!isWraparound) {
+      // Use angular interpolation to follow the circle
+      let startAngle = startSite.angle;
+      let endAngle = endSite.angle;
+      
+      // Handle wrapping around the circle (take shorter path)
+      if (Math.abs(endAngle - startAngle) > Math.PI) {
+        if (endAngle > startAngle) {
+          startAngle += 2 * Math.PI;
+        } else {
+          endAngle += 2 * Math.PI;
+        }
+      }
+      
+      // Interpolate angle
+      const angle = startAngle + (endAngle - startAngle) * t;
+      
+      // Calculate position
+      return {
+        x: Math.cos(angle) * this.state.radius,
+        y: Math.sin(angle) * this.state.radius
+      };
+    }
+    // For wraparound jump (e.g., site n-1 to site 0), route around the circle
+    else {
+      // Determine direction (clockwise or counterclockwise)
+      const isClockwise = (particle.targetSite > particle.startSite) || 
+                          (particle.startSite === numSites - 1 && particle.targetSite === 0);
+      
+      // Calculate angles
+      let startAngle = startSite.angle;
+      let endAngle = endSite.angle;
+      
+      // Ensure we go the long way around for wraparound
+      if (isClockwise) {
+        if (endAngle > startAngle) {
+          endAngle = endAngle - 2 * Math.PI;
+        }
+      } else {
+        if (startAngle > endAngle) {
+          endAngle = endAngle + 2 * Math.PI;
+        }
+      }
+      
+      // Interpolate angle
+      const angle = startAngle + (endAngle - startAngle) * t;
+      
+      // Calculate position
+      return {
+        x: Math.cos(angle) * this.state.radius,
+        y: Math.sin(angle) * this.state.radius
+      };
+    }
+  }
+  
+  /**
+   * Render the visualization in 2D
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   */
+  render2D(ctx) {
+    if (!ctx) return;
+    
+    const showBoundingBox = this.plugin.pluginParameters.showBoundingBox || false;
+    const showDebug = this.plugin.advancedParameters.debugMode || false;
+    
+    ctx.save();
+    
+    // Draw circular track
+    this.drawCircularTrack(ctx);
+    
+    // Draw boxes for sites
+    this.drawSites(ctx);
     
     // Draw particles
-    this.drawParticles(ctx, parameters);
+    this.drawParticles(ctx);
+    
+    // Draw bounding box if enabled
+    if (showBoundingBox) {
+      this.drawBoundingBox(ctx);
+    }
     
     // Draw debug info if enabled
-    if (parameters.debugMode) {
-      this.drawDebugInfo(ctx, parameters);
+    if (showDebug) {
+      this.drawDebugInfo(ctx);
     }
+    
+    ctx.restore();
   }
   
   /**
-   * Draw the circular track
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
+   * Draw circular track
+   * @param {CanvasRenderingContext2D} ctx - Canvas context 
    */
-  drawCircularTrack(ctx, parameters) {
-    const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
-    const radius = this.state.radius;
+  drawCircularTrack(ctx) {
+    const boxColor = this.getColor('box');
     
     ctx.save();
     ctx.strokeStyle = boxColor;
-    ctx.lineWidth = 2;
     ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 2;
     
     // Draw circular path
     ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, this.state.radius, 0, Math.PI * 2);
     ctx.stroke();
     
     ctx.globalAlpha = 1.0;
@@ -317,134 +488,125 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Draw the boxes in circular arrangement
+   * Draw bounding box
    * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
    */
-  drawCircularBoxes(ctx, parameters) {
-    const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
+  drawBoundingBox(ctx) {
     const boxSize = this.state.boxSize;
-    const showLabels = this.getParameterValue('showLabels', false);
+    const radius = this.state.radius;
+    
+    ctx.save();
+    ctx.strokeStyle = '#999999';
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1;
+    
+    // Draw square bounding box
+    const size = radius + boxSize + 10;
+    ctx.strokeRect(-size, -size, size * 2, size * 2);
+    
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+  
+  /**
+   * Draw sites (boxes)
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   */
+  drawSites(ctx) {
+    const boxColor = this.getColor('box');
+    const boxSize = this.state.boxSize;
+    const showLabels = this.plugin.pluginParameters.showLabels || false;
     
     ctx.save();
     ctx.strokeStyle = boxColor;
     ctx.lineWidth = 2;
     
-    // Draw each box
-    this.state.boxes.forEach((box, index) => {
+    // Draw each site
+    for (const site of this.state.sites) {
       ctx.save();
       
-      // Translate to box position
-      ctx.translate(box.x, box.y);
+      // Move to site position
+      ctx.translate(site.x, site.y);
       
-      // Rotate box to align with circle tangent
-      ctx.rotate(box.angle + Math.PI/2);
+      // Rotate to align with circle tangent
+      ctx.rotate(site.angle + Math.PI/2);
       
-      // Draw the box
-      const x1 = -boxSize / 2;
-      const y1 = -boxSize / 2;
+      // Draw box
+      const halfSize = boxSize / 2;
+      ctx.strokeRect(-halfSize, -halfSize, boxSize, boxSize);
       
-      ctx.beginPath();
-      ctx.rect(x1, y1, boxSize, boxSize);
-      ctx.stroke();
-      
-      // Add site index outside box (only if showLabels is true)
+      // Draw site index if labels enabled
       if (showLabels) {
         ctx.fillStyle = boxColor;
-        ctx.font = '12px sans-serif';
+        ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
-        // Position the index text outside the box
-        const textRadius = 20;
-        ctx.fillText(box.index.toString(), 0, boxSize/2 + textRadius);
+        ctx.fillText(site.index.toString(), 0, boxSize);
       }
       
       ctx.restore();
-    });
+    }
     
     ctx.restore();
   }
   
   /**
-   * Draw the particles
+   * Draw particles
    * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
    */
-  drawParticles(ctx, parameters) {
-    const jumpColor = this.getColorFromPalette(parameters, this.state.colorIndices.jump);
+  drawParticles(ctx) {
+    const particleColor = this.getColor('particle');
+    const jumpingColor = this.getColor('jumpingParticle');
+    const showLabels = this.plugin.pluginParameters.showLabels || false;
     
-    // Draw each particle
-    this.state.particles.forEach(particle => {
-      ctx.save();
+    ctx.save();
+    
+    // Draw stationary particles
+    for (const particle of this.state.particles) {
+      if (particle.isJumping) continue; // Skip jumping particles
       
-      if (particle.isJumping) {
-        const t = particle.jumpProgress;
-        const startBox = this.state.boxes[particle.startPosition];
-        const endBox = this.state.boxes[particle.targetPosition];
-        
-        // Determine if it's a wraparound jump
-        const numBoxes = this.state.boxes.length;
-        const isWraparound = Math.abs(particle.targetPosition - particle.startPosition) > 1 &&
-                            Math.abs(particle.targetPosition - particle.startPosition) !== numBoxes - 1;
-        
-        let x, y, scale;
-        
-        if (particle.jumpState === 'entering') {
-          // Entering the box - shrink in place
-          x = startBox.x;
-          y = startBox.y;
-          const progress = t * 2; // Scale to [0,1] for the first half
-          scale = 1.0 - 0.3 * Math.sin(Math.PI * progress);
-          ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-        } else if (particle.jumpState === 'inside') {
-          // Moving along arc between boxes
-          const progress = particle.insideProgress;
-          
-          // Calculate angle between boxes
-          let startAngle = startBox.angle;
-          let endAngle = endBox.angle;
-          
-          // Handle wraparound case - take the short path around the circle
-          if (Math.abs(endAngle - startAngle) > Math.PI) {
-            if (endAngle > startAngle) {
-              startAngle += Math.PI * 2;
-            } else {
-              endAngle += Math.PI * 2;
-            }
-          }
-          
-          // Calculate intermediate angle
-          const angle = startAngle + (endAngle - startAngle) * progress;
-          
-          // Calculate position on the circle
-          x = Math.cos(angle) * this.state.radius;
-          y = Math.sin(angle) * this.state.radius;
-          
-          scale = 0.7; // Smaller while inside
-          ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
-        } else {
-          // Exiting the box - grow in place
-          x = endBox.x;
-          y = endBox.y;
-          const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
-          scale = 0.7 + 0.3 * progress;
-          ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-        }
-        
-        // Draw jumping particle
-        this.drawParticle(ctx, particle, x, y, scale);
-      } else {
-        // Static particle
-        const box = this.state.boxes[particle.position];
-        
-        // Draw at position
-        ctx.fillStyle = particle.color;
-        this.drawParticle(ctx, particle, box.x, box.y);
+      const site = this.state.sites[particle.siteIndex];
+      
+      // Draw particle at site position
+      ctx.fillStyle = particleColor;
+      ctx.beginPath();
+      ctx.arc(site.x, site.y, this.state.particleRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw particle ID if labels enabled
+      if (showLabels) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(particle.id.toString(), site.x, site.y);
       }
+    }
+    
+    // Draw jumping particles
+    for (const particle of this.state.jumpingParticles) {
+      // Calculate interpolated position
+      const pos = this.calculateJumpPosition(particle);
       
-      ctx.restore();
-    });
+      // Interpolate color between particle and jumping color
+      ctx.fillStyle = this.lerpColor(particleColor, jumpingColor, 0.5);
+      
+      // Draw particle
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, this.state.particleRadius * 1.1, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw particle ID if labels enabled
+      if (showLabels) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(particle.id.toString(), pos.x, pos.y);
+      }
+    }
+    
+    ctx.restore();
   }
   
   /**
@@ -453,101 +615,86 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
    * @param {number} startY - Y position to start drawing
    */
   drawSpecificDebugInfo(ctx, startY) {
-    let y = startY;
+    let y = startY || 110;
     
-    ctx.fillText(`Right Rate: ${this.getParameterValue('rightJumpRate', 0.7).toFixed(2)}`, 20, y);
+    // Get parameters
+    const rightRate = this.plugin.visualizationParameters.rightJumpRate || 0.7;
+    const leftRate = this.plugin.visualizationParameters.leftJumpRate || 0.3;
+    
+    // Draw parameters
+    ctx.fillText(`Right Jump Rate: ${rightRate.toFixed(1)}`, 20, y);
     y += 20;
-    ctx.fillText(`Left Rate: ${this.getParameterValue('leftJumpRate', 0.3).toFixed(2)}`, 20, y);
+    ctx.fillText(`Left Jump Rate: ${leftRate.toFixed(1)}`, 20, y);
     y += 20;
-    ctx.fillText(`Radius: ${this.state.radius.toFixed(0)}px`, 20, y);
-    y += 20;
-    
-    // Find next event
-    let nextEvent = "None";
-    let nextTime = Infinity;
-    
-    for (const particle of this.state.particles) {
-      if (!particle.isJumping) {
-        if (particle.rightJumpTime < nextTime) {
-          nextEvent = `Right (${particle.id})`;
-          nextTime = particle.rightJumpTime;
-        }
-        if (particle.leftJumpTime < nextTime) {
-          nextEvent = `Left (${particle.id})`;
-          nextTime = particle.leftJumpTime;
-        }
-      }
-    }
-    
-    const timeToNext = Math.max(0, nextTime - this.state.currentTime).toFixed(2);
-    ctx.fillText(`Next event: ${nextEvent} in ${timeToNext}s`, 20, y);
+    ctx.fillText(`Circle Radius: ${this.state.radius.toFixed(0)}px`, 20, y);
   }
   
   /**
    * Handle user interaction
-   * @param {string} type - Interaction type (e.g., "click", "mousemove")
-   * @param {Object} event - Event data
+   * @param {string} type - Interaction type (e.g., "click")
+   * @param {Object} event - Event data with x, y coordinates
    * @returns {boolean} Whether the interaction was handled
    */
   handleInteraction(type, event) {
-    // Check if clicking on a box to add/remove particles
     if (type === 'click') {
-      const boxSize = this.state.boxSize;
-      
-      // Check each box - need to consider rotation for circular layout
-      for (let i = 0; i < this.state.boxes.length; i++) {
-        const box = this.state.boxes[i];
-        const dx = event.x - box.x;
-        const dy = event.y - box.y;
+      // Check if a site was clicked
+      for (let i = 0; i < this.state.sites.length; i++) {
+        const site = this.state.sites[i];
+        const dx = event.x - site.x;
+        const dy = event.y - site.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // If clicked near a box center
-        if (distance <= boxSize / 1.5) {
-          // Check if box already has a particle
-          const particleIndex = this.state.particles.findIndex(p => 
-            p.position === i && !p.isJumping
-          );
+        // If click was within this site
+        if (distance <= this.state.boxSize / 1.5) {
+          // Check if site has a particle
+          const hasParticle = this.isSiteOccupied(i);
           
-          if (particleIndex >= 0) {
-            // Remove particle
-            this.state.particles.splice(particleIndex, 1);
+          if (hasParticle) {
+            // Find and remove particle
+            const particleIndex = this.state.particles.findIndex(p => 
+              p.siteIndex === i && !p.isJumping
+            );
             
-            // Update particle count in parameters
-            const newCount = this.state.particles.length;
-            this.plugin.updateParameter('numParticles', newCount, 'visualization');
-          } else if (!this.isPositionOccupied(i)) {
-            // Add particle if box is empty
-            const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
-            const currentParams = {
-              colorPalette: this.getParameterValue('colorPalette')
-            };
-            const particleColor = this.getColorFromPalette(currentParams, this.state.colorIndices.particle);
+            if (particleIndex >= 0) {
+              this.state.particles.splice(particleIndex, 1);
+              
+              // Update count parameter
+              const newCount = this.state.particles.length;
+              this.plugin.updateParameter('numParticles', newCount, 'visualization');
+            }
+          } else {
+            // Add particle if site is empty
+            const particleColor = this.getColor('particle');
+            const rightJumpRate = this.plugin.visualizationParameters.rightJumpRate || 0.7;
+            const leftJumpRate = this.plugin.visualizationParameters.leftJumpRate || 0.3;
             
-            // Get jump rates
-            const rightRate = this.getParameterValue('rightJumpRate', 0.7);
-            const leftRate = this.getParameterValue('leftJumpRate', 0.3);
-            
-            this.state.particles.push({
-              id: maxId + 1,
-              position: i,
+            // Create new particle
+            const newId = Math.max(...this.state.particles.map(p => p.id), -1) + 1;
+            const particle = {
+              id: newId,
+              siteIndex: i,
               isJumping: false,
               jumpProgress: 0,
-              startPosition: i,
-              targetPosition: i,
+              startSite: i,
+              targetSite: i,
               color: particleColor,
               originalColor: particleColor,
               radius: this.state.particleRadius,
-              jumpSpeed: 2.0,
-              jumpState: 'none',
-              insideProgress: 0,
-              // Continuous-time Markov chain specific properties
-              rightJumpRate: rightRate,
-              leftJumpRate: leftRate,
-              rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
-              leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate)
-            });
+              
+              // CTMC properties
+              rightJumpRate: rightJumpRate,
+              leftJumpRate: leftJumpRate,
+              nextRightJumpTime: 0,
+              nextLeftJumpTime: 0
+            };
             
-            // Update particle count in parameters
+            // Schedule jump events
+            this.scheduleJumpEvents(particle);
+            
+            // Add to particles array
+            this.state.particles.push(particle);
+            
+            // Update count parameter
             const newCount = this.state.particles.length;
             this.plugin.updateParameter('numParticles', newCount, 'visualization');
           }
