@@ -215,7 +215,6 @@ export class AppCore {
             const actions = this.loadedPlugin.defineActions();
             this.uiManager.updateActions(actions);
 
-            this.exposeDebugInfo(); //Expose to debugger.
             
             // Restore rendering if it was active
             if (wasRendering) {
@@ -309,39 +308,6 @@ export class AppCore {
     return isFullscreen;
   }
 
-  /**
-   * Expose debug information
-   * Makes the app, current plugin info, and parameters available in the console
-   */
-  exposeDebugInfo() {
-    try {
-      // Create debug object with core app reference
-      window.__debugInfo = {
-        app: this,
-        currentPlugin: null,
-        parameterSchema: null
-      };
-      
-      // Add current plugin info if available
-      if (this.loadedPlugin) {
-        window.__debugInfo.currentPlugin = {
-          id: this.loadedPlugin.constructor.id,
-          name: this.loadedPlugin.constructor.name,
-          parameters: this.loadedPlugin.parameters,
-          instance: this.loadedPlugin
-        };
-        
-        // Add parameter schema
-        window.__debugInfo.parameterSchema = this.loadedPlugin.defineParameters().build();
-      }
-      
-      console.log('Debug info exposed. Access via window.__debugInfo');
-      return window.__debugInfo;
-    } catch (error) {
-      console.error('Error exposing debug info:', error);
-      return null;
-    }
-  }
   
   /**
    * Handle parameter changes from UI
