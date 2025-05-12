@@ -1,4 +1,4 @@
-// src/core/PluginLoader.js
+// src/core/PluginLoader.js - Updated version without visualizations
 
 /**
  * Manages plugin discovery, loading and lifecycle
@@ -165,6 +165,7 @@ export class PluginLoader {
       
       // Clear Actions
       this.core.clearActions();
+      
       // Clear the plugin reference
       this.currentPlugin = null;
       
