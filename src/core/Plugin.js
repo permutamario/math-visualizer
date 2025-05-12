@@ -1,7 +1,8 @@
 // src/core/Plugin.js
 
 /**
- * Base plugin interface for the Math Visualization Framework
+ * Enhanced base plugin interface for the Math Visualization Framework
+ * Provides convenient helper methods while maintaining the framework philosophy
  */
 export class Plugin {
   /**
@@ -29,12 +30,12 @@ export class Plugin {
     // Internal state
     this.isLoaded = false;
     this._eventHandlers = [];
+    this._animationHandlers = [];
     
-    
-    // Parameter storage
-    this.pluginParameters = {};
-    this.visualizationParameters = {};
-    this.advancedParameters = {};
+    // Parameter tracking
+    this._visualParameters = [];
+    this._structuralParameters = [];
+    this._advancedParameters = [];
   }
   
   /**
@@ -83,7 +84,8 @@ export class Plugin {
     try {
       console.log(`Unloading plugin: ${this.name} (${this.id})`);
       
-      // Implementation will be provided by subclasses
+      // Cancel all animations
+      this._cancelAllAnimations();
       
       // Remove all event handlers
       this._removeAllEventHandlers();
@@ -91,6 +93,9 @@ export class Plugin {
       // Reset state
       this.isLoaded = false;
       this.renderEnv = null;
+      this._visualParameters = [];
+      this._structuralParameters = [];
+      this._advancedParameters = [];
       
       return true;
     } catch (error) {
@@ -99,50 +104,416 @@ export class Plugin {
     }
   }
   
-
-  javascript/**
- * Handle user interaction events
- * @param {string} type - Type of interaction (mousedown, mousemove, mouseup, click, wheel, keydown, keyup, touchstart, touchmove, touchend, tap)
- * @param {Object} data - Interaction data
- */
-handleInteraction(type, data) {
-  // Handle different interaction types
-  switch (type) {
-    case 'mousedown':
-      // Handle mouse down
-      break;
-    case 'mousemove':
-      // Handle mouse move
-      break;
-    case 'mouseup':
-      // Handle mouse up
-      break;
-    case 'click':
-      // Handle click
-      break;
-    case 'wheel':
-      // Handle mouse wheel
-      break;
-    case 'keydown':
-      // Handle key down
-      break;
-    case 'keyup':
-      // Handle key up
-      break;
-    case 'touchstart':
-      // Handle touch start
-      break;
-    case 'touchmove':
-      // Handle touch move
-      break;
-    case 'touchend':
-      // Handle touch end
-      break;
-    case 'tap':
-      // Handle tap (touch equivalent of click)
-      break;
+  // ======== PARAMETER MANAGEMENT HELPER METHODS ========
+  
+  /**
+   * Add a slider parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {number} defaultValue - Default value
+   * @param {Object} options - Options like min, max, step
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addSlider(id, label, defaultValue, options = {}, group = 'visual') {
+    const param = {
+      id,
+      type: 'slider',
+      label,
+      default: defaultValue,
+      min: options.min !== undefined ? options.min : 0,
+      max: options.max !== undefined ? options.max : 100,
+      step: options.step !== undefined ? options.step : 1
+    };
+    
+    this._addParameter(param, group);
+    return this;
   }
-}
+  
+  /**
+   * Add a checkbox parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {boolean} defaultValue - Default value
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addCheckbox(id, label, defaultValue, group = 'visual') {
+    const param = {
+      id,
+      type: 'checkbox',
+      label,
+      default: defaultValue
+    };
+    
+    this._addParameter(param, group);
+    return this;
+  }
+  
+  /**
+   * Add a color picker parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {string} defaultValue - Default color value
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addColor(id, label, defaultValue, group = 'visual') {
+    const param = {
+      id,
+      type: 'color',
+      label,
+      default: defaultValue
+    };
+    
+    this._addParameter(param, group);
+    return this;
+  }
+  
+  /**
+   * Add a dropdown parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {string} defaultValue - Default selected value
+   * @param {Array} options - Array of options (strings or {value, label} objects)
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addDropdown(id, label, defaultValue, options, group = 'visual') {
+    const param = {
+      id,
+      type: 'dropdown',
+      label,
+      default: defaultValue,
+      options
+    };
+    
+    this._addParameter(param, group);
+    return this;
+  }
+  
+  /**
+   * Add a number input parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {number} defaultValue - Default value
+   * @param {Object} options - Options like min, max, step
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addNumber(id, label, defaultValue, options = {}, group = 'visual') {
+    const param = {
+      id,
+      type: 'number',
+      label,
+      default: defaultValue
+    };
+    
+    if (options.min !== undefined) param.min = options.min;
+    if (options.max !== undefined) param.max = options.max;
+    if (options.step !== undefined) param.step = options.step;
+    
+    this._addParameter(param, group);
+    return this;
+  }
+  
+  /**
+   * Add a text input parameter
+   * @param {string} id - Parameter ID
+   * @param {string} label - Display label
+   * @param {string} defaultValue - Default value
+   * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+   * @returns {Plugin} This plugin for chaining
+   */
+  addText(id, label, defaultValue, group = 'visual') {
+    const param = {
+      id,
+      type: 'text',
+      label,
+      default: defaultValue
+    };
+    
+    this._addParameter(param, group);
+    return this;
+  }
+  
+  /**
+   * Add a parameter to the appropriate group and register with core
+   * @param {Object} param - Parameter definition
+   * @param {string} group - Parameter group
+   * @private
+   */
+  _addParameter(param, group) {
+    // Store parameter locally for tracking
+    switch (group) {
+      case 'visual':
+        this._visualParameters.push(param);
+        break;
+      case 'structural':
+        this._structuralParameters.push(param);
+        break;
+      case 'advanced':
+        this._advancedParameters.push(param);
+        break;
+      default:
+        console.warn(`Unknown parameter group: ${group}, defaulting to visual`);
+        this._visualParameters.push(param);
+        group = 'visual';
+    }
+    
+    // Directly register the parameter with the core
+    const groupPrefix = group.charAt(0).toUpperCase() + group.slice(1);
+    const addMethodName = `addParameters${groupPrefix}`;
+    
+    if (this.core && typeof this.core[addMethodName] === 'function') {
+      this.core[addMethodName]([param]);
+    } else {
+      console.warn(`Cannot add parameter ${param.id} - no method available for group ${group}`);
+    }
+    
+    // Request a render refresh since UI may have changed
+    this.refresh();
+  }
+  
+  // Removed - no longer needed with direct parameter registration
+  
+  /**
+   * Remove a parameter
+   * @param {string} id - Parameter ID to remove
+   * @param {string} group - Optional parameter group
+   * @returns {boolean} Whether the parameter was found and removed
+   */
+  removeParameter(id, group = null) {
+    if (!this.core || typeof this.core.removeParameter !== 'function') {
+      console.warn('Core removeParameter method not available');
+      return false;
+    }
+    
+    // Use the core's removeParameter method
+    const result = this.core.removeParameter(id, group);
+    
+    if (result) {
+      // Update our internal tracking
+      const removeFromList = (list) => {
+        const index = list.findIndex(p => p.id === id);
+        if (index !== -1) {
+          list.splice(index, 1);
+          return true;
+        }
+        return false;
+      };
+      
+      if (group) {
+        // Remove from specific group
+        switch (group) {
+          case 'visual':
+            removeFromList(this._visualParameters);
+            break;
+          case 'structural':
+            removeFromList(this._structuralParameters);
+            break;
+          case 'advanced':
+            removeFromList(this._advancedParameters);
+            break;
+        }
+      } else {
+        // Remove from any group where it exists
+        removeFromList(this._visualParameters) || 
+        removeFromList(this._structuralParameters) || 
+        removeFromList(this._advancedParameters);
+      }
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Empty all parameters from the core
+   * @param {string} group - Optional parameter group to empty ('visual', 'structural', 'advanced')
+   * @returns {boolean} Whether the operation was successful
+   */
+  emptyParameters(group = null) {
+    // Clear all tracked parameters
+    if (!group) {
+      this._visualParameters = [];
+      this._structuralParameters = [];
+      this._advancedParameters = [];
+    } else {
+      // Clear only the specified group
+      switch (group) {
+        case 'visual':
+          this._visualParameters = [];
+          break;
+        case 'structural':
+          this._structuralParameters = [];
+          break;
+        case 'advanced':
+          this._advancedParameters = [];
+          break;
+        default:
+          console.warn(`Unknown parameter group: ${group}`);
+          return false;
+      }
+    }
+    
+    // Call the core method if available
+    if (this.core && typeof this.core.emptyParameters === 'function') {
+      return this.core.emptyParameters(group);
+    } else {
+      console.warn('Core emptyParameters method not available');
+      return false;
+    }
+  }
+  
+  /**
+   * Set a parameter value
+   * @param {string} id - Parameter ID
+   * @param {any} value - New value
+   * @returns {boolean} Whether the parameter was found and updated
+   */
+  setParameter(id, value) {
+    if (this.core && typeof this.core.changeParameter === 'function') {
+      return this.core.changeParameter(id, value);
+    }
+    return false;
+  }
+  
+  /**
+   * Get a parameter value
+   * @param {string} id - Parameter ID
+   * @returns {any} Parameter value or undefined if not found
+   */
+  getParameter(id) {
+    if (this.core && typeof this.core.getAllParameters === 'function') {
+      const params = this.core.getAllParameters();
+      return params[id];
+    }
+    return undefined;
+  }
+  
+  /**
+   * Get all parameter values
+   * @returns {Object} All parameter values
+   */
+  getAllParameters() {
+    if (this.core && typeof this.core.getAllParameters === 'function') {
+      return this.core.getAllParameters();
+    }
+    return {};
+  }
+  
+  // ======== ACTION MANAGEMENT HELPER METHODS ========
+  
+  /**
+   * Add an action
+   * @param {string} id - Action ID
+   * @param {string} label - Display label
+   * @param {Function} callback - Function to execute
+   * @param {Object} options - Additional options
+   * @returns {boolean} Whether the action was added successfully
+   */
+  addAction(id, label, callback, options = {}) {
+    if (this.core && typeof this.core.addAction === 'function') {
+      return this.core.addAction(id, label, callback, options);
+    }
+    return false;
+  }
+  
+  /**
+   * Remove an action
+   * @param {string} id - Action ID
+   * @returns {boolean} Whether the action was found and removed
+   */
+  removeAction(id) {
+    if (this.core && typeof this.core.removeAction === 'function') {
+      return this.core.removeAction(id);
+    }
+    return false;
+  }
+  
+  // ======== RENDERING HELPER METHODS ========
+  
+  /**
+   * Request a render refresh
+   * Call this when you need to update the visualization
+   * (Not needed after parameter changes, which trigger refresh automatically)
+   */
+  refresh() {
+    if (this.core && typeof this.core.requestRenderRefresh === 'function') {
+      this.core.requestRenderRefresh();
+    }
+  }
+  
+  // ======== ANIMATION HELPER METHODS ========
+  
+  /**
+   * Request animation
+   * @param {Function} callback - Animation callback function that receives deltaTime
+   * @returns {Function|null} Animation handler (for cancellation)
+   */
+  requestAnimation(callback) {
+    if (!this.core || !this.core.animationManager || 
+        typeof this.core.animationManager.requestAnimation !== 'function') {
+      console.warn("Animation manager not available");
+      return null;
+    }
+    
+    // Create animation handler
+    const handler = this.core.animationManager.requestAnimation(callback);
+    
+    // Store handler for cleanup
+    if (handler) {
+      this._animationHandlers.push(handler);
+    }
+    
+    return handler;
+  }
+  
+  /**
+   * Cancel animation
+   * @param {Function} handler - Animation handler to cancel
+   * @returns {boolean} Whether the animation was found and cancelled
+   */
+  cancelAnimation(handler) {
+    if (!this.core || !this.core.animationManager || 
+        typeof this.core.animationManager.cancelAnimation !== 'function') {
+      return false;
+    }
+    
+    // Cancel animation
+    this.core.animationManager.cancelAnimation(handler);
+    
+    // Remove from our handlers list
+    const index = this._animationHandlers.indexOf(handler);
+    if (index !== -1) {
+      this._animationHandlers.splice(index, 1);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Cancel all animations
+   * @private
+   */
+  _cancelAllAnimations() {
+    if (!this.core || !this.core.animationManager || 
+        typeof this.core.animationManager.cancelAnimation !== 'function') {
+      return;
+    }
+    
+    // Cancel all animations
+    this._animationHandlers.forEach(handler => {
+      this.core.animationManager.cancelAnimation(handler);
+    });
+    
+    // Clear handlers list
+    this._animationHandlers = [];
+  }
+  
+  // ======== EVENT MANAGEMENT METHODS ========
+  
   /**
    * Handle parameter changes
    * @param {string} parameterId - Parameter ID
@@ -150,6 +521,15 @@ handleInteraction(type, data) {
    * @param {string} group - Parameter group
    */
   onParameterChanged(parameterId, value, group) {
+    // Implementation will be provided by subclasses
+  }
+  
+  /**
+   * Handle user interaction events
+   * @param {string} type - Type of interaction (mousedown, mousemove, mouseup, etc.)
+   * @param {Object} data - Interaction data
+   */
+  handleInteraction(type, data) {
     // Implementation will be provided by subclasses
   }
   

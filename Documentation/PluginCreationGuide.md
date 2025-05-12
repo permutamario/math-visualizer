@@ -1,22 +1,22 @@
-# Math Visualization Framework: Plugin Developer Guide
+# Math Visualization Framework: Plugin Developer Guide (Updated)
 
 ## Introduction
 
-The Math Visualization Framework is built on a component plugin architecture that emphasizes clean separation of concerns, an intuitive API, and clear responsibilities. This guide will help you create plugins that integrate seamlessly with the framework.
+The Math Visualization Framework is built on a component plugin architecture that emphasizes clean separation of concerns, an intuitive API, and clear responsibilities. This guide will help you create plugins using the enhanced Plugin base class, which provides a more scripting-like experience for developers.
 
 ## Plugin Architecture Philosophy
 
 The framework follows key principles:
 
 1. **Single Plugin Model**: Only one plugin is active at any time
-2. **Scripting-like API**: Plugins define what they need without specifying how
+2. **Scripting-like API**: Plugins define what they need through simple, declarative helper methods
 3. **Event-Driven Pattern**: Visualization updates happen in response to parameter changes
 4. **Clean Lifecycle**: Plugins have well-defined load and unload phases
-5. **Rendering Environment Handling**: The plugins have access to premade environments where they can draw. No need to setup, dispose, control or setup controllers for the environment.
+5. **Rendering Environment Handling**: Plugins have access to premade environments for drawing
 
-## Plugin Structure
+## Enhanced Plugin Structure
 
-Every plugin must extend the base `Plugin` class and include essential static properties:
+Every plugin must extend the base `Plugin` class, which includes helper methods for common operations:
 
 ```javascript
 // src/plugins/my-visualization/index.js
@@ -39,23 +39,27 @@ export default class MyVisualization extends Plugin {
   
   // Lifecycle methods to implement
   async start() {
-    // Initialize your plugin here
+    // Initialize your plugin here using the enhanced helper methods
   }
   
   async unload() {
-    // Clean up resources here
+    // Let the base class handle cleanup
+    await super.unload();
+    
+    // Add any plugin-specific cleanup
+    this.myState = null;
   }
 }
 ```
 
 ## Core Services
 
-The core provides several services to plugins:
+The core provides several services to plugins which are now wrapped in convenient helper methods:
 
-1. **Parameter Management**: Register and react to parameter changes
+1. **Parameter Management**: Add parameters with simple method calls
 2. **Rendering Environment**: Access to 2D or 3D rendering contexts
-3. **Action Registration**: Define UI actions that users can trigger
-4. **Animation Loop**: Handles timing and frame updates
+3. **Action Registration**: Define UI actions with simple method calls
+4. **Animation Loop**: Simplified animation lifecycle management
 5. **Theme Management**: Color schemes and visual settings
 
 ## Plugin Lifecycle
@@ -66,57 +70,52 @@ The `start` method is where you initialize your plugin:
 
 ```javascript
 async start() {
-  // 1. Get rendering environment - it's guaranteed to match your plugin's renderingType
-  this.renderEnv = this.core.getRenderingEnvironment();
+  // 1. Get rendering environment - automatically done in the base class
+  // this.renderEnv is already available
+
+  // 2. Register visual parameters using helper methods
+  this.addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
+  this.addSlider('frequency', 'Wave Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 });
   
-  // 2. Register visual parameters (UI controls)
-  this.core.createVisualParameters()
-    .addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 })
-    .addSlider('frequency', 'Wave Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 })
-    .register();
-  
-  // 3. Register structural parameters (if needed)
-  this.core.createStructuralParameters()
-    .addDropdown('waveType', 'Wave Type', 'sine', ['sine', 'square', 'sawtooth'])
-    .register();
+  // 3. Register structural parameters
+  this.addDropdown('waveType', 'Wave Type', 'sine', ['sine', 'square', 'sawtooth'], 'structural');
   
   // 4. Register actions
-  this.core.addAction('reset', 'Reset View', () => {
+  this.addAction('reset', 'Reset View', () => {
     // Reset the visualization
     this.reset();
     // Request a render refresh
-    this.core.requestRenderRefresh();
+    this.refresh();
   });
   
   // 5. Set up drawing objects and scene
   if (this.renderEnv.type === '2d') {
-    // 2D environment is fully initialized and ready to use
-    // No additional setup needed
+    // 2D environment setup
   } else {
-    // 3D environment is fully initialized and ready to use
+    // 3D environment setup
     this.setupScene();
   }
   
-  // 6. Initialize animation if needed
-  this.animationHandler = this.core.animationManager.requestAnimation(
-    this.animate.bind(this)
-  );
+  // 6. Initialize animation
+  this.animationHandler = this.requestAnimation(this.animate.bind(this));
 }
 ```
 
 ### Cleanup (unload)
 
-The `unload` method is where you clean up all resources:
+Most cleanup is handled by the base class, but you can add plugin-specific cleanup:
 
 ```javascript
 async unload() {
-  // Cancel any animations
-  if (this.animationHandler) {
-    this.core.animationManager.cancelAnimation(this.animationHandler);
-    this.animationHandler = null;
-  }
+  // The base class will handle:
+  // - Animation cancellation
+  // - Event handler cleanup
+  // - State reset
+  await super.unload();
   
-  // Clean up any 3D objects (if using 3D)
+  // Add any plugin-specific cleanup:
+  
+  // Clean up any 3D objects if needed
   if (this.renderEnv && this.renderEnv.type === '3d' && this.meshGroup) {
     // Remove meshes from scene
     this.renderEnv.scene.remove(this.meshGroup);
@@ -143,23 +142,40 @@ async unload() {
 
 ## Parameter Management
 
-Parameters are registered with the core, which manages their values and creates UI controls:
+The enhanced Plugin class provides direct methods for parameter management:
 
 ```javascript
-// Register parameters
-this.core.createVisualParameters()
-  .addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 })
-  .addCheckbox('showPoints', 'Show Points', true)
-  .addColor('lineColor', 'Line Color', '#3498db')
-  .addDropdown('style', 'Style', 'smooth', ['smooth', 'sharp', 'dotted'])
-  .register();
+// Add parameters with convenient helper methods
+this.addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
+this.addCheckbox('showPoints', 'Show Points', true);
+this.addColor('lineColor', 'Line Color', '#3498db');
+this.addDropdown('style', 'Style', 'smooth', ['smooth', 'sharp', 'dotted']);
+this.addNumber('iterations', 'Iterations', 10, { min: 1, max: 50, step: 1 });
+this.addText('title', 'Title', 'My Visualization');
+
+// For structural or advanced parameters, specify the group
+this.addSlider('detail', 'Detail Level', 5, { min: 1, max: 10, step: 1 }, 'structural');
+this.addCheckbox('debug', 'Show Debug Info', false, 'advanced');
+
+// Get parameter values
+const amplitude = this.getParameter('amplitude');
+const allParams = this.getAllParameters();
+
+// Set parameter values (updates UI automatically)
+this.setParameter('amplitude', 1.5);
+
+// Remove parameters if needed
+this.removeParameter('title');
+
+// Empty all parameters
+this.emptyParameters(); // Or specify a group: this.emptyParameters('visual');
 ```
 
-React to parameter changes in the `onParameterChanged` method:
+React to parameter changes:
 
 ```javascript
 onParameterChanged(parameterId, value, group) {
-  // Update local state
+  // Update local state based on parameter changes
   if (parameterId === 'amplitude') {
     this.amplitude = value;
   } else if (parameterId === 'frequency') {
@@ -170,27 +186,17 @@ onParameterChanged(parameterId, value, group) {
   
   // For 3D, update mesh properties if needed
   if (this.renderEnv.type === '3d' && this.meshGroup) {
-    // Update mesh based on parameter changes
-    this.updateMeshes(this.core.getAllParameters());
+    // No need to call refresh() - parameter changes trigger rendering automatically
+    this.updateMeshes();
   }
-  
-  // Request a render refresh to show changes
-  this.core.requestRenderRefresh();
 }
-```
-
-To programmatically change parameters (which will update the UI):
-
-```javascript
-// Change a parameter value
-this.core.changeParameter('amplitude', 1.5);
 ```
 
 ## Rendering Implementation
 
 ### 2D Rendering
 
-For 2D plugins, you can immediately use the rendering context:
+For 2D plugins, the rendering approach is similar:
 
 ```javascript
 animate(deltaTime) {
@@ -199,7 +205,7 @@ animate(deltaTime) {
   
   // The environment is guaranteed to be 2D if renderingType is '2d'
   const ctx = this.renderEnv.context;
-  const parameters = this.core.getAllParameters();
+  const parameters = this.getAllParameters();
   
   // Draw your visualization
   this.drawWave(ctx, parameters);
@@ -249,7 +255,7 @@ setupScene() {
   // The environment is guaranteed to be 3D if renderingType is '3d'
   
   // Get all parameters
-  const parameters = this.core.getAllParameters();
+  const parameters = this.getAllParameters();
   const { amplitude, frequency, color } = parameters;
   
   // Create a group for all meshes
@@ -280,7 +286,8 @@ setupScene() {
 }
 
 // Update meshes based on parameters
-updateMeshes(parameters) {
+updateMeshes() {
+  const parameters = this.getAllParameters();
   const { amplitude, frequency, color } = parameters;
   
   // Update the wave mesh
@@ -307,25 +314,21 @@ updateMeshes(parameters) {
     }
   }
 }
-
-animate(deltaTime) {
-  // Update animation state
-  this.phase += deltaTime * this.frequency;
-  
-  // Update 3D objects if needed
-  if (this.meshGroup) {
-    this.updateMeshes(this.core.getAllParameters());
-  }
-  
-  return true; // Continue animation
-}
 ```
 
 ## Animation
 
-Implement the `animate` method to update your visualization over time:
+The enhanced Plugin class provides helper methods for animation:
 
 ```javascript
+async start() {
+  // Request animation with helper method
+  this.animationHandler = this.requestAnimation(this.animate.bind(this));
+  
+  // You can have multiple animations if needed
+  this.secondaryAnimation = this.requestAnimation(this.animateSecondary.bind(this));
+}
+
 animate(deltaTime) {
   // Update animation state
   this.phase += deltaTime * this.frequency;
@@ -333,23 +336,28 @@ animate(deltaTime) {
   // For 2D, draw directly
   if (this.renderEnv.type === '2d') {
     const ctx = this.renderEnv.context;
-    const parameters = this.core.getAllParameters();
+    const parameters = this.getAllParameters();
     this.drawWave(ctx, parameters);
   }
   
   // For 3D, update meshes
   if (this.renderEnv.type === '3d' && this.meshGroup) {
-    this.updateMeshes(this.core.getAllParameters());
-  }
-  
-  // Request a render refresh if the environment doesn't continuously render
-  if (!this.renderEnv.requiresContinuousRendering) {
-    this.core.requestRenderRefresh();
+    this.updateMeshes();
   }
   
   return true; // Continue animation
 }
+
+// You can cancel animations manually if needed
+cancelMyAnimation() {
+  if (this.secondaryAnimation) {
+    this.cancelAnimation(this.secondaryAnimation);
+    this.secondaryAnimation = null;
+  }
+}
 ```
+
+The base `unload()` method will automatically cancel all animations, so you don't need to worry about cleanup.
 
 ## User Interaction
 
@@ -361,88 +369,119 @@ handleInteraction(type, data) {
     case 'click':
       const { x, y } = data;
       // Handle click at coordinates (x, y)
+      console.log(`Clicked at (${x}, ${y})`);
       break;
       
     case 'mousedown':
       // Handle mouse down
+      this.isDragging = true;
+      this.lastMousePos = { x: data.x, y: data.y };
       break;
       
     case 'mousemove':
       // Handle mouse move
+      if (this.isDragging) {
+        const dx = data.x - this.lastMousePos.x;
+        const dy = data.y - this.lastMousePos.y;
+        // Use dx/dy for interaction
+        this.lastMousePos = { x: data.x, y: data.y };
+        
+        // Request a refresh to show changes
+        this.refresh();
+      }
+      break;
+      
+    case 'mouseup':
+      // Handle mouse up
+      this.isDragging = false;
       break;
       
     case 'wheel':
       // Handle mouse wheel
       const { deltaY } = data;
       // Zoom in/out based on deltaY
+      this.zoom *= (1 - deltaY * 0.001);
+      
+      // Request a refresh to show changes
+      this.refresh();
       break;
       
     case 'touchstart':
     case 'touchmove':
     case 'touchend':
+    case 'tap':
       // Handle touch events
       break;
+      
+    case 'keydown':
+    case 'keyup':
+      // Handle keyboard events
+      const { key } = data;
+      if (key === 'r') {
+        // Reset view when 'r' is pressed
+        this.reset();
+        this.refresh();
+      }
+      break;
   }
-  
-  // Request a render refresh if needed
-  this.core.requestRenderRefresh();
 }
 ```
 
 ## Key Concepts to Remember
 
-1. **Static Metadata Determines Environment**: Your plugin's `renderingType` determines which rendering environment will be prepared for you
+1. **Simplified Parameter Management**: Use helper methods to add parameters
    ```javascript
-   static renderingType = '2d'; // or '3d'
+   this.addSlider('amplitude', 'Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
    ```
 
-2. **Environment is Ready to Use**: When you access the environment, it's fully initialized and matches your plugin's requirements
+2. **Easy Access to Parameters**: Get and set parameters directly
    ```javascript
-   this.renderEnv = this.core.getRenderingEnvironment();
+   const amplitude = this.getParameter('amplitude');
+   this.setParameter('amplitude', 1.5);
    ```
 
-3. **Direct Drawing/Rendering**: Access the environment APIs directly
+3. **Simple Animation Setup**: Request animations with a single method call
    ```javascript
-   // 2D - access the context directly
-   const ctx = this.renderEnv.context;
-   
-   // 3D - add meshes directly to the scene
-   this.renderEnv.scene.add(this.meshGroup);
+   this.animationHandler = this.requestAnimation(this.animate.bind(this));
    ```
 
-4. **Request Refreshes**: Call `requestRenderRefresh()` after changing state
+4. **Easier Rendering Refreshes**: Request refreshes directly
    ```javascript
-   this.myState.updated = true;
-   this.core.requestRenderRefresh();
+   this.refresh();
    ```
 
-5. **Parameters Source of Truth**: The core manages parameter values
+5. **Action Registration**: Add actions with a simple method call
    ```javascript
-   // Change parameter (updates UI and triggers onParameterChanged)
-   this.core.changeParameter('amplitude', 1.5);
+   this.addAction('reset', 'Reset View', this.reset.bind(this));
    ```
 
-6. **Clean Lifecycle**: Initialize in `start()`, clean up in `unload()`
+6. **Automatic Resource Cleanup**: Base class handles most cleanup
+   ```javascript
+   async unload() {
+     await super.unload(); // Handles animation, event, and parameter cleanup
+     // Add plugin-specific cleanup
+   }
+   ```
 
 ## Best Practices
 
 1. **Trust the environment type**: The framework guarantees the environment matches your plugin's `renderingType`
 
-2. **Don't manually initialize environments**: The framework handles all initialization
+2. **Use the helper methods**: Take advantage of the Plugin class's helper methods
 
-3. **Use the environment API directly**: No need for defensive programming or type checking
+3. **Respond to parameter changes**: Implement `onParameterChanged` to react to user input
 
-4. **Keep state in the plugin**: Don't modify global objects or DOM directly. Only exception is changing parameters which should be done through changeParameter.
+4. **Keep state in the plugin**: Don't modify global objects or DOM directly
 
-5. **Respond to parameter changes**: Don't poll for changes
+5. **Clean up plugin-specific resources**: Call `super.unload()` and add any additional cleanup
 
-6. **Clean up ALL resources**: Especially for 3D objects and event listeners
+6. **Use descriptive parameter names**: Parameters are your plugin's API
 
-7. **Use descriptive parameter names**: Parameters are your plugin's API
+7. **Group parameters logically**: Use the group parameter to organize parameters into visual, structural, and advanced groups
 
 ## Example: Simple Wave Visualization (2D)
 
-Here's a simple example of a 2D wave visualization plugin:
+Here's a simple example of a 2D wave visualization plugin using the enhanced Plugin class:
 
 ```javascript
 import { Plugin } from '../../core/Plugin.js';
@@ -456,39 +495,32 @@ export default class WaveVisualization extends Plugin {
   constructor(core) {
     super(core);
     this.phase = 0;
-    this.amplitude = 1.0;
-    this.frequency = 1.0;
   }
   
   async start() {
-    // Get rendering environment - guaranteed to be 2D
-    this.renderEnv = this.core.getRenderingEnvironment();
+    // Add parameters using helper methods
+    this.addSlider('amplitude', 'Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
+    this.addSlider('frequency', 'Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 });
+    this.addColor('waveColor', 'Wave Color', '#3498db');
     
-    // Register parameters
-    this.core.createVisualParameters()
-      .addSlider('amplitude', 'Amplitude', 1.0, { min: 0, max: 2, step: 0.1 })
-      .addSlider('frequency', 'Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 })
-      .addColor('waveColor', 'Wave Color', '#3498db')
-      .register();
+    // Add an action
+    this.addAction('reset', 'Reset Wave', () => {
+      this.phase = 0;
+      this.refresh();
+    });
     
     // Start animation
-    this.animationHandler = this.core.animationManager.requestAnimation(
-      this.animate.bind(this)
-    );
+    this.requestAnimation(this.animate.bind(this));
   }
   
   animate(deltaTime) {
     // Update phase based on frequency
-    const params = this.core.getAllParameters();
+    const params = this.getAllParameters();
     this.phase += deltaTime * params.frequency;
     
     // Draw directly when animating
     const ctx = this.renderEnv.context;
     this.drawWave(ctx, params);
-    
-    // Request a render refresh (may not be needed if environment 
-    // continuously renders)
-    this.core.requestRenderRefresh();
     
     return true; // Continue animation
   }
@@ -523,30 +555,17 @@ export default class WaveVisualization extends Plugin {
   }
   
   onParameterChanged(parameterId, value, group) {
-    // Update local state
-    if (parameterId === 'amplitude') {
-      this.amplitude = value;
-    } else if (parameterId === 'frequency') {
-      this.frequency = value;
-    }
-    
-    // Request a render refresh
-    this.core.requestRenderRefresh();
+    // Animation will pick up parameter changes automatically
+    // No need to do anything here
   }
   
-  async unload() {
-    // Cancel animation
-    if (this.animationHandler) {
-      this.core.animationManager.cancelAnimation(this.animationHandler);
-      this.animationHandler = null;
-    }
-  }
+  // Base class handles unload automatically including animation cancellation
 }
 ```
 
 ## Example: 3D Visualization
 
-For 3D visualizations, you can directly add meshes to the scene:
+For 3D visualizations, you can use the same enhanced helper methods:
 
 ```javascript
 import { Plugin } from '../../core/Plugin.js';
@@ -564,23 +583,22 @@ export default class Sphere3D extends Plugin {
   }
   
   async start() {
-    // Get rendering environment - guaranteed to be 3D
-    this.renderEnv = this.core.getRenderingEnvironment();
+    // Add parameters using helper methods
+    this.addSlider('amplitude', 'Wave Amplitude', 0.3, { min: 0, max: 1, step: 0.05 });
+    this.addSlider('speed', 'Animation Speed', 1.0, { min: 0, max: 3, step: 0.1 });
+    this.addColor('sphereColor', 'Sphere Color', '#3498db');
     
-    // Register parameters
-    this.core.createVisualParameters()
-      .addSlider('amplitude', 'Wave Amplitude', 0.3, { min: 0, max: 1, step: 0.05 })
-      .addSlider('speed', 'Animation Speed', 1.0, { min: 0, max: 3, step: 0.1 })
-      .addColor('sphereColor', 'Sphere Color', '#3498db')
-      .register();
+    // Add an action
+    this.addAction('reset', 'Reset Sphere', () => {
+      this.phase = 0;
+      this.refresh();
+    });
     
     // Set up 3D scene
     this.setupScene();
     
     // Start animation
-    this.animationHandler = this.core.animationManager.requestAnimation(
-      this.animate.bind(this)
-    );
+    this.requestAnimation(this.animate.bind(this));
   }
   
   setupScene() {
@@ -588,7 +606,7 @@ export default class Sphere3D extends Plugin {
     this.meshGroup = new THREE.Group();
     
     // Get parameters
-    const params = this.core.getAllParameters();
+    const params = this.getAllParameters();
     
     // Create a sphere geometry
     const geometry = new THREE.SphereGeometry(1, 32, 32);
@@ -606,7 +624,7 @@ export default class Sphere3D extends Plugin {
   }
   
   animate(deltaTime) {
-    const params = this.core.getAllParameters();
+    const params = this.getAllParameters();
     this.phase += deltaTime * params.speed;
     
     // Update sphere vertices
@@ -639,7 +657,7 @@ export default class Sphere3D extends Plugin {
       this.sphere.geometry.computeVertexNormals();
     }
     
-    // No need to call requestRenderRefresh() for 3D environments
+    // No need to call refresh() for 3D environments
     // as they typically render continuously
     
     return true; // Continue animation
@@ -656,11 +674,8 @@ export default class Sphere3D extends Plugin {
   }
   
   async unload() {
-    // Cancel animation
-    if (this.animationHandler) {
-      this.core.animationManager.cancelAnimation(this.animationHandler);
-      this.animationHandler = null;
-    }
+    // Let base class handle animation cancellation
+    await super.unload();
     
     // Clean up 3D resources
     if (this.meshGroup) {
