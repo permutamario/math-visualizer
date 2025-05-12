@@ -1,5 +1,6 @@
 // src/plugins/asep-plugin/OpenASEPVisualization.js
 import { BaseASEPVisualization } from './BaseASEPVisualization.js';
+import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Open boundary ASEP model - particles can enter/exit at the boundaries
@@ -8,10 +9,30 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   constructor(plugin) {
     super(plugin);
     
-    // Add portal state properties
-    this.state.leftPortal = null;
-    this.state.rightPortal = null;
+    // Track particle count
     this.state.particleCount = 0;
+    
+    // Flag to track time since last entry attempt
+    this.state.timeSinceEntryAttempt = 0;
+  }
+  
+  /**
+   * Get parameters specific to this visualization
+   * @returns {Array} Array of parameter definitions
+   * @static
+   */
+  static getParameters() {
+    return createParameters()
+      .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
+      .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('entryRate', 'Entry Rate', 0.5, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('exitRate', 'Exit Rate', 0.5, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
+      .addCheckbox('isPaused', 'Pause Simulation', false)
+      .addCheckbox('showLabels', 'Show Labels', false)
+      .build();
   }
   
   /**
@@ -19,14 +40,11 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Parameter values
    */
   async initialize(parameters) {
-    // Clear any existing state
-    this.clearSimulation();
+    // Call base initialize to clear any existing state and setup animation
+    await super.initialize(parameters);
     
     // Create boxes
     this.createBoxes(parameters);
-    
-    // Create portals
-    this.createPortals(parameters);
     
     // Create initial particles with random positions
     this.createParticles(parameters);
@@ -36,14 +54,6 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Schedule initial jumps for each particle
     this.scheduleInitialJumps();
-    
-    // Set animation flag
-    this.state.isAnimating = true;
-    this.isAnimating = true;  // Direct property for RenderingManager
-    this.state.isPaused = parameters.isPaused || false;
-    
-    // Set timeScale from parameters
-    this.state.timeScale = parameters.animationSpeed || 1.0;
     
     return true;
   }
@@ -62,44 +72,18 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Create boxes
     for (let i = 0; i < numBoxes; i++) {
+      // Mark first and last boxes as special for open system
+      const isEdge = (i === 0 || i === numBoxes - 1);
+      
       this.state.boxes.push({
         index: i,
         x: startX + (i * boxSize) + boxSize / 2, // center x position
         y: 0,  // center y position
-        size: boxSize
+        size: boxSize,
+        isLeftEdge: i === 0,
+        isRightEdge: i === numBoxes - 1
       });
     }
-  }
-  
-  /**
-   * Create entrance/exit portals
-   * @param {Object} parameters - Visualization parameters
-   */
-  createPortals(parameters) {
-    const boxSize = this.state.boxSize;
-    const firstBox = this.state.boxes[0];
-    const lastBox = this.state.boxes[this.state.boxes.length - 1];
-    
-    // Get portal color from palette
-    const portalColor = this.getColorFromPalette(parameters, this.state.colorIndices.portal);
-
-    // Create left portal (entry)
-    this.state.leftPortal = {
-      x: firstBox.x - boxSize,
-      y: firstBox.y,
-      size: boxSize * 0.8,
-      color: portalColor,
-      entryRate: parameters.entryRate || 0.5
-    };
-    
-    // Create right portal (exit)
-    this.state.rightPortal = {
-      x: lastBox.x + boxSize,
-      y: lastBox.y,
-      size: boxSize * 0.8,
-      color: portalColor,
-      exitRate: parameters.exitRate || 0.5
-    };
   }
   
   /**
@@ -109,9 +93,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   scheduleNextJump(particle) {
     if (this.state.isPaused) return;
     
-    const rightRate = this.plugin.parameters.rightJumpRate;
-    const leftRate = this.plugin.parameters.leftJumpRate;
-    const exitRate = this.plugin.parameters.exitRate || 0.5;
+    // Get jump rates from parameters
+    const rightRate = this.getParameterValue('rightJumpRate', 0.8);
+    const leftRate = this.getParameterValue('leftJumpRate', 0.2);
+    const exitRate = this.getParameterValue('exitRate', 0.5);
     
     // Determine total rate and waiting time
     let totalRate = rightRate + leftRate;
@@ -132,16 +117,19 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         const rand = Math.random() * totalRate;
         
         if (particle.position === this.state.boxes.length - 1 && rand > rightRate + leftRate) {
-          // Exit right through portal
+          // Exit right through rightmost box
           particle.isJumping = true;
           particle.jumpProgress = 0;
           particle.startPosition = particle.position;
-          particle.targetPosition = this.state.boxes.length; // Special value for portal
+          particle.targetPosition = -1; // Special value for right exit
           particle.originalColor = particle.color;
           particle.jumpState = 'exiting'; // Exiting the system
           
           // Decrease particle count
           this.state.particleCount--;
+          
+          // Update particle count in parameters
+          this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
           
           // Remove event from tracking array
           this.state.jumpEvents = this.state.jumpEvents.filter(
@@ -188,29 +176,44 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Try to generate a new particle from the left portal
+   * Try to generate a new particle from the left boundary
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   tryGenerateParticle(deltaTime) {
     if (this.state.isPaused) return;
     
-    const entryRate = this.plugin.parameters.entryRate || 0.5;
+    // Accumulate time since last attempt
+    this.state.timeSinceEntryAttempt += deltaTime;
+    
+    // Get entry rate from parameters
+    const entryRate = this.getParameterValue('entryRate', 0.5);
     
     // Calculate probability for this frame
-    const probability = entryRate * 0.01 * deltaTime;
+    // Using time accumulation to handle very small deltaTime values properly
+    const probability = entryRate * this.state.timeSinceEntryAttempt * 0.1;
     
     // Check if first position is empty
     if (Math.random() < probability && !this.isPositionOccupied(0)) {
       this.generateNewParticleFromLeft();
+      // Reset time since last attempt after success
+      this.state.timeSinceEntryAttempt = 0;
+    }
+    
+    // Cap the time accumulation to prevent huge probability spikes
+    if (this.state.timeSinceEntryAttempt > 5.0) {
+      this.state.timeSinceEntryAttempt = 5.0;
     }
   }
   
   /**
-   * Generate a new particle from the left portal
+   * Generate a new particle from the left boundary
    */
   generateNewParticleFromLeft() {
     // Get particle color from palette
-    const particleColor = this.getColorFromPalette(this.plugin.parameters, this.state.colorIndices.particle);
+    const particleColor = this.getColorFromPalette(
+      { colorPalette: this.getParameterValue('colorPalette') }, 
+      this.state.colorIndices.particle
+    );
 
     // Find the highest ID to create a new unique ID
     const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
@@ -219,15 +222,15 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     const newParticle = {
       id: maxId + 1,
       position: 0,
-      isJumping: true,
+      isJumping: false,
       jumpProgress: 0,
-      startPosition: -1,
+      startPosition: 0,
       targetPosition: 0,
       color: particleColor,
       originalColor: particleColor,
       radius: this.state.particleRadius,
       jumpSpeed: 2.0,
-      jumpState: 'entering',
+      jumpState: 'none',
       insideProgress: 0
     };
     
@@ -236,30 +239,24 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Increase particle count
     this.state.particleCount++;
+    
+    // Update particle count in parameters
+    this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
+    
+    // Schedule a jump for the new particle
+    if (!this.state.isPaused) {
+      this.scheduleNextJump(newParticle);
+    }
   }
   
   /**
    * Custom animate function for open model
-   * Handles particle generation from the left portal
+   * Handles particle generation from the left boundary
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   customAnimate(deltaTime) {
-    // Try to generate a new particle from left portal
+    // Try to generate a new particle from left boundary
     this.tryGenerateParticle(deltaTime);
-    
-    // Update count display/slider if needed
-    if (this.plugin && this.plugin.parameters && 
-        this.plugin.parameters.numParticles !== this.state.particleCount) {
-      // Dynamic update of particle count for UI
-      this.plugin.parameters.numParticles = this.state.particleCount;
-      
-      // Update UI if core exists
-      if (this.plugin.core && this.plugin.core.uiManager) {
-        this.plugin.core.uiManager.updateControls({
-          numParticles: this.state.particleCount
-        });
-      }
-    }
   }
   
   /**
@@ -268,8 +265,8 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * @param {Array} particlesToRemove - Array to add particles to remove to
    */
   completeJump(particle, particlesToRemove) {
-    // Check if particle is exiting the system
-    if (particle.targetPosition === this.state.boxes.length) {
+    // Check if particle is exiting the system to the right
+    if (particle.targetPosition === -1) {
       // Mark for removal
       particlesToRemove.push(particle);
     } else {
@@ -289,37 +286,12 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Handle parameter updates specific to open model
-   * @param {Object} parameters - New parameter values
-   */
-  handleParameterUpdate(parameters) {
-    // Update portal rates if provided
-    if (parameters.entryRate !== undefined && this.state.leftPortal) {
-      this.state.leftPortal.entryRate = parameters.entryRate;
-    }
-    
-    if (parameters.exitRate !== undefined && this.state.rightPortal) {
-      this.state.rightPortal.exitRate = parameters.exitRate;
-    }
-    
-    // Update portal colors if color palette changed
-    if (parameters.colorPalette !== undefined) {
-      const portalColor = this.getColorFromPalette(parameters, this.state.colorIndices.portal);
-      if (this.state.leftPortal) this.state.leftPortal.color = portalColor;
-      if (this.state.rightPortal) this.state.rightPortal.color = portalColor;
-    }
-  }
-  
-  /**
    * Render the visualization
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {Object} parameters - Visualization parameters
    */
   render2D(ctx, parameters) {
-    // Draw portals first
-    this.drawPortals(ctx, parameters);
-    
-    // Draw boxes using base method with portal connections
+    // Draw the lattice and connections to boundaries
     this.drawOpenBoxes(ctx, parameters);
     
     // Draw particles
@@ -327,90 +299,14 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Draw the entrance/exit portals
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} parameters - Visualization parameters
-   */
-  drawPortals(ctx, parameters) {
-    if (this.state.leftPortal && this.state.rightPortal) {
-      // Draw left portal
-      ctx.beginPath();
-      ctx.arc(this.state.leftPortal.x, this.state.leftPortal.y, this.state.leftPortal.size/2, 0, Math.PI * 2);
-      ctx.fillStyle = this.state.leftPortal.color;
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      // Draw swirl in left portal
-      this.drawPortalSwirl(ctx, this.state.leftPortal, Date.now() / 1000);
-      
-      // Draw right portal
-      ctx.beginPath();
-      ctx.arc(this.state.rightPortal.x, this.state.rightPortal.y, this.state.rightPortal.size/2, 0, Math.PI * 2);
-      ctx.fillStyle = this.state.rightPortal.color;
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      // Draw swirl in right portal
-      this.drawPortalSwirl(ctx, this.state.rightPortal, Date.now() / 1000 + Math.PI);
-    }
-  }
-
-  /**
-   * Draw a swirl pattern in the portal
-   * @param {CanvasRenderingContext2D} ctx - Canvas context
-   * @param {Object} portal - Portal object
-   * @param {number} time - Current time for animation
-   */
-  drawPortalSwirl(ctx, portal, time) {
-    ctx.save();
-    
-    // Clip to portal circle
-    ctx.beginPath();
-    ctx.arc(portal.x, portal.y, portal.size/2 - 2, 0, Math.PI * 2);
-    ctx.clip();
-    
-    // Draw spiral
-    const spiralArms = 3;
-    const rotationSpeed = 1;
-    
-    ctx.beginPath();
-    for (let i = 0; i < spiralArms; i++) {
-      const angle = (i / spiralArms) * Math.PI * 2;
-      const rotation = time * rotationSpeed;
-      
-      for (let r = 0; r < portal.size/2; r += 1) {
-        const theta = angle + rotation + (r / portal.size) * Math.PI * 4;
-        const x = portal.x + r * Math.cos(theta);
-        const y = portal.y + r * Math.sin(theta);
-        
-        if (r === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-    }
-    
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-  
-  /**
-   * Draw the boxes/lattice with connections to portals
+   * Draw the boxes/lattice with half-open boxes at the boundaries
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {Object} parameters - Visualization parameters
    */
   drawOpenBoxes(ctx, parameters) {
     const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
     const boxSize = this.state.boxSize;
-    const showLabels = parameters.showLabels === true;
+    const showLabels = this.getParameterValue('showLabels', false);
     
     ctx.save();
     ctx.strokeStyle = boxColor;
@@ -418,14 +314,61 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Draw each box
     this.state.boxes.forEach((box, index) => {
-      // Draw a box
+      // Calculate box position
       const x1 = box.x - boxSize / 2;
       const y1 = box.y - boxSize / 2;
       
-      // Draw the box
-      ctx.beginPath();
-      ctx.rect(x1, y1, boxSize, boxSize);
-      ctx.stroke();
+      if (box.isLeftEdge) {
+        // Draw left edge box (only right, top, bottom sides)
+        ctx.beginPath();
+        // Top edge
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 + boxSize, y1);
+        // Right edge
+        ctx.lineTo(x1 + boxSize, y1 + boxSize);
+        // Bottom edge
+        ctx.lineTo(x1, y1 + boxSize);
+        ctx.stroke();
+        
+        // Add an arrow indicating entry
+        const arrowSize = 10;
+        ctx.beginPath();
+        ctx.moveTo(x1 - 20, y1 + boxSize/2);
+        ctx.lineTo(x1 - 5, y1 + boxSize/2);
+        ctx.moveTo(x1 - 10, y1 + boxSize/2 - arrowSize/2);
+        ctx.lineTo(x1 - 5, y1 + boxSize/2);
+        ctx.lineTo(x1 - 10, y1 + boxSize/2 + arrowSize/2);
+        ctx.stroke();
+        
+      } else if (box.isRightEdge) {
+        // Draw right edge box (only left, top, bottom sides)
+        ctx.beginPath();
+        // Top edge
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 + boxSize, y1);
+        // Left edge
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1, y1 + boxSize);
+        // Bottom edge
+        ctx.lineTo(x1 + boxSize, y1 + boxSize);
+        ctx.stroke();
+        
+        // Add an arrow indicating exit
+        const arrowSize = 10;
+        ctx.beginPath();
+        ctx.moveTo(x1 + boxSize + 5, y1 + boxSize/2);
+        ctx.lineTo(x1 + boxSize + 20, y1 + boxSize/2);
+        ctx.moveTo(x1 + boxSize + 15, y1 + boxSize/2 - arrowSize/2);
+        ctx.lineTo(x1 + boxSize + 20, y1 + boxSize/2);
+        ctx.lineTo(x1 + boxSize + 15, y1 + boxSize/2 + arrowSize/2);
+        ctx.stroke();
+        
+      } else {
+        // Draw normal box
+        ctx.beginPath();
+        ctx.rect(x1, y1, boxSize, boxSize);
+        ctx.stroke();
+      }
       
       // Add site index below box only if showLabels is true
       if (showLabels) {
@@ -435,26 +378,6 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         ctx.fillText(box.index.toString(), box.x, box.y + boxSize/2 + 20);
       }
     });
-    
-    // Draw connection to portals
-    const firstBox = this.state.boxes[0];
-    const lastBox = this.state.boxes[this.state.boxes.length - 1];
-    
-    // Left connection (dashed)
-    ctx.beginPath();
-    ctx.setLineDash([5, 3]);
-    ctx.moveTo(this.state.leftPortal.x + this.state.leftPortal.size/2, this.state.leftPortal.y);
-    ctx.lineTo(firstBox.x - boxSize/2, firstBox.y);
-    ctx.stroke();
-    
-    // Right connection (dashed)
-    ctx.beginPath();
-    ctx.moveTo(lastBox.x + boxSize/2, lastBox.y);
-    ctx.lineTo(this.state.rightPortal.x - this.state.rightPortal.size/2, this.state.rightPortal.y);
-    ctx.stroke();
-    
-    // Reset dash
-    ctx.setLineDash([]);
     
     ctx.restore();
   }
@@ -476,69 +399,29 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
       if (particle.isJumping) {
         const t = particle.jumpProgress;
         
-        // Handle particles entering or exiting through portals
-        if (particle.startPosition === -1) {
-          // Entering from left portal
-          const portalX = this.state.leftPortal.x;
-          const portalY = this.state.leftPortal.y;
-          const targetBox = this.state.boxes[particle.targetPosition];
-          
-          if (particle.jumpState === 'entering') {
-            // Moving from portal to box edge
-            const progress = t * 2; // Scale to [0,1] for the first half
-            const x = portalX + (targetBox.x - boxSize/2 - portalX) * progress;
-            const y = portalY;
-            const scale = 1.0;
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-            this.drawParticle(ctx, particle, x, y, scale);
-          } else if (particle.jumpState === 'inside') {
-            // Inside the box
-            const x = targetBox.x;
-            const y = targetBox.y;
-            const scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink a bit when inside
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
-            this.drawParticle(ctx, particle, x, y, scale);
-          } else {
-            // Exiting the box
-            const x = targetBox.x;
-            const y = targetBox.y;
-            const scale = 1.0;
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-            this.drawParticle(ctx, particle, x, y, scale);
-          }
-        } else if (particle.targetPosition === this.state.boxes.length) {
-          // Exiting to right portal
+        // Handle exiting through the right boundary
+        if (particle.targetPosition === -1) {
+          // Exiting to right boundary
           const startBox = this.state.boxes[particle.startPosition];
-          const portalX = this.state.rightPortal.x;
-          const portalY = this.state.rightPortal.y;
           
-          if (particle.jumpState === 'entering') {
-            // Entering the box
+          if (particle.jumpState === 'entering' || particle.jumpState === 'inside') {
+            // Initial phase of exit - still in the box
             const x = startBox.x;
             const y = startBox.y;
-            const scale = 1.0 - 0.3 * Math.sin(Math.PI * 0.5); // Shrink at start
+            const scale = 1.0 - 0.3 * particle.insideProgress; // Shrinking
             
             ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
-            this.drawParticle(ctx, particle, x, y, scale);
-          } else if (particle.jumpState === 'inside') {
-            // Inside the box
-            const x = startBox.x;
-            const y = startBox.y;
-            const scale = 1.0 - 0.3 * Math.sin(Math.PI * particle.insideProgress); // Shrink inside
-            
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
             this.drawParticle(ctx, particle, x, y, scale);
           } else {
-            // Moving from box edge to portal
+            // Moving from box to right boundary
             const progress = (t - 0.5) * 2; // Scale to [0,1] for the second half
-            const x = (startBox.x + boxSize/2) + (portalX - (startBox.x + boxSize/2)) * progress;
-            const y = portalY;
-            const scale = 1.0;
+            const rightEdge = startBox.x + boxSize/2;
+            const xOffset = boxSize/2 + 30; // How far to move beyond the edge
+            const x = rightEdge + progress * xOffset;
+            const y = startBox.y;
+            const scale = 1.0 - 0.5 * progress; // Gradually disappear
             
-            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.3);
+            ctx.fillStyle = this.lerpColor(particle.originalColor, jumpColor, 0.7);
             this.drawParticle(ctx, particle, x, y, scale);
           }
         } else {
@@ -615,10 +498,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             // Remove particle
             this.state.particles.splice(particleIndex, 1);
             this.state.particleCount--;
+            
+            // Update particle count in parameters
+            this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             // Get particle color from palette
-            const particleColor = this.getColorFromPalette(this.plugin.parameters, this.state.colorIndices.particle);
+            const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
             this.state.particles.push({
@@ -638,6 +524,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
             
             this.state.particleCount++;
             
+            // Update particle count in parameters
+            this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
+            
             // Schedule a jump if not paused
             if (!this.state.isPaused) {
               this.scheduleNextJump(this.state.particles[this.state.particles.length - 1]);
@@ -648,15 +537,16 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         }
       }
       
-      // Check if clicking on left portal to manually add a particle
-      const leftPortal = this.state.leftPortal;
-      if (leftPortal) {
-        const dx = event.x - leftPortal.x;
-        const dy = event.y - leftPortal.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance <= leftPortal.size / 2) {
-          // Clicked on left portal - try to generate a particle
+      // Check if clicking outside the leftmost box to trigger an entry attempt
+      const leftBox = this.state.boxes[0];
+      if (leftBox) {
+        const leftEdge = leftBox.x - boxSize/2;
+        // Check if click is in the entry area (left of the first box)
+        if (event.x < leftEdge && 
+            Math.abs(event.y - leftBox.y) < boxSize/2 && 
+            event.x > leftEdge - 30) {
+          
+          // Try to generate a particle if first site is empty
           if (!this.isPositionOccupied(0)) {
             this.generateNewParticleFromLeft();
             return true;

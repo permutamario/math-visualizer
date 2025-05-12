@@ -183,6 +183,9 @@ export class BaseASEPVisualization extends Visualization {
         this.state.jumpEvents = [];
       }
     }
+    
+    // Update the isPaused parameter in the plugin
+    this.plugin.updateParameter('isPaused', this.state.isPaused, 'visualization');
   }
   
   /**
@@ -280,12 +283,15 @@ export class BaseASEPVisualization extends Visualization {
    * @param {number} deltaTime - Time elapsed since last frame in seconds
    */
   animate(deltaTime) {
-    if (!this.plugin || !this.plugin.visualizationParameters) {
+    if (!this.plugin) {
       return true; // Keep rendering to avoid freezing
     }
     
-    // Update speed from parameters
-    this.state.timeScale = this.plugin.visualizationParameters.animationSpeed || 1.0;
+    // Get animation speed from plugin parameters
+    const animationSpeed = this.getParameterValue('animationSpeed', 1.0);
+    
+    // Update speed
+    this.state.timeScale = animationSpeed;
     
     // Always request continuous rendering by setting direct property
     this.isAnimating = true;
@@ -378,7 +384,7 @@ export class BaseASEPVisualization extends Visualization {
     ctx.fill();
     
     // Draw particle ID only if showLabels is true
-    if (this.plugin && this.plugin.visualizationParameters && this.plugin.visualizationParameters.showLabels) {
+    if (this.getParameterValue('showLabels', false)) {
       ctx.fillStyle = '#fff';
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
@@ -398,7 +404,7 @@ export class BaseASEPVisualization extends Visualization {
     // Get box color from palette
     const boxColor = this.getColorFromPalette(parameters, this.state.colorIndices.box);
     const boxSize = this.state.boxSize;
-    const showLabels = parameters.showLabels === true;
+    const showLabels = this.getParameterValue('showLabels', false);
     
     ctx.save();
     ctx.strokeStyle = boxColor;

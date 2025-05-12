@@ -12,8 +12,15 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    * @static
    */
   static getParameters() {
-    // This visualization doesn't have any additional parameters beyond the base ones
-    return createParameters().build();
+    return createParameters()
+      .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
+      .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
+      .addCheckbox('isPaused', 'Pause Simulation', false)
+      .addCheckbox('showLabels', 'Show Labels', false)
+      .build();
   }
   
   /**
@@ -21,8 +28,8 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Parameter values
    */
   async initialize(parameters) {
-    // Clear any existing state
-    this.clearSimulation();
+    // Call base initialize to clear any existing state and setup animation
+    await super.initialize(parameters);
     
     // Create boxes
     this.createBoxes(parameters);
@@ -33,14 +40,6 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
     // Schedule initial jumps for each particle
     this.scheduleInitialJumps();
     
-    // Set animation flag
-    this.state.isAnimating = true;
-    this.isAnimating = true;  // Direct property for RenderingManager
-    this.state.isPaused = parameters.isPaused || false;
-    
-    // Set timeScale from parameters
-    this.state.timeScale = parameters.animationSpeed || 1.0;
-    
     return true;
   }
   
@@ -49,7 +48,7 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Visualization parameters
    */
   createBoxes(parameters) {
-    const numBoxes = parameters.numBoxes;
+    const numBoxes = parameters.numBoxes || 10;
     const boxSize = this.state.boxSize;
     
     // Calculate total width to center the boxes
@@ -74,8 +73,9 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
   scheduleNextJump(particle) {
     if (this.state.isPaused) return;
     
-    const rightRate = this.plugin.pluginParameters.rightJumpRate;
-    const leftRate = this.plugin.pluginParameters.leftJumpRate;
+    // Get jump rates from parameters
+    const rightRate = this.getParameterValue('rightJumpRate', 0.8);
+    const leftRate = this.getParameterValue('leftJumpRate', 0.2);
     
     // Determine total rate and waiting time
     const totalRate = rightRate + leftRate;
@@ -224,6 +224,10 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
           if (particleIndex >= 0) {
             // Remove particle
             this.state.particles.splice(particleIndex, 1);
+            
+            // Update particle count in parameters
+            const newCount = this.getParameterValue('numParticles', 0) - 1;
+            this.plugin.updateParameter('numParticles', Math.max(0, newCount), 'visualization');
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
@@ -245,6 +249,10 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
               jumpState: 'none',
               insideProgress: 0
             });
+            
+            // Update particle count in parameters
+            const newCount = this.getParameterValue('numParticles', 0) + 1;
+            this.plugin.updateParameter('numParticles', newCount, 'visualization');
             
             // Schedule a jump if not paused
             if (!this.state.isPaused) {
