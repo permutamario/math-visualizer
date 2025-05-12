@@ -58,6 +58,7 @@ export class AppCore {
       
       // Initialize managers that depend on this reference
       this.environmentManager = new EnvironmentManager(this);
+      this.animationManager = new AnimationManager(this);
       this.uiManager = new UIManager(this);
       this.renderModeManager = new RenderModeManager(this);
       
