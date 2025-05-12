@@ -1,5 +1,5 @@
+// src/plugins/example2d-plugin/BasicVisualization.js - Improved version
 
-// src/plugins/example2d-plugin/BasicVisualization.js
 import { Visualization } from '../../core/Visualization.js';
 import { createParameters } from '../../ui/ParameterBuilder.js';
 
@@ -17,11 +17,12 @@ export class BasicVisualization extends Visualization {
     this.state = {
       shape: 'circle',
       size: 100,
-      color: '#3498db',
+      fillColor: '#3498db',
       rotation: 0,
       numSides: 5,
       hasStroke: true,
-      strokeColor: '#2c3e50'
+      strokeColor: '#2c3e50',
+      scaledSize: 100 // Will be updated with global scale
     };
   }
 
@@ -49,6 +50,7 @@ export class BasicVisualization extends Visualization {
   /**
    * Initialize the visualization
    * @param {Object} parameters - Parameter values
+   * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize(parameters) {
     try {
@@ -74,8 +76,8 @@ export class BasicVisualization extends Visualization {
     this.updateState(parameters);
     
     // Update animation state based on shape
-    if (parameters.shape !== undefined && parameters.shape === 'polygon') {
-      this.isAnimating = true;
+    if (parameters.shape !== undefined) {
+      this.isAnimating = parameters.shape === 'polygon';
     }
   }
 
@@ -90,7 +92,7 @@ export class BasicVisualization extends Visualization {
     // Only update defined parameters
     if (parameters.shape !== undefined) this.state.shape = parameters.shape;
     if (parameters.size !== undefined) this.state.size = parameters.size;
-    if (parameters.fillColor !== undefined) this.state.color = parameters.fillColor;
+    if (parameters.fillColor !== undefined) this.state.fillColor = parameters.fillColor;
     if (parameters.hasStroke !== undefined) this.state.hasStroke = parameters.hasStroke;
     if (parameters.strokeColor !== undefined) this.state.strokeColor = parameters.strokeColor;
     if (parameters.numSides !== undefined) this.state.numSides = parameters.numSides;
@@ -99,6 +101,10 @@ export class BasicVisualization extends Visualization {
     if (parameters.globalScale !== undefined) {
       // Apply global scale to size
       this.state.scaledSize = this.state.size * parameters.globalScale;
+    } else {
+      // Recalculate using current size and global scale from plugin if available
+      const globalScale = this.plugin.pluginParameters.globalScale || 1.0;
+      this.state.scaledSize = this.state.size * globalScale;
     }
   }
 
@@ -117,7 +123,7 @@ export class BasicVisualization extends Visualization {
     // Apply scaled size
     const size = this.state.size * globalScale;
     
-    // Clear the canvas with a transparent background
+    // Save context state
     ctx.save();
     
     // Draw bounding box if enabled
@@ -144,6 +150,7 @@ export class BasicVisualization extends Visualization {
         this.drawPolygon(ctx, size, this.state.numSides, this.state.rotation);
         break;
       default:
+        // Fallback to circle
         this.drawCircle(ctx, size);
     }
     
@@ -163,7 +170,7 @@ export class BasicVisualization extends Visualization {
   drawCircle(ctx, size) {
     ctx.beginPath();
     ctx.arc(0, 0, size, 0, Math.PI * 2);
-    ctx.fillStyle = this.state.color;
+    ctx.fillStyle = this.state.fillColor;
     ctx.fill();
     
     if (this.state.hasStroke) {
@@ -179,7 +186,7 @@ export class BasicVisualization extends Visualization {
    * @param {number} size - Half side length
    */
   drawSquare(ctx, size) {
-    ctx.fillStyle = this.state.color;
+    ctx.fillStyle = this.state.fillColor;
     ctx.fillRect(-size, -size, size * 2, size * 2);
     
     if (this.state.hasStroke) {
@@ -201,7 +208,7 @@ export class BasicVisualization extends Visualization {
     ctx.lineTo(-size * Math.cos(Math.PI / 6), size * Math.sin(Math.PI / 6));
     ctx.closePath();
     
-    ctx.fillStyle = this.state.color;
+    ctx.fillStyle = this.state.fillColor;
     ctx.fill();
     
     if (this.state.hasStroke) {
@@ -235,7 +242,7 @@ export class BasicVisualization extends Visualization {
     
     ctx.closePath();
     
-    ctx.fillStyle = this.state.color;
+    ctx.fillStyle = this.state.fillColor;
     ctx.fill();
     
     if (this.state.hasStroke) {
@@ -290,7 +297,7 @@ export class BasicVisualization extends Visualization {
 
   /**
    * Handle user interaction
-   * @param {string} type - Interaction type (e.g., "click", "mousemove")
+   * @param {string} type - Interaction type
    * @param {Object} event - Event data
    * @returns {boolean} Whether the interaction was handled
    */
@@ -300,7 +307,7 @@ export class BasicVisualization extends Visualization {
       const distance = Math.sqrt(event.x * event.x + event.y * event.y);
       
       // Check if click is inside the shape
-      const size = this.state.size * (this.plugin.pluginParameters.globalScale || 1.0);
+      const size = this.state.scaledSize || (this.state.size * (this.plugin.pluginParameters.globalScale || 1.0));
       
       if (distance < size) {
         // Toggle stroke
