@@ -103,8 +103,8 @@ export class PluginLoader {
       console.log(`Loading plugin: ${pluginMeta.name} (${pluginMeta.id})`);
       
       // Set rendering environment based on plugin's preferred type
-      if (this.core && this.core.renderingManager) {
-        await this.core.renderingManager.setEnvironment(pluginMeta.renderingType || '2d');
+      if (this.core && this.core.environmentManager) {
+        await this.core.environmentManager.setEnvironment(pluginMeta.renderingType || '2d');
       }
       
       // Instantiate plugin with core reference
@@ -118,8 +118,8 @@ export class PluginLoader {
         this.currentPlugin = pluginInstance;
         
         // Request initial render
-        if (this.core && this.core.renderingManager) {
-          this.core.renderingManager.requestRender();
+        if (this.core) {
+          this.core.requestRenderRefresh();
         }
         
         console.log(`Plugin ${pluginMeta.name} loaded successfully`);
