@@ -118,38 +118,38 @@ export class Plugin {
    * @param {boolean} rebuild - Whether to rebuild UI controls
    */
   giveParameters(rebuild = false) {
-    if (!this.core || !this.core.uiManager) return;
+  if (!this.core || !this.core.uiManager) return;
+  
+  // Create schema objects for UI
+  const pluginSchema = this.definePluginParameters();
+  
+  // Get visualization parameters
+  let visualizationSchema = [];
+  
+  // Always add currentVisualization selector at the top if we have multiple visualizations
+  if (this.visualizations.size > 1) {
+    // Use ParameterBuilder consistently
+    const builder = createParameters();
     
-    // Create schema objects for UI
-    const pluginSchema = this.definePluginParameters();
+    // Get visualization options in the format expected by addDropdown
+    const vizOptions = this._getVisualizationOptions();
+    const currentVizId = this.currentVisualization ? 
+      this._getVisualizationId(this.currentVisualization) : '';
     
-    // Get visualization parameters
-    let visualizationSchema = [];
+    visualizationSchema = builder
+      .addDropdown('currentVisualization', 'Current Visualization', currentVizId, vizOptions)
+      .build();
     
-    // Always add currentVisualization selector at the top if we have multiple visualizations
-    if (this.visualizations.size > 1) {
-      const currentVisualizationParam = {
-        id: 'currentVisualization',
-        type: 'dropdown',
-        label: 'Current Visualization',
-        options: this._getVisualizationOptions(),
-        default: this.currentVisualization
-      };
-
-      console.log("I gave visualization with", this.currentVisualization);
-      
-      // Add to the beginning of visualization parameter list
-      visualizationSchema = [currentVisualizationParam];
-      
-      // Add rest of visualization parameters
-      const vizParams = this.getVisualizationParameters();
-      if (Array.isArray(vizParams)) {
-        visualizationSchema = [...visualizationSchema, ...vizParams];
-      }
-    } else {
-      // Just use visualization parameters if only one visualization
-      visualizationSchema = this.getVisualizationParameters();
+    // Add rest of visualization parameters
+    const vizParams = this.getVisualizationParameters();
+    if (Array.isArray(vizParams)) {
+      visualizationSchema = [...visualizationSchema, ...vizParams];
     }
+  } else {
+    // Just use visualization parameters if only one visualization
+    visualizationSchema = this.getVisualizationParameters();
+  }
+  
     
     const advancedSchema = this.defineAdvancedParameters();
     
