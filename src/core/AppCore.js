@@ -1,53 +1,51 @@
-// src/core/AppCore.js - Improved version
+// src/core/AppCore.js
 
-import { discoverPlugins, getFirstPluginId } from './PluginDiscovery.js';
+import { EventEmitter } from './EventEmitter.js';
+import { StateManager } from './StateManager.js';
 import { UIManager } from '../ui/UIManager.js';
 import { RenderingManager } from '../rendering/RenderingManager.js';
-import { StateManager } from './StateManager.js';
-import { EventEmitter } from './EventEmitter.js';
 import { ColorSchemeManager } from './ColorSchemeManager.js';
 import { RenderModeManager } from '../rendering/RenderModeManager.js';
+import { PluginLoader } from './PluginLoader.js';
 
 /**
- * Main application controller
+ * Main application controller providing API services to plugins
  * Coordinates between plugins, UI, and rendering
  */
 export class AppCore {
   /**
-   * AppCore constructor
+   * Creates a new AppCore instance
    */
   constructor() {
-    // Create core components
+    // Core system components
     this.events = new EventEmitter();
     this.state = new StateManager();
-    this.renderingManager = null; // Initialize in initialize() to avoid circular dependencies
-    this.uiManager = null; // Initialize in initialize() to avoid circular dependencies
+    this.renderingManager = null; // Initialize later to avoid circular dependencies
+    this.uiManager = null; // Initialize later to avoid circular dependencies
     this.colorSchemeManager = new ColorSchemeManager(this);
-    this.renderModeManager = null; // Initialize in initialize() to avoid circular dependencies
+    this.renderModeManager = null; // Initialize later to avoid circular dependencies
+    this.pluginLoader = new PluginLoader(this);
     
-    // Application state
-    this.loadedPlugin = null;
-    this.previousPluginId = null; // Store previous plugin ID for recovery
-    this.availablePlugins = []; // Plugin metadata
-    this.initialized = false;
+    // Parameter collections
+    this.visualParameters = { schema: [], values: {} };
+    this.structuralParameters = { schema: [], values: {} };
     
-    // Flag to track if this is initial startup
+    // Callback collections
+    this._parameterCallbacks = [];
+    this._actionCallbacks = [];
+    
+    // Plugin data
+    this.availablePlugins = [];
+    
+    // Initial startup flag
     this.isInitialStartup = true;
-    
-    // Bind methods
-    this.loadPlugin = this.loadPlugin.bind(this);
-    this.handleParameterChange = this.handleParameterChange.bind(this);
-    this.executeAction = this.executeAction.bind(this);
-    this.showPluginSelector = this.showPluginSelector.bind(this);
   }
-  
+
   /**
-   * Initialize the application
+   * Initializes the application and all core components
    * @returns {Promise<boolean>} Whether initialization was successful
    */
   async initialize() {
-    if (this.initialized) return true;
-    
     try {
       console.log("Initializing Math Visualization Framework...");
       
@@ -59,12 +57,12 @@ export class AppCore {
       this.uiManager = new UIManager(this);
       this.renderModeManager = new RenderModeManager(this);
       
-      // Initialize other core components
+      // Initialize core components
       await this.renderingManager.initialize();
       await this.uiManager.initialize();
       
       // Discover available plugins
-      this.availablePlugins = await discoverPlugins();
+      this.availablePlugins = await this.pluginLoader.discoverPlugins();
       
       if (this.availablePlugins.length === 0) {
         console.warn("No plugins discovered");
@@ -72,15 +70,9 @@ export class AppCore {
         console.log(`Discovered ${this.availablePlugins.length} plugins`);
       }
       
-      // Register event handlers
-      this.uiManager.on('parameterChange', this.handleParameterChange);
-      this.uiManager.on('action', this.executeAction);
-      this.uiManager.on('pluginSelect', this.loadPlugin);
-      
       // Update UI with available plugins
       this.uiManager.updatePlugins(this.availablePlugins, null);
       
-      this.initialized = true;
       console.log("Math Visualization Framework initialized successfully");
       return true;
     } catch (error) {
@@ -91,332 +83,25 @@ export class AppCore {
       return false;
     }
   }
-  
+
   /**
-   * Get standard visual parameters based on rendering type
-   * @param {string} renderingType - '2d' or '3d'
-   * @returns {Object} Standard parameter definitions
-   */
-  getStandardParameters(renderingType = '2d') {
-    const standardParams = {};
-    
-    // Add color palette parameter for all rendering types
-    if (this.colorSchemeManager) {
-      const paletteNames = this.colorSchemeManager.getPaletteNames();
-      if (paletteNames && paletteNames.length > 0) {
-        standardParams.colorPalette = {
-          id: 'colorPalette',
-          type: 'dropdown',
-          label: 'Color Palette',
-          options: paletteNames.map(name => ({
-            value: name, 
-            label: name
-          })),
-          default: 'default',
-          category: 'visual'
-        };
-      }
-    }
-    
-    // Add 3D-specific parameters
-    if (renderingType === '3d' && this.renderModeManager) {
-      const renderModes = this.renderModeManager.getAvailableModes();
-      if (renderModes && renderModes.length > 0) {
-        standardParams.renderMode = {
-          id: 'renderMode',
-          type: 'dropdown',
-          label: 'Render Style',
-          options: renderModes,
-          default: 'standard',
-          category: 'visual'
-        };
-      }
-      
-      standardParams.opacity = {
-        id: 'opacity',
-        type: 'slider',
-        label: 'Opacity',
-        min: 0.1,
-        max: 1.0,
-        step: 0.1,
-        default: 1.0,
-        category: 'visual'
-      };
-    }
-    
-    return standardParams;
-  }
-  
-  /**
-   * Load a plugin by ID
-   * @param {string} pluginId - ID of the plugin to load
-   * @returns {Promise<boolean>} Whether loading was successful
-   */
-  async loadPlugin(pluginId) {
-    if (!pluginId) {
-      console.error("Cannot load plugin: No plugin ID provided");
-      return false;
-    }
-    
-    try {
-      // Store reference to previous plugin for recovery if needed
-      if (this.loadedPlugin) {
-        this.previousPluginId = this.loadedPlugin.constructor.id;
-      }
-      
-      // Check if plugin is already loaded
-      if (this.loadedPlugin && this.loadedPlugin.constructor.id === pluginId) {
-        console.log(`Plugin ${pluginId} is already loaded`);
-        return true;
-      }
-      
-      // Find plugin metadata
-      const pluginMetadata = this.availablePlugins.find(p => p.id === pluginId);
-      
-      if (!pluginMetadata) {
-        this.uiManager.showError(`Plugin "${pluginId}" not found`);
-        console.error(`Plugin ${pluginId} not found`);
-        return false;
-      }
-      
-      // Pause rendering during plugin transition
-      const wasRendering = this.renderingManager.rendering;
-      if (wasRendering) {
-        this.renderingManager.stopRenderLoop();
-      }
-      
-      // Show loading indicator
-      this.uiManager.showLoading(`Loading ${pluginMetadata.name}...`);
-      
-      try {
-        // Unload current plugin if any
-        if (this.loadedPlugin) {
-          try {
-            await this.loadedPlugin.unload();
-            this.loadedPlugin = null;
-          } catch (unloadError) {
-            console.error(`Error unloading previous plugin:`, unloadError);
-            // Continue with loading the new plugin even if unloading failed
-          }
-        }
-        
-        // Setup appropriate rendering environment
-        try {
-          await this.renderingManager.setEnvironment(pluginMetadata.renderingType);
-        } catch (renderingError) {
-          this.uiManager.showError(`Error setting up rendering environment: ${renderingError.message}`);
-          console.error(`Error setting up rendering environment:`, renderingError);
-          
-          if (wasRendering) {
-            this.renderingManager.startRenderLoop();
-          }
-          
-          this.uiManager.hideLoading();
-          return false;
-        }
-        
-        // Create new plugin instance
-        const plugin = new pluginMetadata.PluginClass(this);
-        
-        // Load the plugin
-        const success = await plugin.load();
-        
-        if (success) {
-          this.loadedPlugin = plugin;
-          
-          // Update UI with currently active plugin
-          this.uiManager.updatePlugins(this.availablePlugins, pluginId);
-          
-          // Update actions
-          const actions = this.loadedPlugin.defineActions();
-          this.uiManager.updateActions(actions);
-          
-          // Restore rendering if it was active or force a single render
-          if (wasRendering) {
-            this.renderingManager.startRenderLoop();
-          } else {
-            this.renderingManager.requestRender();
-          }
-          
-          this.uiManager.hideLoading();
-          this.uiManager.showNotification(`${pluginMetadata.name} loaded successfully`);
-          
-          return true;
-        } else {
-          console.error(`Plugin ${pluginId} load() returned false`);
-          this.tryRecoverPreviousPlugin();
-          this.uiManager.showError(`Failed to load plugin "${pluginMetadata.name}"`);
-          return false;
-        }
-      } catch (error) {
-        console.error(`Error loading plugin ${pluginId}:`, error);
-        this.uiManager.showError(`Error loading plugin "${pluginMetadata.name}": ${error.message}`);
-        this.tryRecoverPreviousPlugin();
-        return false;
-      } finally {
-        // Ensure loading indicator is hidden in all cases
-        this.uiManager.hideLoading();
-        
-        // Ensure rendering is restored if it was active
-        if (wasRendering && !this.renderingManager.rendering) {
-          this.renderingManager.startRenderLoop();
-        }
-      }
-    } catch (error) {
-      console.error(`Uncaught error in loadPlugin for ${pluginId}:`, error);
-      this.uiManager.hideLoading();
-      this.uiManager.showError(`Error loading plugin "${pluginId}": ${error.message}`);
-      return false;
-    }
-  }
-  
-  /**
-   * Try to recover by loading the previous plugin
-   * @private
-   */
-  tryRecoverPreviousPlugin() {
-    // If a previous plugin was active, try to reload it
-    if (this.previousPluginId) {
-      console.log(`Attempting to reload previous plugin ${this.previousPluginId}`);
-      const previousId = this.previousPluginId;
-      this.previousPluginId = null; // Prevent loop if reloading fails
-      
-      // Use setTimeout to break the call stack and prevent recursion issues
-      setTimeout(() => {
-        this.loadPlugin(previousId).catch(err => {
-          console.error("Failed to recover previous plugin:", err);
-          // Don't show additional error to user to avoid error spam
-        });
-      }, 100);
-    }
-  }
-  
-  /**
-   * Show the plugin selector window
-   */
-  showPluginSelector() {
-    if (this.uiManager && this.uiManager.layout) {
-      if (typeof this.uiManager.layout.openSelectionWindow === 'function') {
-        this.uiManager.layout.openSelectionWindow();
-      }
-    }
-  }
-  
-  /**
-   * Toggle Fullscreen mode
-   * @returns {boolean} Whether fullscreen mode is now enabled
-   */
-  toggleFullscreenMode() {
-    const isFullscreen = !this.state.get('isFullscreen', false);
-    this.state.set('isFullscreen', isFullscreen);
-    
-    // Update body class - actual UI changes are handled by CSS
-    if (isFullscreen) {
-      document.body.classList.add('fullscreen-mode');
-    } else {
-      document.body.classList.remove('fullscreen-mode');
-    }
-    
-    // Emit event for any listeners
-    this.events.emit('fullscreenToggled', isFullscreen);
-    
-    return isFullscreen;
-  }
-  
-  /**
-   * Handle parameter changes from UI
-   * @param {string} parameterId - ID of the changed parameter
-   * @param {any} value - New parameter value
-   * @param {string} group - Parameter group (optional)
-   */
-  handleParameterChange(parameterId, value, group) {
-    if (!this.loadedPlugin) return;
-    
-    try {
-      // Update parameter value in the plugin
-      this.loadedPlugin.onParameterChanged(parameterId, value, group);
-      
-      // Request render
-      if (this.renderingManager) {
-        this.renderingManager.requestRender();
-      }
-    } catch (error) {
-      console.error(`Error handling parameter change for ${parameterId}:`, error);
-      if (this.uiManager) {
-        this.uiManager.showError(`Error updating parameter "${parameterId}": ${error.message}`);
-      }
-    }
-  }
-  
-  /**
-   * Execute an action
-   * @param {string} actionId - ID of the action to execute
-   * @param {...any} args - Action arguments
-   * @returns {boolean} Whether the action was handled
-   */
-  executeAction(actionId, ...args) {
-    // Handle app-level actions
-    if (actionId === 'toggle-theme') {
-      if (this.colorSchemeManager) {
-        const currentScheme = this.colorSchemeManager.getActiveScheme();
-        const newScheme = currentScheme.id === 'light' ? 'dark' : 'light';
-        this.colorSchemeManager.setActiveScheme(newScheme);
-        return true;
-      }
-      return false;
-    }
-    
-    if (actionId === 'toggle-fullscreen') {
-      this.toggleFullscreenMode();
-      return true;
-    }
-    
-    // Delegate to plugin if one is loaded
-    if (this.loadedPlugin) {
-      try {
-        return this.loadedPlugin.executeAction(actionId, ...args);
-      } catch (error) {
-        console.error(`Error executing action ${actionId}:`, error);
-        this.uiManager.showError(`Error executing action "${actionId}": ${error.message}`);
-        return false;
-      }
-    }
-    
-    return false;
-  }
-  
-  /**
-   * Get the active plugin
-   * @returns {Plugin|null} Loaded plugin instance or null if none
-   */
-  getActivePlugin() {
-    return this.loadedPlugin;
-  }
-  
-  /**
-   * Start the application
+   * Starts the application
    * @returns {Promise<boolean>} Whether startup was successful
    */
   async start() {
     try {
-      if (!this.initialized) {
-        await this.initialize();
+      if (!this.isInitialStartup) {
+        console.warn("Application already started");
+        return true;
       }
       
       // Start the rendering loop
       this.renderingManager.startRenderLoop();
       
-      // Just show the "Select a Plugin" message initially
+      // Show the "Select a Plugin" message
       this.renderingManager.requestRender();
       
-      // Show the plugin selector after a short delay if this is initial startup
-      if (this.isInitialStartup) {
-        setTimeout(() => {
-          this.showPluginSelector();
-          this.isInitialStartup = false;
-        }, 500);
-      }
-      
+      this.isInitialStartup = false;
       return true;
     } catch (error) {
       console.error("Failed to start application:", error);
@@ -426,20 +111,15 @@ export class AppCore {
       return false;
     }
   }
-  
+
   /**
-   * Clean up resources when the application is shutting down
+   * Cleans up resources when the application is shutting down
    */
   cleanup() {
-    // Unload loaded plugin first
-    if (this.loadedPlugin) {
-      try {
-        this.loadedPlugin.unload();
-      } catch (error) {
-        console.error("Error unloading plugin during cleanup:", error);
-      }
-      this.loadedPlugin = null;
-    }
+    // Unload active plugin
+    this.pluginLoader.unloadCurrentPlugin().catch(error => {
+      console.error("Error unloading current plugin during cleanup:", error);
+    });
     
     // Clean up rendering
     if (this.renderingManager) {
@@ -458,12 +138,337 @@ export class AppCore {
       this.colorSchemeManager.cleanup();
     }
     
+    // Clear callbacks
+    this._parameterCallbacks = [];
+    this._actionCallbacks = [];
+    
     // Reset state
-    this.previousPluginId = null;
     this.availablePlugins = [];
-    this.initialized = false;
     this.isInitialStartup = true;
     
     console.log("Application cleaned up");
+  }
+
+  /**
+   * Loads a plugin by ID
+   * @param {string} pluginId - ID of the plugin to load
+   * @returns {Promise<boolean>} Whether loading was successful
+   */
+  async loadPlugin(pluginId) {
+    try {
+      // Show loading indicator 
+      if (this.uiManager) {
+        this.uiManager.showLoading(`Loading plugin...`);
+      }
+      
+      const success = await this.pluginLoader.loadPlugin(pluginId);
+      
+      // Hide loading indicator
+      if (this.uiManager) {
+        this.uiManager.hideLoading();
+      }
+      
+      if (success) {
+        // Update UI with currently active plugin
+        const activePlugin = this.getActivePlugin();
+        this.uiManager.updatePlugins(this.availablePlugins, activePlugin?.id || null);
+        
+        // Request a render to show the plugin content
+        this.renderingManager.requestRender();
+      } else {
+        this.uiManager.showError(`Failed to load plugin "${pluginId}"`);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`Error loading plugin ${pluginId}:`, error);
+      
+      if (this.uiManager) {
+        this.uiManager.hideLoading();
+        this.uiManager.showError(`Error loading plugin: ${error.message}`);
+      }
+      
+      return false;
+    }
+  }
+
+  /**
+   * Gets the currently active plugin
+   * @returns {Object|null} The active plugin or null if none is active
+   */
+  getActivePlugin() {
+    return this.pluginLoader.getCurrentPlugin();
+  }
+
+  /**
+   * Adds visual parameters to the application
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   */
+  addParametersVisual(parameters) {
+    if (!Array.isArray(parameters)) {
+      console.error("Visual parameters must be an array");
+      return;
+    }
+    
+    this._processParameters(parameters, 'visual');
+    
+    // Update UI
+    if (this.uiManager) {
+      this.uiManager.updateParameterGroups({
+        visual: { schema: this.visualParameters.schema, values: this.visualParameters.values }
+      });
+    }
+  }
+
+  /**
+   * Adds structural parameters to the application
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   */
+  addParametersStructural(parameters) {
+    if (!Array.isArray(parameters)) {
+      console.error("Structural parameters must be an array");
+      return;
+    }
+    
+    this._processParameters(parameters, 'structural');
+    
+    // Update UI
+    if (this.uiManager) {
+      this.uiManager.updateParameterGroups({
+        structural: { schema: this.structuralParameters.schema, values: this.structuralParameters.values }
+      });
+    }
+  }
+
+  /**
+   * Processes and stores parameter definitions
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   * @param {string} group - Parameter group ('visual' or 'structural')
+   * @private
+   */
+  _processParameters(parameters, group) {
+    // Ensure group property exists
+    if (!this[`${group}Parameters`]) {
+      this[`${group}Parameters`] = { schema: [], values: {} };
+    }
+    
+    // Add parameters to schema
+    this[`${group}Parameters`].schema = [...this[`${group}Parameters`].schema, ...parameters];
+    
+    // Extract default values
+    parameters.forEach(param => {
+      if (param.id && param.default !== undefined) {
+        this[`${group}Parameters`].values[param.id] = param.default;
+      }
+    });
+  }
+
+  /**
+   * Changes a parameter value and notifies listeners
+   * @param {string} id - Parameter ID
+   * @param {any} value - New parameter value
+   * @param {string|null} group - Parameter group ('visual' or 'structural')
+   * @returns {boolean} Whether the parameter was found and updated
+   */
+  changeParameter(id, value, group = null) {
+    // Find parameter group if not specified
+    if (!group) {
+      if (this.visualParameters?.values.hasOwnProperty(id)) {
+        group = 'visual';
+      } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
+        group = 'structural';
+      } else {
+        console.warn(`Parameter ${id} not found in any group`);
+        return false;
+      }
+    }
+    
+    // Update parameter value
+    if (group && this[`${group}Parameters`]?.values) {
+      this[`${group}Parameters`].values[id] = value;
+      
+      // Update UI
+      if (this.uiManager) {
+        this.uiManager.updateParameterValue(id, value, group);
+      }
+      
+      // Notify listeners
+      this._triggerParameterChanged(id, value, group);
+      
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Registers a callback for parameter changes
+   * @param {Function} callback - Function to call when parameters change
+   * @returns {Function} The callback function for removal reference
+   */
+  onParameterChanged(callback) {
+    if (typeof callback !== 'function') {
+      console.error("Parameter change callback must be a function");
+      return null;
+    }
+    
+    this._parameterCallbacks.push(callback);
+    return callback; // Return for later removal
+  }
+
+  /**
+   * Removes a parameter change callback
+   * @param {Function} callback - The callback to remove
+   * @returns {boolean} Whether the callback was found and removed
+   */
+  removeParameterCallback(callback) {
+    const index = this._parameterCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this._parameterCallbacks.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Triggers parameter change callbacks
+   * @param {string} id - Parameter ID
+   * @param {any} value - New parameter value
+   * @param {string} group - Parameter group
+   * @private
+   */
+  _triggerParameterChanged(id, value, group) {
+    // Call registered callbacks
+    this._parameterCallbacks.forEach(callback => {
+      try {
+        callback(id, value, group);
+      } catch (error) {
+        console.error("Error in parameter change callback:", error);
+      }
+    });
+    
+    // Notify active plugin
+    const activePlugin = this.getActivePlugin();
+    if (activePlugin && typeof activePlugin.onParameterChanged === 'function') {
+      try {
+        activePlugin.onParameterChanged(id, value, group);
+      } catch (error) {
+        console.error("Error in plugin's onParameterChanged handler:", error);
+      }
+    }
+  }
+
+  /**
+   * Gets all parameter values merged into a single object
+   * @returns {Object} Combined parameter values
+   */
+  getAllParameters() {
+    return {
+      ...this.structuralParameters?.values || {},
+      ...this.visualParameters?.values || {}
+    };
+  }
+
+  /**
+   * Registers action buttons for the UI
+   * @param {Array<Object>} actions - Array of action definitions
+   */
+  registerActions(actions) {
+    if (!Array.isArray(actions)) {
+      console.error("Actions must be an array");
+      return;
+    }
+    
+    // Update UI
+    if (this.uiManager) {
+      this.uiManager.updateActions(actions);
+    }
+  }
+
+  /**
+   * Registers a callback for action execution
+   * @param {Function} callback - Function to call when an action is executed
+   * @returns {Function} The callback function for removal reference
+   */
+  onAction(callback) {
+    if (typeof callback !== 'function') {
+      console.error("Action callback must be a function");
+      return null;
+    }
+    
+    this._actionCallbacks.push(callback);
+    return callback; // Return for later removal
+  }
+
+  /**
+   * Removes an action callback
+   * @param {Function} callback - The callback to remove
+   * @returns {boolean} Whether the callback was found and removed
+   */
+  removeActionCallback(callback) {
+    const index = this._actionCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this._actionCallbacks.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Executes an action and notifies listeners
+   * @param {string} actionId - ID of the action to execute
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether the action was handled
+   */
+  executeAction(actionId, ...args) {
+    let handled = false;
+    
+    // Call plugin's action handler if available
+    const activePlugin = this.getActivePlugin();
+    if (activePlugin && typeof activePlugin.executeAction === 'function') {
+      try {
+        handled = activePlugin.executeAction(actionId, ...args) || handled;
+      } catch (error) {
+        console.error(`Error executing action ${actionId} in plugin:`, error);
+      }
+    }
+    
+    // Call registered callbacks
+    handled = this._triggerActionCallbacks(actionId, ...args) || handled;
+    
+    return handled;
+  }
+
+  /**
+   * Triggers action callbacks
+   * @param {string} actionId - Action ID
+   * @param {...any} args - Action arguments
+   * @returns {boolean} Whether any callback returned true
+   * @private
+   */
+  _triggerActionCallbacks(actionId, ...args) {
+    let handled = false;
+    
+    this._actionCallbacks.forEach(callback => {
+      try {
+        handled = callback(actionId, ...args) || handled;
+      } catch (error) {
+        console.error("Error in action callback:", error);
+      }
+    });
+    
+    return handled;
+  }
+
+  /**
+   * Gets access to the current rendering environment
+   * @returns {Object|null} Rendering environment interface
+   */
+  getRenderingEnvironment() {
+    if (!this.renderingManager) {
+      return null;
+    }
+    
+    return this.renderingManager.getEnvironmentForPlugin();
   }
 }
