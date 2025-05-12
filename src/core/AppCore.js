@@ -344,6 +344,100 @@ requestRenderRefresh() {
   }
 
   /**
+ * Removes a parameter from the application
+ * @param {string} id - Parameter ID to remove
+ * @param {string|null} group - Parameter group ('visual' or 'structural')
+ * @returns {boolean} Whether the parameter was found and removed
+ */
+removeParameter(id, group = null) {
+  // Find parameter group if not specified
+  if (!group) {
+    if (this.visualParameters?.values.hasOwnProperty(id)) {
+      group = 'visual';
+    } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
+      group = 'structural';
+    } else {
+      console.warn(`Parameter ${id} not found in any group`);
+      return false;
+    }
+  }
+  
+  const groupKey = `${group}Parameters`;
+  
+  // Check if parameter exists
+  if (!this[groupKey]?.values.hasOwnProperty(id)) {
+    console.warn(`Parameter ${id} not found in ${group} group`);
+    return false;
+  }
+  
+  // Remove from schema
+  this[groupKey].schema = this[groupKey].schema.filter(param => param.id !== id);
+  
+  // Remove from values
+  delete this[groupKey].values[id];
+  
+  // Update UI
+  if (this.uiManager) {
+    const parameterGroups = {};
+    parameterGroups[group] = {
+      schema: this[groupKey].schema,
+      values: this[groupKey].values
+    };
+    
+    this.uiManager.updatePluginParameterGroups({
+      [`${group}Parameters`]: this[groupKey] 
+    });
+  }
+  
+  return true;
+}
+
+/**
+ * Resets parameters to their default values
+ * @param {string|null} group - Parameter group to reset ('visual', 'structural', or null for all)
+ * @returns {boolean} Whether the reset was successful
+ */
+resetParameters(group = null) {
+  const groups = group ? [group] : ['visual', 'structural'];
+  let success = true;
+  
+  groups.forEach(grp => {
+    const groupKey = `${grp}Parameters`;
+    
+    // Skip if group doesn't exist
+    if (!this[groupKey]) {
+      success = false;
+      return;
+    }
+    
+    // Reset each parameter to its default value
+    this[groupKey].schema.forEach(param => {
+      if (param.id && param.default !== undefined) {
+        this[groupKey].values[param.id] = param.default;
+        
+        // Trigger parameter change notification
+        this._triggerParameterChanged(param.id, param.default, grp);
+      }
+    });
+    
+    // Update UI
+    if (this.uiManager) {
+      const parameterGroups = {};
+      parameterGroups[grp] = {
+        schema: this[groupKey].schema,
+        values: this[groupKey].values
+      };
+      
+      this.uiManager.updatePluginParameterGroups({
+        [`${grp}Parameters`]: this[groupKey]
+      });
+    }
+  });
+  
+  return success;
+}
+
+  /**
    * Registers a callback for parameter changes
    * @param {Function} callback - Function to call when parameters change
    * @returns {Function} The callback function for removal reference
