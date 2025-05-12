@@ -243,44 +243,50 @@ requestRenderRefresh() {
   }
 
   /**
-   * Adds visual parameters to the application
-   * @param {Array<Object>} parameters - Array of parameter definitions
-   */
-  addParametersVisual(parameters) {
-    if (!Array.isArray(parameters)) {
-      console.error("Visual parameters must be an array");
-      return;
-    }
-    
-    this._processParameters(parameters, 'visual');
-    
-    // Update UI
-    if (this.uiManager) {
-      this.uiManager.updateParameterGroups({
-        visual: { schema: this.visualParameters.schema, values: this.visualParameters.values }
-      });
-    }
+ * Adds visual parameters to the application
+ * @param {Array<Object>} parameters - Array of parameter definitions
+ */
+addParametersVisual(parameters) {
+  if (!Array.isArray(parameters)) {
+    console.error("Visual parameters must be an array");
+    return;
   }
+  
+  this._processParameters(parameters, 'visual');
+  
+  // Update UI - FIXED: calls updatePluginParameterGroups instead of updateParameterGroups
+  if (this.uiManager) {
+    this.uiManager.updatePluginParameterGroups({
+      visualizationParameters: { 
+        schema: this.visualParameters.schema, 
+        values: this.visualParameters.values 
+      }
+    });
+  }
+}
 
-  /**
-   * Adds structural parameters to the application
-   * @param {Array<Object>} parameters - Array of parameter definitions
-   */
-  addParametersStructural(parameters) {
-    if (!Array.isArray(parameters)) {
-      console.error("Structural parameters must be an array");
-      return;
-    }
-    
-    this._processParameters(parameters, 'structural');
-    
-    // Update UI
-    if (this.uiManager) {
-      this.uiManager.updateParameterGroups({
-        structural: { schema: this.structuralParameters.schema, values: this.structuralParameters.values }
-      });
-    }
+/**
+ * Adds structural parameters to the application
+ * @param {Array<Object>} parameters - Array of parameter definitions
+ */
+addParametersStructural(parameters) {
+  if (!Array.isArray(parameters)) {
+    console.error("Structural parameters must be an array");
+    return;
   }
+  
+  this._processParameters(parameters, 'structural');
+  
+  // Update UI - FIXED: calls updatePluginParameterGroups instead of updateParameterGroups
+  if (this.uiManager) {
+    this.uiManager.updatePluginParameterGroups({
+      pluginParameters: { 
+        schema: this.structuralParameters.schema, 
+        values: this.structuralParameters.values 
+      }
+    });
+  }
+}
 
   /**
    * Processes and stores parameter definitions
