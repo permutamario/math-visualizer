@@ -25,9 +25,6 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
       .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
       .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.0, max: 2.0, step: 0.1 })
       .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 2.0, step: 0.1 })
-      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
-      .addCheckbox('isPaused', 'Pause Simulation', false)
-      .addCheckbox('showLabels', 'Show Labels', false)
       .build();
   }
   

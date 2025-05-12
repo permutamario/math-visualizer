@@ -17,9 +17,6 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
       .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
       .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.0, max: 2.0, step: 0.1 })
       .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 2.0, step: 0.1 })
-      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
-      .addCheckbox('isPaused', 'Pause Simulation', false)
-      .addCheckbox('showLabels', 'Show Labels', false)
       .build();
   }
   
@@ -34,8 +31,20 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
     // Create boxes
     this.createBoxes(parameters);
     
-    // Create initial particles with random positions
-    this.createParticles(parameters);
+    // Create initial particles with random positions - this is a critical step
+    // Make sure numParticles and numBoxes are properly extracted
+    const numParticles = parseInt(parameters.numParticles || 5);
+    const numBoxes = parseInt(parameters.numBoxes || 10);
+    
+    // Ensure parameters are consistent
+    console.log(`Initializing ClosedASEP with ${numParticles} particles and ${numBoxes} boxes`);
+    
+    // Create particles with modified parameters object to ensure correct creation
+    this.createParticles({
+      numParticles: numParticles,
+      numBoxes: numBoxes,
+      colorPalette: parameters.colorPalette
+    });
     
     // Schedule initial jumps for each particle
     this.scheduleInitialJumps();
@@ -48,7 +57,8 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - Visualization parameters
    */
   createBoxes(parameters) {
-    const numBoxes = parameters.numBoxes || 10;
+    // Ensure numBoxes is a number and has a default
+    const numBoxes = parseInt(parameters.numBoxes || 10);
     const boxSize = this.state.boxSize;
     
     // Calculate total width to center the boxes
@@ -64,6 +74,64 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
         size: boxSize
       });
     }
+  }
+  
+  /**
+   * Override createParticles to ensure particles are properly created
+   * @param {Object} parameters - Visualization parameters
+   */
+  createParticles(parameters) {
+    // Make sure parameters are valid
+    if (!parameters) {
+      console.error("Cannot create particles: missing parameters");
+      return;
+    }
+
+    // Ensure numParticles and numBoxes are numbers
+    const numParticles = parseInt(parameters.numParticles || 0);
+    const numBoxes = parseInt(parameters.numBoxes || 0);
+    
+    console.log(`Creating ${numParticles} particles in ${numBoxes} boxes`);
+    
+    if (numParticles <= 0 || numBoxes <= 0) {
+      console.warn("No particles to create or no boxes available");
+      return;
+    }
+
+    // Make sure we don't exceed the number of boxes
+    const effectiveNumParticles = Math.min(numParticles, numBoxes);
+    
+    // Generate unique random positions
+    const positions = [];
+    while (positions.length < effectiveNumParticles) {
+      const pos = Math.floor(Math.random() * numBoxes);
+      if (!positions.includes(pos)) {
+        positions.push(pos);
+      }
+    }
+
+    // Get particle color from the palette or use default
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+    
+    // Create particles
+    for (let i = 0; i < effectiveNumParticles; i++) {
+      this.state.particles.push({
+        id: i,
+        position: positions[i],
+        isJumping: false,
+        jumpProgress: 0,
+        startPosition: positions[i],
+        targetPosition: positions[i],
+        color: particleColor,
+        originalColor: particleColor,
+        radius: this.state.particleRadius,
+        jumpSpeed: 2.0,
+        jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
+        insideProgress: 0
+      });
+    }
+    
+    console.log(`Created ${this.state.particles.length} particles`);
   }
   
   /**
@@ -146,6 +214,11 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
     const boxSize = this.state.boxSize;
     // Get jump color from palette
     const jumpColor = this.getColorFromPalette(parameters, this.state.colorIndices.jump);
+    
+    // Log particles count for debugging
+    if (this.state.particles.length === 0) {
+      console.warn("No particles to draw in ClosedASEPVisualization");
+    }
     
     // Draw each particle
     this.state.particles.forEach(particle => {
@@ -232,8 +305,11 @@ export class ClosedASEPVisualization extends BaseASEPVisualization {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
             
-            // Get particle color from palette
-            const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+            // Get particle color from palette - use current parameters to get color
+            const currentParams = {
+              colorPalette: this.getParameterValue('colorPalette')
+            };
+            const particleColor = this.getColorFromPalette(currentParams, this.state.colorIndices.particle);
             
             this.state.particles.push({
               id: maxId + 1,

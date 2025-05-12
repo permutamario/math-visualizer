@@ -50,6 +50,12 @@ export default class ASEPPlugin extends Plugin {
         { value: 'circular', label: 'Circular System' }
       ])
       .addCheckbox('showBoundingBox', 'Show Bounding Box', false)
+      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
+      .addCheckbox('isPaused', 'Pause Simulation', false)
+      .addCheckbox('showLabels', 'Show Labels', false)
+      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
+      .addCheckbox('isPaused', 'Pause Simulation', false)
+      .addCheckbox('showLabels', 'Show Labels', false)
       .build();
   }
   
@@ -134,7 +140,44 @@ export default class ASEPPlugin extends Plugin {
       this.currentVisualization = this.visualizations.get(currentVizId) || 
                                  this.visualizations.get(this.visualizationTypes[0].id);
       
+      // Log the visualization initialization
+      console.log(`Initializing ASEP visualization: ${currentVizId}`);
+      
+      // Make sure we have some default parameter values for visualization parameters
+      if (!this.visualizationParameters.numBoxes) {
+        this.visualizationParameters.numBoxes = 10;
+      }
+      
+      if (!this.visualizationParameters.numParticles) {
+        this.visualizationParameters.numParticles = 5;
+      }
+      
+      // Set up mandatory visualization parameters if missing
+      if (!this.visualizationParameters.rightJumpRate) {
+        this.visualizationParameters.rightJumpRate = 0.8;
+      }
+      
+      if (!this.visualizationParameters.leftJumpRate) {
+        this.visualizationParameters.leftJumpRate = 0.2;
+      }
+      
+      if (currentVizId === 'open') {
+        if (!this.visualizationParameters.entryRate) {
+          this.visualizationParameters.entryRate = 0.5;
+        }
+        
+        if (!this.visualizationParameters.exitRate) {
+          this.visualizationParameters.exitRate = 0.5;
+        }
+      }
+      
       // Initialize with all parameters
+      console.log("Initializing with parameters:", {
+        plugin: this.pluginParameters,
+        visualization: this.visualizationParameters,
+        advanced: this.advancedParameters
+      });
+      
       await this.currentVisualization.initialize({
         ...this.pluginParameters,
         ...this.visualizationParameters,
@@ -149,6 +192,24 @@ export default class ASEPPlugin extends Plugin {
   }
 
   /**
+   * Handle parameter changes
+   * Override to provide better logging and parameter management
+   */
+  onParameterChanged(parameterId, value, parameterGroup = null) {
+    console.log(`Parameter changed: ${parameterId} = ${value} (group: ${parameterGroup})`);
+    
+    // Special case for visualization switching
+    if (parameterId === 'currentVisualization' && this.visualizations.has(value)) {
+      console.log(`Switching visualization to ${value}`);
+      this.setVisualization(value);
+      return;
+    }
+    
+    // Use parent implementation for other parameters
+    super.onParameterChanged(parameterId, value, parameterGroup);
+  }
+
+  /**
    * Execute an action
    * @param {string} actionId - ID of the action to execute
    * @param {...any} args - Action arguments
@@ -159,6 +220,8 @@ export default class ASEPPlugin extends Plugin {
       case 'reset-simulation':
         // Reset the simulation
         if (this.currentVisualization) {
+          console.log("Resetting simulation");
+          
           // Re-initialize with current parameters
           this.currentVisualization.initialize({
             ...this.pluginParameters,
@@ -182,6 +245,7 @@ export default class ASEPPlugin extends Plugin {
         // Toggle simulation pause state
         if (this.currentVisualization && 
             typeof this.currentVisualization.toggleSimulation === 'function') {
+          console.log("Toggling simulation pause state");
           this.currentVisualization.toggleSimulation();
           
           // Show notification to user
