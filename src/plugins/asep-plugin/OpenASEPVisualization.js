@@ -14,6 +14,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     this.state.exitEvents = [];   // Track exit events
     this.state.enteringParticles = []; // Particles currently entering the system
     this.state.exitingParticles = [];  // Particles currently exiting the system
+    this.state.particleCount = 0;  // Track total particle count for UI updates
   }
   
   /**
@@ -52,6 +53,12 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Create initial particles with random positions
     this.createParticles(parameters);
     
+    // Store particle count
+    this.state.particleCount = this.state.particles.length;
+    
+    // Update numParticles parameter to match actual count
+    this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
+    
     // Schedule initial jumps for each particle
     this.scheduleInitialJumps();
     
@@ -82,6 +89,49 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         size: boxSize,
         isLeftEdge: i === 0,
         isRightEdge: i === numBoxes - 1
+      });
+    }
+  }
+  
+  /**
+   * Create initial particles with random positions
+   * @param {Object} parameters - Visualization parameters
+   */
+  createParticles(parameters) {
+    // Get parameter values with defaults
+    const numParticles = Math.min(
+      parameters.numParticles !== undefined ? parameters.numParticles : 5,
+      parameters.numBoxes || 10
+    );
+    const numBoxes = parameters.numBoxes || 10;
+    
+    // Generate unique random positions
+    const positions = [];
+    while (positions.length < numParticles) {
+      const pos = Math.floor(Math.random() * numBoxes);
+      if (!positions.includes(pos)) {
+        positions.push(pos);
+      }
+    }
+
+    // Get particle color from the palette
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+    
+    // Create particles
+    for (let i = 0; i < numParticles; i++) {
+      this.state.particles.push({
+        id: i,
+        position: positions[i],
+        isJumping: false,
+        jumpProgress: 0,
+        startPosition: positions[i],
+        targetPosition: positions[i],
+        color: particleColor,
+        originalColor: particleColor,
+        radius: this.state.particleRadius,
+        jumpSpeed: 2.0,
+        jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
+        insideProgress: 0
       });
     }
   }
@@ -121,6 +171,12 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         if (particle.position === this.state.boxes.length - 1 && rand >= rightRate + leftRate) {
           // Exit right boundary
           this.startExitAnimation(particle);
+          
+          // Decrease particle count
+          this.state.particleCount--;
+          
+          // Update numParticles parameter
+          this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
           
           // Remove this event
           this.state.jumpEvents = this.state.jumpEvents.filter(e => e.timeoutId !== jumpEvent.timeoutId);
@@ -197,6 +253,12 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         if (!this.isPositionOccupied(0)) {
           // Start entry animation
           this.startEntryAnimation();
+          
+          // Increase particle count
+          this.state.particleCount++;
+          
+          // Update numParticles parameter
+          this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
         }
         
         // Schedule next entry attempt regardless of whether this one succeeded
@@ -318,6 +380,75 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
         this.scheduleNextJump(particle);
       }
     });
+  }
+  
+  /**
+   * Update the visualization parameters
+   * @param {Object} parameters - Parameters to update
+   */
+  update(parameters) {
+    // First call the parent update method for common parameters
+    super.update(parameters);
+    
+    // Handle specific parameters for open ASEP
+    if (parameters.entryRate !== undefined) {
+      // If entry rate changed, we need to reschedule entry events
+      // Clear existing entry events
+      this.state.entryEvents.forEach(event => {
+        if (event.timeoutId) {
+          clearTimeout(event.timeoutId);
+        }
+      });
+      this.state.entryEvents = [];
+      
+      // Reschedule entry attempts
+      if (!this.state.isPaused) {
+        this.scheduleEntryAttempt();
+      }
+    }
+    
+    // If isPaused changed, handle pause/resume
+    if (parameters.isPaused !== undefined && parameters.isPaused !== this.state.isPaused) {
+      this.state.isPaused = parameters.isPaused;
+      
+      if (!this.state.isPaused) {
+        // Resume - schedule jumps for non-jumping particles
+        this.state.particles.forEach(particle => {
+          if (!particle.isJumping) {
+            this.scheduleNextJump(particle);
+          }
+        });
+        
+        // Resume entry attempts
+        this.scheduleEntryAttempt();
+      } else {
+        // Pause - clear all scheduled events
+        this.state.jumpEvents.forEach(event => {
+          if (event.timeoutId) {
+            clearTimeout(event.timeoutId);
+          }
+        });
+        this.state.jumpEvents = [];
+        
+        this.state.entryEvents.forEach(event => {
+          if (event.timeoutId) {
+            clearTimeout(event.timeoutId);
+          }
+        });
+        this.state.entryEvents = [];
+      }
+    }
+    
+    // If numBoxes or numParticles changed drastically, reset simulation
+    if ((parameters.numBoxes !== undefined && Math.abs(parameters.numBoxes - this.state.boxes.length) > 1) ||
+        (parameters.numParticles !== undefined && Math.abs(parameters.numParticles - this.state.particleCount) > 2)) {
+      // Re-initialize with current parameters
+      this.initialize({
+        ...this.plugin.pluginParameters,
+        ...this.plugin.visualizationParameters,
+        ...this.plugin.advancedParameters
+      });
+    }
   }
   
   /**
@@ -577,7 +708,7 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Draw a semi-transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 220, 110);
+    ctx.fillRect(10, 10, 220, 130);
     
     // Draw text
     ctx.fillStyle = 'white';
@@ -586,9 +717,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     ctx.textBaseline = 'top';
     ctx.fillText(`Entry Rate: ${this.getParameterValue('entryRate', 0.5)}`, 20, 20);
     ctx.fillText(`Exit Rate: ${this.getParameterValue('exitRate', 0.5)}`, 20, 40);
-    ctx.fillText(`Particles: ${this.state.particles.length}`, 20, 60);
-    ctx.fillText(`Entering: ${this.state.enteringParticles.length}`, 20, 80);
-    ctx.fillText(`Exiting: ${this.state.exitingParticles.length}`, 20, 100);
+    ctx.fillText(`Right Rate: ${this.getParameterValue('rightJumpRate', 0.8)}`, 20, 60);
+    ctx.fillText(`Left Rate: ${this.getParameterValue('leftJumpRate', 0.2)}`, 20, 80);
+    ctx.fillText(`Particles: ${this.state.particles.length}`, 20, 100);
+    ctx.fillText(`Total Count: ${this.state.particleCount}`, 20, 120);
     
     ctx.restore();
   }
@@ -627,6 +759,44 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
+   * Toggle simulation pause state
+   */
+  toggleSimulation() {
+    this.state.isPaused = !this.state.isPaused;
+    
+    // Update plugin parameter
+    this.plugin.updateParameter('isPaused', this.state.isPaused, 'plugin');
+    
+    if (!this.state.isPaused) {
+      // Resume by scheduling jumps for all stationary particles
+      this.state.particles.forEach(particle => {
+        if (!particle.isJumping) {
+          this.scheduleNextJump(particle);
+        }
+      });
+      
+      // Schedule entry attempts
+      this.scheduleEntryAttempt();
+    } else {
+      // Pause by clearing all scheduled jumps
+      this.state.jumpEvents.forEach(event => {
+        if (event.timeoutId) {
+          clearTimeout(event.timeoutId);
+        }
+      });
+      this.state.jumpEvents = [];
+      
+      // Clear entry events
+      this.state.entryEvents.forEach(event => {
+        if (event.timeoutId) {
+          clearTimeout(event.timeoutId);
+        }
+      });
+      this.state.entryEvents = [];
+    }
+  }
+  
+  /**
    * Handle user interaction
    * @param {string} type - Interaction type
    * @param {Object} event - Event data
@@ -653,6 +823,10 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
           if (particleIndex >= 0) {
             // Remove particle
             this.state.particles.splice(particleIndex, 1);
+            this.state.particleCount--;
+            
+            // Update numParticles parameter
+            this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
             return true;
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
@@ -685,6 +859,11 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
               insideProgress: 0
             });
             
+            this.state.particleCount++;
+            
+            // Update numParticles parameter
+            this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
+            
             // Schedule jump
             if (!this.state.isPaused) {
               this.scheduleNextJump(this.state.particles[this.state.particles.length - 1]);
@@ -706,6 +885,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
           // Check if first position is empty and no particle is currently entering
           if (!this.isPositionOccupied(0) && this.state.enteringParticles.length === 0) {
             this.startEntryAnimation();
+            
+            // Increase particle count
+            this.state.particleCount++;
+            
+            // Update numParticles parameter
+            this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
+            
             return true;
           }
         }
@@ -740,6 +926,9 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Clean up entering/exiting particles
     this.state.enteringParticles = [];
     this.state.exitingParticles = [];
+    
+    // Reset particle count
+    this.state.particleCount = 0;
     
     // Call base dispose method
     super.dispose();
