@@ -357,31 +357,35 @@ export class RenderingManager {
     }
   }
   
-  /**
-   * Render the current visualization
-   */
   render() {
-    if (!this.currentEnvironment) {
-      console.log("Cannot render: no active environment");
-      return;
-    }
-    
-    const activePlugin = this.core.getActivePlugin();
-    if (!activePlugin) {
-      console.log("No active plugin, showing welcome message");
-      this.renderNoPluginMessage();
-      return;
-    }
-    
-    const visualization = activePlugin.getCurrentVisualization();
-    if (!visualization) {
-      console.log("Cannot render: no active visualization");
-      return;
-    }
-    
-    // Render using the current environment
-    this.currentEnvironment.render(visualization, activePlugin.parameters);
+  if (!this.currentEnvironment) {
+    console.log("Cannot render: no active environment");
+    return;
   }
+  
+  const activePlugin = this.core.getActivePlugin();
+  if (!activePlugin) {
+    console.log("No active plugin, showing welcome message");
+    this.renderNoPluginMessage();
+    return;
+  }
+  
+  const visualization = activePlugin.getCurrentVisualization();
+  if (!visualization) {
+    console.log("Cannot render: no active visualization");
+    return;
+  }
+  
+  // Merge all parameter collections before passing to render
+  const combinedParameters = {
+    ...activePlugin.pluginParameters,
+    ...activePlugin.visualizationParameters,
+    ...activePlugin.advancedParameters
+  };
+  
+  // Render using the current environment
+  this.currentEnvironment.render(visualization, combinedParameters);
+}
   
   /**
    * Render a message when no plugin is loaded
