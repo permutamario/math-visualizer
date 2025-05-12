@@ -542,19 +542,27 @@ export class Plugin {
    * @returns {Array<Object>} Visualization options
    * @private
    */
-  _getVisualizationOptions() {
-    return Array.from(this.visualizations.entries()).map(([id, viz]) => {
-      // Try to get a nice display name 
-      let label = id;
-      
-      // If visualization class has a static name property, use that
-      if (viz.constructor.name && viz.constructor.name !== 'Function') {
-        label = viz.constructor.name;
+_getVisualizationOptions() {
+  return Array.from(this.visualizations.entries()).map(([id, viz]) => {
+    // Try to get a nice display name from visualizationTypes if available
+    let label = id;
+    
+    if (this.visualizationTypes) {
+      const vizType = this.visualizationTypes.find(vt => vt.id === id);
+      if (vizType && vizType.name) {
+        label = vizType.name;
+        return { value: id, label: label };
       }
-      
-      return { value: id, label: label };
-    });
-  }
+    }
+    
+    // Fallback to class name if visualizationTypes not available
+    if (viz.constructor.name && viz.constructor.name !== 'Function') {
+      label = viz.constructor.name;
+    }
+    
+    return { value: id, label: label };
+  });
+}
   
   /**
    * Helper to get visualization ID from instance
