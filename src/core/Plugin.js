@@ -2,42 +2,47 @@
 
 /**
  * Base plugin interface for the Math Visualization Framework
- * Uses a simple API-based approach instead of inheritance
  */
 export class Plugin {
   /**
    * Create a plugin instance
-   * @param {Object} pluginDefinition - Plugin definition object
    * @param {AppCore} core - Reference to the application core
    */
-  constructor(pluginDefinition, core) {
-    // Ensure required properties are present
-    if (!pluginDefinition.id || !pluginDefinition.name || !pluginDefinition.renderingType) {
-      throw new Error("Plugin definition must have id, name, and renderingType properties");
+  constructor(core) {
+    // Get metadata from static properties
+    const metadata = this.constructor;
+    
+    // Ensure required properties are present in the class (static properties)
+    if (!metadata.id || !metadata.name || !metadata.renderingType) {
+      throw new Error("Plugin class must have static id, name, and renderingType properties");
     }
     
-    // Add essential properties from definition to this instance
-    this.id = pluginDefinition.id;
-    this.name = pluginDefinition.name;
-    this.description = pluginDefinition.description || "No description provided";
-    this.renderingType = pluginDefinition.renderingType;
-    
-    // Store the original plugin definition
-    this._definition = pluginDefinition;
+    // Add essential properties from static metadata to this instance
+    this.id = metadata.id;
+    this.name = metadata.name;
+    this.description = metadata.description || "No description provided";
+    this.renderingType = metadata.renderingType;
     
     // Store core reference
     this.core = core;
-
-    // Store the rendering environment which is used to render
-    this.renderEnv = core.getRenderingEnvironment();
     
     // Internal state
     this.isLoaded = false;
     this._eventHandlers = [];
+    
+    // Store for visualizations
+    this.visualizations = new Map();
+    this.currentVisualization = null;
+    this.visualizationTypes = [];
+    
+    // Parameter storage
+    this.pluginParameters = {};
+    this.visualizationParameters = {};
+    this.advancedParameters = {};
   }
   
   /**
-   * Load and initialize the plugin
+   * Load and initialize the plugin - framework internal use
    * @returns {Promise<boolean>} Whether loading was successful
    */
   async load() {
@@ -46,18 +51,12 @@ export class Plugin {
     try {
       console.log(`Loading plugin: ${this.name} (${this.id})`);
       
-      // Call plugin's load method if it exists
-      if (typeof this._definition.load === 'function') {
-        // Plugin definition's load method should be called with the core
-        // Plugin will get rendering environment directly from core if needed
-        const success = await this._definition.load(this.core);
-        
-        if (success === false) {
-          // Explicitly returned false
-          console.error(`Plugin ${this.id} load() returned false`);
-          return false;
-        }
-      }
+      // Framework initialization steps
+      // Get the rendering environment at load time to ensure it's the correct one
+      this.renderEnv = this.core.getRenderingEnvironment();
+      
+      // Call the user-implemented start method
+      await this.start();
       
       this.isLoaded = true;
       return true;
@@ -66,6 +65,16 @@ export class Plugin {
       await this.unload();
       return false;
     }
+  }
+  
+  /**
+   * Start the plugin - main entry point for plugin developers
+   * Override this method to implement plugin-specific initialization
+   * @returns {Promise<void>}
+   */
+  async start() {
+    // To be implemented by subclasses
+    // This is where plugin developers should put their initialization code
   }
   
   /**
@@ -78,16 +87,14 @@ export class Plugin {
     try {
       console.log(`Unloading plugin: ${this.name} (${this.id})`);
       
-      // Call plugin's unload method if it exists
-      if (typeof this._definition.unload === 'function') {
-        await this._definition.unload(this.core);
-      }
+      // Implementation will be provided by subclasses
       
       // Remove all event handlers
       this._removeAllEventHandlers();
       
       // Reset state
       this.isLoaded = false;
+      this.renderEnv = null;
       
       return true;
     } catch (error) {
@@ -103,10 +110,7 @@ export class Plugin {
    * @param {string} group - Parameter group
    */
   onParameterChanged(parameterId, value, group) {
-    // Forward to plugin's handler if it exists
-    if (typeof this._definition.onParameterChanged === 'function') {
-      this._definition.onParameterChanged(parameterId, value, group);
-    }
+    // Implementation will be provided by subclasses
   }
   
   /**
@@ -115,14 +119,9 @@ export class Plugin {
    * @returns {boolean} Whether animation should continue
    */
   animate(deltaTime) {
-    // Forward to plugin's animate method if it exists
-    if (typeof this._definition.animate === 'function') {
-      return this._definition.animate(deltaTime);
-    }
-    
+    // Implementation will be provided by subclasses
     return false;
   }
-  
   
   /**
    * Clean up event handlers
