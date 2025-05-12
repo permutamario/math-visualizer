@@ -148,8 +148,8 @@ export class Canvas2DEnvironment {
       console.log(`2D canvas background updated to ${this.backgroundColor}`);
       
       // Request a render to show the change
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
+      if (this.core) {
+        this.core.requestRenderRefresh();
       }
     }
   }
@@ -309,8 +309,8 @@ export class Canvas2DEnvironment {
       this.interaction.lastY = event.clientY;
       
       // Request render
-      if (this.core.renderingManager && this.core.renderingManager.requestRender) {
-        this.core.renderingManager.requestRender();
+      if (this.core) {
+        this.core.requestRenderRefresh();
       }
     }
     
@@ -382,8 +382,8 @@ export class Canvas2DEnvironment {
       this.camera.scale = newScale;
       
       // Request render
-      if (this.core && this.core.renderingManager) {
-        this.core.renderingManager.requestRender();
+      if (this.core) {
+        this.core.requestRenderRefresh();
       }
     }
     
@@ -443,8 +443,8 @@ export class Canvas2DEnvironment {
     };
     
     // Request render
-    if (this.core && this.core.renderingManager) {
-      this.core.renderingManager.requestRender();
+    if (this.core) {
+      this.core.requestRenderRefresh();
     }
   }
   
