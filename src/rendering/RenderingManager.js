@@ -250,34 +250,23 @@ export class RenderingManager {
    * @param {number} timestamp - Current timestamp
    */
   animate(timestamp) {
-    // Calculate delta time in seconds
-    const deltaTime = (timestamp - this.lastFrameTime) / 1000;
-    this.lastFrameTime = timestamp;
-    
-    // Cap the delta time to prevent large jumps
-    const cappedDeltaTime = Math.min(deltaTime, 0.1);
-    
-    // Get active plugin
-    const activePlugin = this.core.getActivePlugin();
-    let needsRender = false;
-    
-    // Let plugin animate if it has an animate method
-    if (activePlugin && typeof activePlugin.animate === 'function') {
-      // If animate returns true, the plugin wants to render
-      needsRender = activePlugin.animate(cappedDeltaTime) || false;
-    }
-    
-    // Render if requested, needed by animation, or environment needs continuous rendering
-    if (this.renderRequested || needsRender || this.shouldRenderEveryFrame()) {
-      this.render();
-      this.renderRequested = false;
-    }
-    
-    // Continue animation loop
-    if (this.rendering) {
-      this.animationId = requestAnimationFrame(this.animate);
-    }
+  const deltaTime = (timestamp - this.lastFrameTime) / 1000;
+  this.lastFrameTime = timestamp;
+  
+  // Get current plugin
+  const plugin = this.core.getActivePlugin();
+  
+  // Only call plugin's animate method if it exists
+  if (plugin && typeof plugin.animate === 'function') {
+    // Plugin decides when to render itself
+    plugin.animate(deltaTime);
   }
+  
+  // Continue animation loop
+  if (this.rendering) {
+    this.animationId = requestAnimationFrame(this.animate);
+  }
+}
   
   /**
    * Determine if rendering should occur every frame
