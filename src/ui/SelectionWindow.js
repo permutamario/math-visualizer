@@ -146,46 +146,47 @@ export class SelectionWindow {
     return card;
   }
   
-  
-   
-show() {
-  // Create the element if it doesn't exist
-  if (!this.element) {
-    this.create();
-  }
-  
-  // Make sure the element exists and is not already visible
-  if (this.element && !this.visible) {
-    this.element.classList.remove('hidden');
+  /**
+   * Show the selection window
+   */
+  show() {
+    // Create the element if it doesn't exist
+    if (!this.element) {
+      this.create();
+    }
     
-    // Mark as visible immediately to prevent race conditions
-    this.visible = true;
-    
-    // Prevent body scrolling while modal is open
-    document.body.style.overflow = 'hidden';
-    
-    // Add animation class after a short delay
-    setTimeout(() => {
-      if (this.element) {
-        this.element.classList.add('visible');
-        
-        // Add event listeners USING NEXT TICK to prevent immediate closing
-        setTimeout(() => {
-          // Add global event listeners
-          document.addEventListener('keydown', this.handleKeyDown);
+    // Make sure the element exists and is not already visible
+    if (this.element && !this.visible) {
+      this.element.classList.remove('hidden');
+      
+      // Mark as visible immediately to prevent race conditions
+      this.visible = true;
+      
+      // Prevent body scrolling while modal is open
+      document.body.style.overflow = 'hidden';
+      
+      // Add animation class after a short delay
+      setTimeout(() => {
+        if (this.element) {
+          this.element.classList.add('visible');
           
-          // THE KEY FIX: Register the click handler on the next event cycle
-          requestAnimationFrame(() => {
-            document.addEventListener('click', this.handleOutsideClick);
-          });
-        }, 100);
-      }
-    }, 10); // Short delay for the CSS transition to work
+          // Add event listeners WITH A DELAY to prevent immediate closing
+          setTimeout(() => {
+            // Add global event listeners
+            document.addEventListener('keydown', this.handleKeyDown);
+            
+            // THE KEY FIX: Register the click handler on the next event cycle
+            requestAnimationFrame(() => {
+              document.addEventListener('click', this.handleOutsideClick);
+            });
+          }, 100);
+        }
+      }, 10); // Short delay for the CSS transition to work
+    }
+    
+    // Update active plugin highlight
+    this.updateActivePlugin(this.activePluginId);
   }
-  
-  // Update active plugin highlight
-  this.updateActivePlugin(this.activePluginId);
-}
   
   /**
    * Hide the selection window
@@ -238,27 +239,41 @@ show() {
     }
   }
   
-  
-update(plugins, activePluginId) {
-  this.plugins = plugins || [];
-  this.activePluginId = activePluginId;
-  
-  // If the element exists, update it without reopening
-  if (this.element && this.element.parentNode) {
-    // Remove old element
-    this.element.parentNode.removeChild(this.element);
-    this.element = null;
+  /**
+   * Update plugin list and active plugin
+   * @param {Array<Object>} plugins - Available plugin metadata
+   * @param {string} activePluginId - Currently active plugin ID
+   */
+  update(plugins, activePluginId) {
+    const wasVisible = this.visible;
+    this.plugins = plugins || [];
+    this.activePluginId = activePluginId;
     
-    // Create new element
-    this.create();
-    
-    // DO NOT automatically restore visibility - this causes the reopening issue
-    // Instead, just keep it hidden
-    this.visible = false;
-    this.element.classList.add('hidden');
-    this.element.classList.remove('visible');
+    // If the element exists, update it without reopening
+    if (this.element && this.element.parentNode) {
+      // Remove old element
+      this.element.parentNode.removeChild(this.element);
+      this.element = null;
+      
+      // Create new element
+      this.create();
+      
+      // Restore visibility state if it was visible
+      if (wasVisible) {
+        this.element.classList.remove('hidden');
+        this.element.classList.add('visible');
+        this.visible = true;
+        
+        // Re-add event listeners
+        document.addEventListener('keydown', this.handleKeyDown);
+        document.addEventListener('click', this.handleOutsideClick);
+      } else {
+        this.element.classList.add('hidden');
+        this.element.classList.remove('visible');
+        this.visible = false;
+      }
+    }
   }
-}
   
   /**
    * Handle keydown events (close on Escape)
@@ -270,7 +285,7 @@ update(plugins, activePluginId) {
     }
   }
   
-   /**
+  /**
    * Handle clicks outside the window content
    * @param {MouseEvent} event - Mouse event
    */
