@@ -432,7 +432,7 @@ handleInteraction(type, data) {
 
 3. **Use the environment API directly**: No need for defensive programming or type checking
 
-4. **Keep state in the plugin**: Don't modify global objects or DOM
+4. **Keep state in the plugin**: Don't modify global objects or DOM directly. Only exception is changing parameters which should be done through changeParameter.
 
 5. **Respond to parameter changes**: Don't poll for changes
 
