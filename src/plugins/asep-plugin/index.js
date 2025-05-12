@@ -44,11 +44,6 @@ export default class ASEPPlugin extends Plugin {
    */
   definePluginParameters() {
     return createParameters()
-      .addDropdown('currentVisualization', 'System Type', 'closed', [
-        { value: 'closed', label: 'Closed System' },
-        { value: 'open', label: 'Open System' },
-        { value: 'circular', label: 'Circular System' }
-      ])
       .addCheckbox('showBoundingBox', 'Show Bounding Box', false)
       .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
       .addCheckbox('isPaused', 'Pause Simulation', false)
