@@ -3,7 +3,8 @@
 import { EventEmitter } from './EventEmitter.js';
 import { StateManager } from './StateManager.js';
 import { UIManager } from '../ui/UIManager.js';
-import { RenderingManager } from '../rendering/RenderingManager.js';
+import { EnvironmentManager } from '../rendering/EnvironmentManager.js';
+import { AnimationManager } from '../rendering/AnimationManager.js';
 import { ColorSchemeManager } from './ColorSchemeManager.js';
 import { RenderModeManager } from '../rendering/RenderModeManager.js';
 import { PluginLoader } from './PluginLoader.js';
@@ -20,7 +21,8 @@ export class AppCore {
     // Core system components
     this.events = new EventEmitter();
     this.state = new StateManager();
-    this.renderingManager = null; // Initialize later to avoid circular dependencies
+    this.environmentManager = null; // Initialize later to avoid circular dependencies
+    this.animationManager = null;
     this.uiManager = null; // Initialize later to avoid circular dependencies
     this.colorSchemeManager = new ColorSchemeManager(this);
     this.renderModeManager = null; // Initialize later to avoid circular dependencies
@@ -55,12 +57,13 @@ export class AppCore {
       await this.colorSchemeManager.initialize();
       
       // Initialize managers that depend on this reference
-      this.renderingManager = new RenderingManager(this);
+      this.environmentManager = new EnvironmentManager(this);
       this.uiManager = new UIManager(this);
       this.renderModeManager = new RenderModeManager(this);
       
       // Initialize core components
-      await this.renderingManager.initialize();
+      await this.environmentManager.initialize();
+      await this.animationManager.initialize();
       await this.uiManager.initialize();
       
       // Discover available plugins
@@ -98,10 +101,10 @@ export class AppCore {
       }
       
       // Start the rendering loop
-      this.renderingManager.startRenderLoop();
+      this.animationManager.startRenderLoop();
       
       // Show the "Select a Plugin" message
-      this.renderingManager.requestRender();
+      this.requestRenderRefresh();
       
       this.isInitialStartup = false;
       return true;
@@ -145,9 +148,15 @@ requestRenderRefresh() {
     });
     
     // Clean up rendering
-    if (this.renderingManager) {
-      this.renderingManager.cleanup();
-      this.renderingManager = null;
+    if (this.environmentManager) {
+      this.environmentManager.cleanup();
+      this.environmentManager = null;
+    }
+
+        // Clean up animation
+    if (this.animationManager) {
+      this.animationManager.cleanup();
+      this.animationManager = null;
     }
     
     // Clean up UI
@@ -200,7 +209,7 @@ requestRenderRefresh() {
         this.uiManager.updatePlugins(this.availablePlugins, activePlugin?.id || null);
         
         // Request a render to show the plugin content
-        this.renderingManager.requestRender();
+        this.requestRenderRefresh();
       } else {
         this.uiManager.showError(`Failed to load plugin "${pluginId}"`);
       }
@@ -520,10 +529,10 @@ requestRenderRefresh() {
    * @returns {Object|null} Rendering environment interface
    */
   getRenderingEnvironment() {
-    if (!this.renderingManager) {
+    if (!this.environmentManager) {
       return null;
     }
     
-    return this.renderingManager.getEnvironmentForPlugin();
+    return this.environmentManager.getEnvironmentForPlugin();
   }
 }
