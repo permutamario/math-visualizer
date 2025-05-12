@@ -4,6 +4,7 @@ import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Open boundary ASEP model - particles can enter/exit at the boundaries
+ * Implements a continuous-time Markov chain model
  */
 export class OpenASEPVisualization extends BaseASEPVisualization {
   constructor(plugin) {
@@ -12,7 +13,11 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     // Add specific state for open system
     this.state.enteringParticles = []; // Particles currently entering the system
     this.state.exitingParticles = [];  // Particles currently exiting the system
-    this.state.particleCount = 0;  // Track total particle count for UI updates
+    this.state.particleCount = 0;      // Track total particle count for UI updates
+    this.state.nextEntryTime = Infinity; // Time of next entry event
+    this.state.nextExitTime = Infinity;  // Time of next exit event at right boundary
+    this.state.entryRate = 0.3;        // Rate at which particles enter from left
+    this.state.exitRate = 0.3;         // Rate at which particles exit to the right
   }
   
   /**
@@ -23,12 +28,11 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   static getParameters() {
     return createParameters()
       .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
-      .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
-      .addSlider('rightJumpProb', 'Right Jump Probability', 0.7, { min: 0.0, max: 1.0, step: 0.05 })
-      .addSlider('leftJumpProb', 'Left Jump Probability', 0.3, { min: 0.0, max: 1.0, step: 0.05 })
-      .addSlider('entryProb', 'Entry Probability', 0.3, { min: 0.0, max: 1.0, step: 0.05 })
-      .addSlider('exitProb', 'Exit Probability', 0.3, { min: 0.0, max: 1.0, step: 0.05 })
-      .addSlider('updateSpeed', 'Update Speed', 1.0, { min: 0.2, max: 3.0, step: 0.1 })
+      .addSlider('numParticles', 'Initial Particles', 5, { min: 0, max: 20, step: 1 })
+      .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.1, max: 3.0, step: 0.1 })
+      .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 1.0, step: 0.1 })
+      .addSlider('entryRate', 'Entry Rate', 0.3, { min: 0.0, max: 1.0, step: 0.1 })
+      .addSlider('exitRate', 'Exit Rate', 0.3, { min: 0.0, max: 1.0, step: 0.1 })
       .build();
   }
   
@@ -44,6 +48,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     this.state.enteringParticles = [];
     this.state.exitingParticles = [];
     
+    // Set entry and exit rates
+    this.state.entryRate = parameters.entryRate !== undefined ? parameters.entryRate : 0.3;
+    this.state.exitRate = parameters.exitRate !== undefined ? parameters.exitRate : 0.3;
+    
+    // Generate entry and exit times
+    this.state.nextEntryTime = this.state.currentTime + this.generateExponentialTime(this.state.entryRate);
+    
     // Create boxes
     this.createBoxes(parameters);
     
@@ -55,9 +66,6 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Update numParticles parameter to match actual count
     this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
-    
-    // Set update interval based on speed
-    this.state.updateInterval = 500 / (parameters.updateSpeed || 1.0);
     
     return true;
   }
@@ -88,60 +96,139 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Implement probability-based jump attempt with open boundaries
-   * @param {Object} particle - Particle to attempt jump with
+   * Check if a right jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
    */
-  attemptParticleJump(particle) {
-    // Get jump probabilities
-    const rightProb = this.getParameterValue('rightJumpProb', 0.7);
-    const leftProb = this.getParameterValue('leftJumpProb', 0.3);
-    const exitProb = this.getParameterValue('exitProb', 0.3);
+  isValidRightJump(particle, targetPosition) {
+    // For right jumps, check if target position is within bounds
+    return targetPosition < this.state.boxes.length;
+  }
+  
+  /**
+   * Check if a left jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
+   */
+  isValidLeftJump(particle, targetPosition) {
+    // For left jumps, check if target position is within bounds
+    return targetPosition >= 0;
+  }
+  
+  /**
+   * Handle boundary dynamics - entry from left and exit to right
+   * @param {number} deltaTime - Simulation time elapsed
+   */
+  handleBoundaryDynamics(deltaTime) {
+    // Process entry events at the left boundary
+    this.processEntryEvents();
     
-    // Make sure probabilities are valid
-    const totalProb = Math.min(rightProb + leftProb, 1.0);
+    // Process exit events at the right boundary
+    this.processExitEvents();
+  }
+  
+  /**
+   * Process particle entry events at the left boundary
+   */
+  processEntryEvents() {
+    // Skip if paused
+    if (this.state.isPaused) return;
     
-    // Generate random number for jump decision
-    const rand = Math.random();
-    
-    // Special case for right boundary
-    if (particle.position === this.state.boxes.length - 1) {
-      // Check for exit first
-      if (rand < exitProb) {
-        // Particle exits the system
-        this.startExitAnimation(particle);
-        return;
+    // Check if it's time for an entry event
+    if (this.state.nextEntryTime <= this.state.currentTime) {
+      // Check if first box is empty
+      if (!this.isPositionOccupied(0) && this.state.enteringParticles.length === 0) {
+        // Start entry animation
+        this.startEntryAnimation();
       }
       
-      // Otherwise, apply standard jump probabilities
-      if (rand < exitProb + rightProb) {
-        // Try to jump right, but can't (at right edge)
-        return;
-      } else if (rand < exitProb + totalProb) {
-        // Try to jump left
-        const targetPos = particle.position - 1;
-        if (!this.isPositionOccupied(targetPos, particle)) {
-          this.startJumpAnimation(particle, targetPos);
-        }
-      }
-      // Otherwise, particle stays put
-      return;
+      // Generate next entry time, regardless of whether entry was successful
+      this.state.nextEntryTime = this.state.currentTime + this.generateExponentialTime(this.state.entryRate);
     }
+  }
+  
+  /**
+   * Process exit events at the right boundary
+   */
+  processExitEvents() {
+    // Skip if paused
+    if (this.state.isPaused) return;
     
-    // Standard case for non-boundary positions
-    if (rand < rightProb) {
-      // Attempt to jump right
-      const targetPos = particle.position + 1;
-      if (targetPos < this.state.boxes.length && !this.isPositionOccupied(targetPos, particle)) {
-        this.startJumpAnimation(particle, targetPos);
+    // For particles at the right edge, check for exit events
+    for (const particle of this.state.particles) {
+      // Skip particles that are already jumping or not at the right edge
+      if (particle.isJumping || particle.position !== this.state.boxes.length - 1) continue;
+      
+      // Check for exit events - this differs from our previous model where exit was handled
+      // via a probability check during particle updates. Here we create a separate exit timer.
+      if (!particle.exitJumpTime) {
+        // Initialize exit jump time if not set
+        particle.exitJumpTime = this.state.currentTime + this.generateExponentialTime(this.state.exitRate);
       }
-    } else if (rand < totalProb) {
-      // Attempt to jump left
-      const targetPos = particle.position - 1;
-      if (targetPos >= 0 && !this.isPositionOccupied(targetPos, particle)) {
-        this.startJumpAnimation(particle, targetPos);
+      
+      // Check if it's time for this particle to exit
+      if (particle.exitJumpTime <= this.state.currentTime) {
+        // Start exit animation
+        this.startExitAnimation(particle);
+        
+        // No need to reset exit time as the particle is now exiting
+        break;
       }
     }
-    // Otherwise, particle stays put
+  }
+  
+  /**
+   * Start entry animation for a new particle
+   */
+  startEntryAnimation() {
+    // Get particle color from palette
+    const particleColor = this.getColorFromPalette(
+      { colorPalette: this.getParameterValue('colorPalette') }, 
+      this.state.colorIndices.particle
+    );
+    
+    // Find highest ID to create a unique ID
+    const maxId = Math.max(
+      ...this.state.particles.map(p => p.id),
+      ...this.state.enteringParticles.map(p => p.id),
+      -1
+    );
+    
+    // Get jump rates
+    const rightRate = this.getParameterValue('rightJumpRate', 0.8);
+    const leftRate = this.getParameterValue('leftJumpRate', 0.2);
+    
+    // Create the new entering particle
+    const newParticle = {
+      id: maxId + 1,
+      position: -1, // Special value for entering particles
+      isJumping: true,
+      jumpProgress: 0,
+      startPosition: -1,
+      targetPosition: 0, // Will end up at position 0
+      color: particleColor,
+      originalColor: particleColor,
+      radius: this.state.particleRadius,
+      jumpSpeed: 2.0,
+      jumpState: 'entering', // Animation state
+      entryProgress: 0,
+      // Continuous-time Markov chain specific properties
+      rightJumpRate: rightRate,
+      leftJumpRate: leftRate,
+      rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
+      leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate)
+    };
+    
+    // Add to entering particles array
+    this.state.enteringParticles.push(newParticle);
+    
+    // Increase particle count
+    this.state.particleCount++;
+    
+    // Update numParticles parameter
+    this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
   }
   
   /**
@@ -168,69 +255,6 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Handle boundary dynamics - specifically entry at left boundary
-   */
-  handleBoundaryDynamics() {
-    // Check if first position is empty
-    if (!this.isPositionOccupied(0) && this.state.enteringParticles.length === 0) {
-      // Get entry probability
-      const entryProb = this.getParameterValue('entryProb', 0.3);
-      
-      // Roll for entry
-      if (Math.random() < entryProb) {
-        this.startEntryAnimation();
-      }
-    }
-  }
-  
-  /**
-   * Start entry animation for a new particle
-   */
-  startEntryAnimation() {
-    // Get particle color from palette
-    const particleColor = this.getColorFromPalette(
-      { colorPalette: this.getParameterValue('colorPalette') }, 
-      this.state.colorIndices.particle
-    );
-    
-    // Find highest ID to create a unique ID
-    const maxId = Math.max(
-      ...this.state.particles.map(p => p.id),
-      ...this.state.enteringParticles.map(p => p.id),
-      -1
-    );
-    
-    // Get position of first box
-    const firstBox = this.state.boxes[0];
-    if (!firstBox) return;
-    
-    // Create the new entering particle
-    const newParticle = {
-      id: maxId + 1,
-      position: -1, // Special value for entering particles
-      isJumping: true,
-      jumpProgress: 0,
-      startPosition: -1,
-      targetPosition: 0, // Will end up at position 0
-      color: particleColor,
-      originalColor: particleColor,
-      radius: this.state.particleRadius,
-      jumpSpeed: 2.0,
-      jumpState: 'entering', // Animation state
-      entryProgress: 0
-    };
-    
-    // Add to entering particles array
-    this.state.enteringParticles.push(newParticle);
-    
-    // Increase particle count
-    this.state.particleCount++;
-    
-    // Update numParticles parameter
-    this.plugin.updateParameter('numParticles', this.state.particleCount, 'visualization');
-  }
-  
-  /**
    * Complete a jump for a particle
    * @param {Object} particle - Particle that completed jump
    * @param {Array} particlesToRemove - Array to add particles to remove to
@@ -246,6 +270,14 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     
     // Normal jump completion
     super.completeJump(particle, particlesToRemove);
+    
+    // For particles that just reached the right edge, set exit time
+    if (particle.position === this.state.boxes.length - 1) {
+      particle.exitJumpTime = this.state.currentTime + this.generateExponentialTime(this.state.exitRate);
+    } else {
+      // For all other particles, clear exit time if it exists
+      delete particle.exitJumpTime;
+    }
   }
   
   /**
@@ -301,9 +333,42 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
    * @param {Object} parameters - New parameter values
    */
   handleParameterUpdate(parameters) {
-    // Update the update interval based on speed
-    if (parameters.updateSpeed !== undefined) {
-      this.state.updateInterval = 500 / parameters.updateSpeed;
+    // Update entry and exit rates
+    if (parameters.entryRate !== undefined) {
+      this.state.entryRate = parameters.entryRate;
+      // Recalculate next entry time proportionally
+      const timeToEvent = this.state.nextEntryTime - this.state.currentTime;
+      if (timeToEvent > 0) {
+        // Scale the remaining time based on the ratio of old rate to new rate
+        const newTimeToEvent = parameters.entryRate > 0 ? 
+          timeToEvent * (this.state.entryRate / parameters.entryRate) : Infinity;
+        this.state.nextEntryTime = this.state.currentTime + newTimeToEvent;
+      } else {
+        // If the entry event is already due, generate a new time
+        this.state.nextEntryTime = this.state.currentTime + this.generateExponentialTime(parameters.entryRate);
+      }
+    }
+    
+    if (parameters.exitRate !== undefined) {
+      const oldExitRate = this.state.exitRate;
+      this.state.exitRate = parameters.exitRate;
+      
+      // Update exit jump times for particles at the right boundary
+      for (const particle of this.state.particles) {
+        if (!particle.isJumping && particle.position === this.state.boxes.length - 1 && particle.exitJumpTime) {
+          // Recalculate next exit time proportionally
+          const timeToEvent = particle.exitJumpTime - this.state.currentTime;
+          if (timeToEvent > 0) {
+            // Scale the remaining time based on the ratio of old rate to new rate
+            const newTimeToEvent = parameters.exitRate > 0 ? 
+              timeToEvent * (oldExitRate / parameters.exitRate) : Infinity;
+            particle.exitJumpTime = this.state.currentTime + newTimeToEvent;
+          } else {
+            // If the exit event is already due, generate a new time
+            particle.exitJumpTime = this.state.currentTime + this.generateExponentialTime(parameters.exitRate);
+          }
+        }
+      }
     }
     
     // If numBoxes changed drastically, reset simulation
@@ -569,13 +634,13 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
   drawSpecificDebugInfo(ctx, startY) {
     let y = startY;
     
-    ctx.fillText(`Right Prob: ${this.getParameterValue('rightJumpProb', 0.7).toFixed(2)}`, 20, y);
+    ctx.fillText(`Right Rate: ${this.getParameterValue('rightJumpRate', 0.8).toFixed(1)}`, 20, y);
     y += 20;
-    ctx.fillText(`Left Prob: ${this.getParameterValue('leftJumpProb', 0.3).toFixed(2)}`, 20, y);
+    ctx.fillText(`Left Rate: ${this.getParameterValue('leftJumpRate', 0.2).toFixed(1)}`, 20, y);
     y += 20;
-    ctx.fillText(`Entry Prob: ${this.getParameterValue('entryProb', 0.3).toFixed(2)}`, 20, y);
+    ctx.fillText(`Entry Rate: ${this.state.entryRate.toFixed(1)}`, 20, y);
     y += 20;
-    ctx.fillText(`Exit Prob: ${this.getParameterValue('exitProb', 0.3).toFixed(2)}`, 20, y);
+    ctx.fillText(`Exit Rate: ${this.state.exitRate.toFixed(1)}`, 20, y);
     y += 20;
     ctx.fillText(`Total Particles: ${this.state.particleCount}`, 20, y);
   }
@@ -660,7 +725,11 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
               -1
             );
             
-            // Create particle
+            // Get jump rates
+            const rightRate = this.getParameterValue('rightJumpRate', 0.8);
+            const leftRate = this.getParameterValue('leftJumpRate', 0.2);
+            
+            // Create particle with exponential clocks
             this.state.particles.push({
               id: maxId + 1,
               position: i,
@@ -673,7 +742,15 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
               radius: this.state.particleRadius,
               jumpSpeed: 2.0,
               jumpState: 'none',
-              insideProgress: 0
+              insideProgress: 0,
+              // Continuous-time Markov chain specific properties
+              rightJumpRate: rightRate,
+              leftJumpRate: leftRate,
+              rightJumpTime: this.state.currentTime + this.generateExponentialTime(rightRate),
+  leftJumpTime: this.state.currentTime + this.generateExponentialTime(leftRate),
+  // Add exit time if at right edge
+  exitJumpTime: i === this.state.boxes.length - 1 ? 
+   this.state.currentTime + this.generateExponentialTime(this.state.exitRate) : undefined
             });
             
             this.state.particleCount++;
@@ -704,6 +781,21 @@ export class OpenASEPVisualization extends BaseASEPVisualization {
     }
     
     return false;
+  }
+  
+  /**
+   * Generate a time from exponential distribution
+   * @param {number} rate - Rate parameter for exponential distribution
+   * @returns {number} Random time value
+   */
+  generateExponentialTime(rate) {
+    // For rate = 0, return Infinity (event never happens)
+    if (rate <= 0) return Infinity;
+    
+    // Generate random exponential time with given rate
+    // For exponential distribution: time = -ln(u)/rate where u is uniform(0,1)
+    const u = Math.random();
+    return -Math.log(u) / rate;
   }
   
   /**

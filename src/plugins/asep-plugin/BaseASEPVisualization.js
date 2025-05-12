@@ -182,27 +182,37 @@ export class BaseASEPVisualization extends Visualization {
    * Update the simulation based on continuous-time Markov chain
    * @param {number} deltaTime - Real time elapsed since last frame in seconds
    */
-  updateSimulation(deltaTime) {
-    if (this.state.isPaused) return;
-    
-    // Scale real time to simulation time based on speed factor
-    const simulationDeltaTime = deltaTime * this.state.realTimeFactor;
-    
-    // Advance simulation time
-    this.state.currentTime += simulationDeltaTime;
-    
-    // Process events that should have occurred by current time
-    while (!this.state.isPaused && this.state.nextEventTime <= this.state.currentTime) {
-      // Execute the next event
-      this.executeNextEvent();
-      
-      // Recalculate next event time
-      this.calculateNextEventTime();
-    }
-    
-    // Handle boundary dynamics (entry/exit for open system)
-    this.handleBoundaryDynamics(simulationDeltaTime);
+  
+  /**
+ * Override the updateSimulation method to implement continuous-time dynamics
+ * @param {number} deltaTime - Time elapsed since last frame in seconds
+ */
+updateSimulation(deltaTime) {
+  if (this.state.isPaused) return;
+  
+  // Initialize current time if it doesn't exist
+  if (this.state.currentTime === undefined) {
+    this.state.currentTime = 0;
   }
+  
+  // Advance simulation time
+  this.state.currentTime += deltaTime;
+  
+  // Process particles in random order to avoid bias
+  const shuffledParticles = [...this.state.particles];
+  for (let i = shuffledParticles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledParticles[i], shuffledParticles[j]] = [shuffledParticles[j], shuffledParticles[i]];
+  }
+  
+  // Process each particle
+  for (const particle of shuffledParticles) {
+    this.attemptParticleJump(particle);
+  }
+  
+  // Handle boundary dynamics
+  this.handleBoundaryDynamics(deltaTime);
+}
   
   /**
    * Execute the next scheduled event in the simulation
@@ -232,36 +242,87 @@ export class BaseASEPVisualization extends Visualization {
    * @param {Object} particle - Particle attempting to jump
    * @param {string} direction - Direction of jump ('right' or 'left')
    */
-  attemptJump(particle, direction) {
-    if (particle.isJumping) return; // Already jumping
+
+  /**
+ * Reset the continuous-time simulation
+ */
+resetSimulation() {
+  // Reset simulation time
+  this.state.currentTime = 0;
+  
+  // Reset jump times for all particles
+  this.state.particles.forEach(particle => {
+    const rightRate = this.getParameterValue('rightJumpRate', 0.8);
+    const leftRate = this.getParameterValue('leftJumpRate', 0.2);
     
-    let targetPosition;
+    particle.rightJumpTime = this.generateExponentialTime(rightRate);
+    particle.leftJumpTime = this.generateExponentialTime(leftRate);
     
-    if (direction === 'right') {
-      targetPosition = particle.position + 1;
-      
-      // Check if target position is valid for this model
-      if (!this.isValidRightJump(particle, targetPosition)) return;
-      
-      // Check if target position is occupied
-      if (this.isPositionOccupied(targetPosition, particle)) return;
-      
-      // Start jump animation
-      this.startJumpAnimation(particle, targetPosition);
-    } 
-    else if (direction === 'left') {
-      targetPosition = particle.position - 1;
-      
-      // Check if target position is valid for this model
-      if (!this.isValidLeftJump(particle, targetPosition)) return;
-      
-      // Check if target position is occupied
-      if (this.isPositionOccupied(targetPosition, particle)) return;
-      
-      // Start jump animation
-      this.startJumpAnimation(particle, targetPosition);
+    // Reset exit time if at right edge
+    if (particle.position === this.state.boxes.length - 1) {
+      particle.exitJumpTime = this.generateExponentialTime(this.state.exitRate);
+    } else {
+      delete particle.exitJumpTime;
     }
+  });
+  
+  // Reset next entry time
+  this.state.nextEntryTime = this.generateExponentialTime(this.state.entryRate);
+}
+
+  /**
+ * Implement continuous-time Markov chain jumps using exponential clocks
+ * This overrides the probability-based jump from the base class
+ * @param {Object} particle - Particle to attempt jump with
+ */
+attemptParticleJump(particle) {
+  // Skip if particle is already jumping
+  if (particle.isJumping) return;
+  
+  // Get current time
+  const currentTime = this.state.currentTime;
+  
+  // Initialize jump times if they don't exist
+  if (particle.rightJumpTime === undefined) {
+    particle.rightJumpRate = this.getParameterValue('rightJumpRate', 0.8);
+    particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
   }
+  
+  if (particle.leftJumpTime === undefined) {
+    particle.leftJumpRate = this.getParameterValue('leftJumpRate', 0.2);
+    particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
+  }
+  
+  // Check if it's time for a right jump
+  if (particle.rightJumpTime <= currentTime) {
+    // Attempt to jump right
+    const targetPos = particle.position + 1;
+    
+    // Check if valid position and not occupied
+    if (this.isValidRightJump(particle, targetPos) && !this.isPositionOccupied(targetPos, particle)) {
+      this.startJumpAnimation(particle, targetPos);
+    } else {
+      // Reschedule the jump attempt even if it failed
+      particle.rightJumpTime = currentTime + this.generateExponentialTime(particle.rightJumpRate);
+    }
+    return;
+  }
+  
+  // Check if it's time for a left jump
+  if (particle.leftJumpTime <= currentTime) {
+    // Attempt to jump left
+    const targetPos = particle.position - 1;
+    
+    // Check if valid position and not occupied
+    if (this.isValidLeftJump(particle, targetPos) && !this.isPositionOccupied(targetPos, particle)) {
+      this.startJumpAnimation(particle, targetPos);
+    } else {
+      // Reschedule the jump attempt even if it failed
+      particle.leftJumpTime = currentTime + this.generateExponentialTime(particle.leftJumpRate);
+    }
+    return;
+  }
+}
   
   /**
    * Check if a right jump to target position is valid
