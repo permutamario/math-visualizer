@@ -135,6 +135,8 @@ export class Plugin {
         options: this._getVisualizationOptions(),
         default: this.currentVisualization ? this._getVisualizationId(this.currentVisualization) : ''
       };
+
+      console.log("I gave visualization with", this.currentVisualization);
       
       // Add to the beginning of visualization parameter list
       visualizationSchema = [currentVisualizationParam];
