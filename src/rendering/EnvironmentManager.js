@@ -236,32 +236,26 @@ export class EnvironmentManager {
    }
  }
  
- /**
-  * Render using the current environment
-  * @param {Object} plugin - Active plugin
-  * @param {Object} parameters - Current parameters
-  */
  renderWithCurrentEnvironment(plugin, parameters) {
-   if (!this.currentEnvironment) return;
-   
-   if (plugin) {
-     // If a plugin is active, render based on environment type
-     if (this.currentEnvironment === this.environments['2d']) {
-       // 2D rendering
-       if (typeof this.currentEnvironment.render === 'function') {
-         this.currentEnvironment.render(parameters);
-       }
-     } else if (this.currentEnvironment === this.environments['3d']) {
-       // 3D rendering
-       if (typeof this.currentEnvironment.render === 'function') {
-         this.currentEnvironment.render(parameters);
-       }
-     }
-   } else {
-     // If no plugin is active, render welcome message
-     this.renderWelcomeMessage();
-   }
- }
+  if (!this.currentEnvironment) return;
+  
+  if (plugin) {
+    // If a plugin is active, render based on environment type
+    if (this.currentEnvironment === this.environments['2d']) {
+      // For 2D, don't call any render method - the plugin should handle all rendering
+      // directly using the context it already has access to
+    } else if (this.currentEnvironment === this.environments['3d']) {
+      // 3D rendering still needs the environment render method
+      // because THREE.js requires specific render calls
+      if (typeof this.currentEnvironment.render === 'function') {
+        this.currentEnvironment.render(parameters);
+      }
+    }
+  } else {
+    // If no plugin is active, render welcome message
+    this.renderWelcomeMessage();
+  }
+}
  
  /**
   * Render a simple message when no plugin is loaded
