@@ -189,11 +189,10 @@ export class Canvas2DEnvironment {
   }
   
   /**
-   * Render a visualization
-   * @param {Visualization} visualization - Visualization to render
+   * Render the scene using the active plugin
    * @param {Object} parameters - Current parameters
    */
-  render(visualization, parameters) {
+  render(parameters) {
     if (!this.active || !this.ctx) return;
     
     // Clear canvas with the background color
@@ -218,8 +217,13 @@ export class Canvas2DEnvironment {
     // 4. Apply translation
     this.ctx.translate(this.camera.x, this.camera.y);
     
-    // Call visualization's render method
-    visualization.render2D(this.ctx, parameters);
+    // Get current plugin
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+    
+    // Call plugin's render method if plugin exists and has a render2D method
+    if (activePlugin && typeof activePlugin.render2D === 'function') {
+      activePlugin.render2D(this.ctx, parameters);
+    }
     
     // Restore context
     this.ctx.restore();
@@ -274,13 +278,10 @@ export class Canvas2DEnvironment {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('mousedown', { x, y, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('mousedown', { x, y, event });
     }
   }
   
@@ -318,13 +319,10 @@ export class Canvas2DEnvironment {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('mousemove', { x, y, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('mousemove', { x, y, event });
     }
   }
   
@@ -341,14 +339,11 @@ export class Canvas2DEnvironment {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('mouseup', { x, y, event });
-        visualization.handleInteraction('click', { x, y, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('mouseup', { x, y, event });
+      activePlugin.handleInteraction('click', { x, y, event });
     }
   }
   
@@ -396,13 +391,10 @@ export class Canvas2DEnvironment {
     const x = mouseX;
     const y = mouseY;
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('wheel', { x, y, deltaY: event.deltaY, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('wheel', { x, y, deltaY: event.deltaY, event });
     }
   }
   
@@ -418,13 +410,10 @@ export class Canvas2DEnvironment {
       this.resetCamera();
     }
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('keydown', { key: event.key, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('keydown', { key: event.key, event });
     }
   }
   
@@ -435,13 +424,10 @@ export class Canvas2DEnvironment {
   handleKeyUp(event) {
     this.interaction.keys[event.key] = false;
     
-    // Pass to active visualization if any
+    // Pass to active plugin if it has a handleInteraction method
     const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization) {
-        visualization.handleInteraction('keyup', { key: event.key, event });
-      }
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('keyup', { key: event.key, event });
     }
   }
   
