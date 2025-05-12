@@ -44,15 +44,12 @@ export default class ASEPPlugin extends Plugin {
    */
   definePluginParameters() {
     return createParameters()
-      .addCheckbox('showBoundingBox', 'Show Bounding Box', false)
-      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
-      .addCheckbox('isPaused', 'Pause Simulation', false)
-      .addCheckbox('showLabels', 'Show Labels', false)
-      .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
-      .addCheckbox('isPaused', 'Pause Simulation', false)
-      .addCheckbox('showLabels', 'Show Labels', false)
-      .build();
-  }
+    .addCheckbox('showBoundingBox', 'Show Bounding Box', false)
+    .addSlider('animationSpeed', 'Animation Speed', 1.0, { min: 0.1, max: 3.0, step: 0.1 })
+    .addCheckbox('isPaused', 'Pause Simulation', false)
+    .addCheckbox('showLabels', 'Show Labels', false)
+    .build();
+}
   
   /**
    * Define advanced parameters

@@ -18,8 +18,8 @@ export class BaseASEPVisualization extends Visualization {
       isPaused: false,          // Flag to control simulation pausing
       boxes: [],                // Array of box positions
       particles: [],            // Array of particle objects
-      jumpEvents: [],           // Array to track scheduled jump events
-      timeScale: 1.0,           // Time scaling factor for simulation speed
+      updateInterval: 500,      // ms between updates (discrete time steps)
+      lastUpdateTime: 0,        // Track time since last update
       boxSize: 40,              // Fixed box size (pixels)
       particleRadius: 14,       // Fixed particle radius (pixels)
       colorIndices: {           // Default color indices from the palette
@@ -53,8 +53,8 @@ export class BaseASEPVisualization extends Visualization {
     // Set isPaused from parameters
     this.state.isPaused = parameters.isPaused || false;
     
-    // Set timeScale from parameters
-    this.state.timeScale = parameters.animationSpeed || 1.0;
+    // Set update interval based on animation speed
+    this.state.updateInterval = 500 / (parameters.animationSpeed || 1.0);
     
     return true;
   }
@@ -63,19 +63,10 @@ export class BaseASEPVisualization extends Visualization {
    * Clear any existing simulation state
    */
   clearSimulation() {
-    // Clear existing jump timeouts
-    if (this.state && this.state.jumpEvents) {
-      this.state.jumpEvents.forEach(event => {
-        if (event.timeoutId) {
-          clearTimeout(event.timeoutId);
-        }
-      });
-    }
-    
     // Reset state
     this.state.boxes = [];
     this.state.particles = [];
-    this.state.jumpEvents = [];
+    this.state.lastUpdateTime = 0;
   }
   
   /**
@@ -123,14 +114,52 @@ export class BaseASEPVisualization extends Visualization {
   }
   
   /**
-   * Schedule initial jumps for particles
+   * NEW: Global update method for probability-based updates
+   * @param {number} deltaTime - Time since last frame in seconds
    */
-  scheduleInitialJumps() {
-    if (!this.state.isPaused && Array.isArray(this.state.particles)) {
-      this.state.particles.forEach(particle => {
-        this.scheduleNextJump(particle);
-      });
+  updateSimulation(deltaTime) {
+    if (this.state.isPaused) return;
+    
+    // Accumulate time since last update
+    this.state.lastUpdateTime += deltaTime * 1000; // convert to ms
+    
+    // Only update at fixed intervals (for discrete-time model)
+    if (this.state.lastUpdateTime < this.state.updateInterval) return;
+    
+    // Reset timer
+    this.state.lastUpdateTime = 0;
+    
+    // Process particles in random order to avoid bias
+    const shuffledParticles = [...this.state.particles];
+    for (let i = shuffledParticles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledParticles[i], shuffledParticles[j]] = [shuffledParticles[j], shuffledParticles[i]];
     }
+    
+    // Process each particle
+    for (const particle of shuffledParticles) {
+      if (particle.isJumping) continue; // Skip particles already in motion
+      
+      this.attemptParticleJump(particle);
+    }
+    
+    // Handle boundary dynamics
+    this.handleBoundaryDynamics();
+  }
+  
+  /**
+   * NEW: Method to attempt particle jumps based on probabilities
+   * @param {Object} particle - Particle to attempt jump with
+   */
+  attemptParticleJump(particle) {
+    // Override in subclasses to implement specific jump logic
+  }
+  
+  /**
+   * NEW: Method to handle boundary dynamics
+   */
+  handleBoundaryDynamics() {
+    // Override in subclasses to implement boundary-specific logic
   }
   
   /**
@@ -144,19 +173,23 @@ export class BaseASEPVisualization extends Visualization {
     
     return this.state.particles.some(p => 
       p !== excludeParticle && 
-      ((p.position === position && (p.jumpState === 'none' || p.jumpState === 'inside')) || 
+      ((p.position === position && !p.isJumping) || 
        (p.isJumping && p.targetPosition === position))
     );
   }
   
   /**
-   * Schedule the next jump for a particle
-   * Override in subclasses to implement specific jumping behavior
-   * @param {Object} particle - Particle to schedule jump for
+   * Start jump animation for a particle
+   * @param {Object} particle - Particle to animate
+   * @param {number} targetPosition - Target position to jump to
    */
-  scheduleNextJump(particle) {
-    // To be implemented by subclasses
-    console.log("BaseASEPVisualization: scheduleNextJump must be implemented by subclasses");
+  startJumpAnimation(particle, targetPosition) {
+    particle.isJumping = true;
+    particle.jumpProgress = 0;
+    particle.startPosition = particle.position;
+    particle.targetPosition = targetPosition;
+    particle.originalColor = particle.color;
+    particle.jumpState = 'entering'; // Start the jump animation sequence
   }
   
   /**
@@ -165,27 +198,88 @@ export class BaseASEPVisualization extends Visualization {
   toggleSimulation() {
     this.state.isPaused = !this.state.isPaused;
     
-    if (!this.state.isPaused && Array.isArray(this.state.particles)) {
-      // Resume by scheduling new jumps for non-jumping particles
+    // Update the isPaused parameter in the plugin
+    this.plugin.updateParameter('isPaused', this.state.isPaused, 'plugin');
+  }
+  
+  /**
+   * Update animation state
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   */
+  animate(deltaTime) {
+    // Always set isAnimating true to ensure continuous rendering
+    this.isAnimating = true;
+    
+    // Get animation speed from parameters
+    const animationSpeed = this.getParameterValue('animationSpeed', 1.0);
+    
+    // Update jump animations
+    const particlesToRemove = [];
+    if (Array.isArray(this.state.particles)) {
       this.state.particles.forEach(particle => {
-        if (!particle.isJumping) {
-          this.scheduleNextJump(particle);
+        if (particle.isJumping) {
+          // Update jump progress
+          particle.jumpProgress += deltaTime * particle.jumpSpeed * animationSpeed;
+          
+          // Check for entering a box
+          if (particle.jumpState === 'entering' && particle.jumpProgress >= 0.5) {
+            particle.jumpState = 'inside';
+            particle.insideProgress = 0;
+          }
+          // Check for exiting a box
+          else if (particle.jumpState === 'inside' && particle.insideProgress >= 1.0) {
+            particle.jumpState = 'exiting';
+          }
+          
+          // Update inside progress if particle is inside a box
+          if (particle.jumpState === 'inside') {
+            particle.insideProgress += deltaTime * particle.jumpSpeed * animationSpeed * 2;
+          }
+          
+          // Check if jump is complete
+          if (particle.jumpProgress >= 1) {
+            this.completeJump(particle, particlesToRemove);
+          }
         }
       });
-    } else {
-      // Pause by clearing all scheduled jumps
-      if (Array.isArray(this.state.jumpEvents)) {
-        this.state.jumpEvents.forEach(event => {
-          if (event.timeoutId) {
-            clearTimeout(event.timeoutId);
-          }
-        });
-        this.state.jumpEvents = [];
-      }
     }
     
-    // Update the isPaused parameter in the plugin
-    this.plugin.updateParameter('isPaused', this.state.isPaused, 'visualization');
+    // Remove particles that need to be removed
+    if (particlesToRemove.length > 0) {
+      this.state.particles = this.state.particles.filter(p => !particlesToRemove.includes(p));
+    }
+    
+    // Update the simulation with probability-based model
+    this.updateSimulation(deltaTime);
+    
+    // Allow subclasses to perform additional animation
+    this.customAnimate(deltaTime);
+    
+    // Return true to ensure continuous rendering
+    return true;
+  }
+  
+  /**
+   * Custom animation behavior to be implemented by subclasses
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   */
+  customAnimate(deltaTime) {
+    // To be implemented by subclasses - empty by default
+  }
+  
+  /**
+   * Complete a jump for a particle
+   * @param {Object} particle - Particle that completed jump
+   * @param {Array} particlesToRemove - Array to add particles to remove to
+   */
+  completeJump(particle, particlesToRemove) {
+    // Normal jump completion (override in subclasses for special cases)
+    particle.isJumping = false;
+    particle.jumpProgress = 0;
+    particle.position = particle.targetPosition;
+    particle.color = particle.originalColor;
+    particle.jumpState = 'none';
+    particle.insideProgress = 0;
   }
   
   /**
@@ -279,92 +373,55 @@ export class BaseASEPVisualization extends Visualization {
   }
   
   /**
-   * Update animation state
-   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * Update the visualization with new parameters
+   * @param {Object} parameters - New parameter values
    */
-  animate(deltaTime) {
-    if (!this.plugin) {
-      return true; // Keep rendering to avoid freezing
+  update(parameters) {
+    if (!parameters) return;
+
+    // Update particle colors if color palette changed
+    if (parameters.colorPalette !== undefined) {
+      this.updateParticleColors(parameters);
     }
     
-    // Get animation speed from plugin parameters
-    const animationSpeed = this.getParameterValue('animationSpeed', 1.0);
-    
-    // Update speed
-    this.state.timeScale = animationSpeed;
-    
-    // Always request continuous rendering by setting direct property
-    this.isAnimating = true;
-    
-    // Update particle jump animations
-    const particlesToRemove = [];
-    if (Array.isArray(this.state.particles)) {
-      this.state.particles.forEach(particle => {
-        if (particle.isJumping) {
-          // Update jump progress
-          particle.jumpProgress += deltaTime * particle.jumpSpeed * this.state.timeScale;
-          
-          // Check for entering a box
-          if (particle.jumpState === 'entering' && particle.jumpProgress >= 0.5) {
-            particle.jumpState = 'inside';
-            particle.insideProgress = 0;
-          }
-          // Check for exiting a box
-          else if (particle.jumpState === 'inside' && particle.insideProgress >= 1.0) {
-            particle.jumpState = 'exiting';
-          }
-          
-          // Update inside progress if particle is inside a box
-          if (particle.jumpState === 'inside') {
-            particle.insideProgress += deltaTime * particle.jumpSpeed * this.state.timeScale * 2;
-          }
-          
-          // Check if jump is complete
-          if (particle.jumpProgress >= 1) {
-            this.completeJump(particle, particlesToRemove);
-          }
-        }
-      });
+    // Update pause state
+    if (parameters.isPaused !== undefined && parameters.isPaused !== this.state.isPaused) {
+      this.state.isPaused = parameters.isPaused;
     }
     
-    // Remove particles that need to be removed
-    if (particlesToRemove.length > 0) {
-      this.state.particles = this.state.particles.filter(p => !particlesToRemove.includes(p));
+    // Update animation speed
+    if (parameters.animationSpeed !== undefined) {
+      this.state.updateInterval = 500 / parameters.animationSpeed;
     }
     
-    // Custom animation behavior in subclasses
-    this.customAnimate(deltaTime);
+    // Allow subclasses to handle specific parameter updates
+    this.handleParameterUpdate(parameters);
+  }
+
+  /**
+   * Update particle colors when color palette changes
+   * @param {Object} parameters - Visualization parameters with new color settings
+   */
+  updateParticleColors(parameters) {
+    if (!Array.isArray(this.state.particles) || this.state.particles.length === 0) return;
     
-    // Return true to ensure continuous rendering
-    return true;
+    // Get the new color from palette
+    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+    
+    // Update all particle colors
+    this.state.particles.forEach(particle => {
+      particle.color = particleColor;
+      particle.originalColor = particleColor;
+    });
   }
   
   /**
-   * Custom animation behavior to be implemented by subclasses
-   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   * Handle parameter updates specific to subclasses
+   * @param {Object} parameters - New parameter values
    */
-  customAnimate(deltaTime) {
-    // To be implemented by subclasses - empty by default
-  }
-  
-  /**
-   * Complete a jump for a particle
-   * @param {Object} particle - Particle that completed jump
-   * @param {Array} particlesToRemove - Array to add particles to remove to
-   */
-  completeJump(particle, particlesToRemove) {
-    // Normal jump completion (override in subclasses for special cases)
-    particle.isJumping = false;
-    particle.jumpProgress = 0;
-    particle.position = particle.targetPosition;
-    particle.color = particle.originalColor;
-    particle.jumpState = 'none';
-    particle.insideProgress = 0;
-    
-    // Schedule next jump if not paused
-    if (!this.state.isPaused) {
-      this.scheduleNextJump(particle);
-    }
+  handleParameterUpdate(parameters) {
+    // Default implementation does nothing
+    // To be overridden by subclasses
   }
   
   /**
@@ -434,89 +491,92 @@ export class BaseASEPVisualization extends Visualization {
   }
   
   /**
-   * Update the visualization with new parameters
-   * @param {Object} parameters - New parameter values
+   * Draw a bounding box around the system
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
    */
-  update(parameters) {
-    if (!parameters) return;
-
-    // Update particle colors if color palette changed
-    if (parameters.colorPalette !== undefined) {
-      this.updateParticleColors(parameters);
-    }
+  drawBoundingBox(ctx, parameters) {
+    if (!ctx || !Array.isArray(this.state.boxes) || this.state.boxes.length === 0) return;
     
-    // Update pause state
-    if (parameters.isPaused !== undefined && parameters.isPaused !== this.state.isPaused) {
-      this.state.isPaused = parameters.isPaused;
-      
-      if (!this.state.isPaused && Array.isArray(this.state.particles)) {
-        // Resume simulation
-        this.state.particles.forEach(particle => {
-          if (!particle.isJumping) {
-            this.scheduleNextJump(particle);
-          }
-        });
-      } else if (Array.isArray(this.state.jumpEvents)) {
-        // Pause simulation
-        this.state.jumpEvents.forEach(event => {
-          if (event.timeoutId) {
-            clearTimeout(event.timeoutId);
-          }
-        });
-        this.state.jumpEvents = [];
-      }
-    }
+    ctx.save();
     
-    // Update timeScale
-    if (parameters.animationSpeed !== undefined) {
-      this.state.timeScale = parameters.animationSpeed;
-    }
+    // Find the extents of the boxes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const boxHalfSize = this.state.boxSize / 2;
     
-    // Allow subclasses to handle specific parameter updates
-    this.handleParameterUpdate(parameters);
-  }
-
-  /**
-   * Update particle colors when color palette changes
-   * @param {Object} parameters - Visualization parameters with new color settings
-   */
-  updateParticleColors(parameters) {
-    if (!Array.isArray(this.state.particles) || this.state.particles.length === 0) return;
-    
-    // Get the new color from palette
-    const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
-    
-    // Update all particle colors
-    this.state.particles.forEach(particle => {
-      particle.color = particleColor;
-      particle.originalColor = particleColor;
+    this.state.boxes.forEach(box => {
+      minX = Math.min(minX, box.x - boxHalfSize);
+      minY = Math.min(minY, box.y - boxHalfSize);
+      maxX = Math.max(maxX, box.x + boxHalfSize);
+      maxY = Math.max(maxY, box.y + boxHalfSize);
     });
+    
+    // Add margin
+    const margin = 20;
+    minX -= margin;
+    minY -= margin;
+    maxX += margin;
+    maxY += margin;
+    
+    // Draw the bounding box
+    ctx.strokeStyle = '#999999';
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+    ctx.setLineDash([]);
+    
+    ctx.restore();
   }
   
   /**
-   * Handle parameter updates specific to subclasses
-   * @param {Object} parameters - New parameter values
+   * Draw debug information
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {Object} parameters - Visualization parameters
    */
-  handleParameterUpdate(parameters) {
-    // Default implementation does nothing
-    // To be overridden by subclasses
+  drawDebugInfo(ctx, parameters) {
+    ctx.save();
+    
+    // Reset transform to work in screen space
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+    // Draw a semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, 10, 220, 130);
+    
+    // Draw text
+    ctx.fillStyle = 'white';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    
+    let y = 20;
+    ctx.fillText(`Particles: ${this.state.particles.length}`, 20, y);
+    y += 20;
+    ctx.fillText(`Paused: ${this.state.isPaused}`, 20, y);
+    y += 20;
+    ctx.fillText(`Update Interval: ${this.state.updateInterval.toFixed(0)} ms`, 20, y);
+    y += 20;
+    
+    // Add specific debug info for each model
+    this.drawSpecificDebugInfo(ctx, y);
+    
+    ctx.restore();
+  }
+  
+  /**
+   * Draw model-specific debug information
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} startY - Y position to start drawing
+   */
+  drawSpecificDebugInfo(ctx, startY) {
+    // Override in subclasses to add specific debug info
   }
   
   /**
    * Clean up resources when visualization is no longer needed
    */
   dispose() {
-    // Clear all timeouts
-    if (Array.isArray(this.state.jumpEvents)) {
-      this.state.jumpEvents.forEach(event => {
-        if (event.timeoutId) {
-          clearTimeout(event.timeoutId);
-        }
-      });
-    }
-    
     // Reset state
-    this.state.jumpEvents = [];
     this.state.particles = [];
     this.state.boxes = [];
     this.state.isAnimating = false;

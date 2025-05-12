@@ -23,8 +23,9 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     return createParameters()
       .addSlider('numBoxes', 'Number of Sites', 10, { min: 3, max: 20, step: 1 })
       .addSlider('numParticles', 'Number of Particles', 5, { min: 0, max: 20, step: 1 })
-      .addSlider('rightJumpRate', 'Right Jump Rate', 0.8, { min: 0.0, max: 2.0, step: 0.1 })
-      .addSlider('leftJumpRate', 'Left Jump Rate', 0.2, { min: 0.0, max: 2.0, step: 0.1 })
+      .addSlider('rightJumpProb', 'Right Jump Probability', 0.7, { min: 0.0, max: 1.0, step: 0.05 })
+      .addSlider('leftJumpProb', 'Left Jump Probability', 0.3, { min: 0.0, max: 1.0, step: 0.05 })
+      .addSlider('updateSpeed', 'Update Speed', 1.0, { min: 0.2, max: 3.0, step: 0.1 })
       .build();
   }
   
@@ -42,8 +43,8 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     // Create initial particles with random positions
     this.createParticles(parameters);
     
-    // Schedule initial jumps for each particle
-    this.scheduleInitialJumps();
+    // Set update interval based on speed
+    this.state.updateInterval = 500 / (parameters.updateSpeed || 1.0);
     
     return true;
   }
@@ -81,64 +82,68 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
-   * Schedule the next jump for a particle
-   * @param {Object} particle - Particle to schedule jump for
+   * Implement probability-based jump attempt with circular boundary
+   * @param {Object} particle - Particle to attempt jump with
    */
-  scheduleNextJump(particle) {
-    if (this.state.isPaused) return;
+  attemptParticleJump(particle) {
+    // Get jump probabilities
+    const rightProb = this.getParameterValue('rightJumpProb', 0.7);
+    const leftProb = this.getParameterValue('leftJumpProb', 0.3);
     
-    // Get jump rates from parameters
-    const rightRate = this.getParameterValue('rightJumpRate', 0.8);
-    const leftRate = this.getParameterValue('leftJumpRate', 0.2);
+    // Make sure probabilities are valid
+    const totalProb = Math.min(rightProb + leftProb, 1.0);
     
-    // Determine total rate and waiting time
-    const totalRate = rightRate + leftRate;
-    const waitTime = -Math.log(Math.random()) / totalRate;
-    const scaledWaitTime = waitTime / this.state.timeScale;
+    // Generate random number for jump decision
+    const rand = Math.random();
+    const numBoxes = this.state.boxes.length;
     
-    // Create jump event
-    const jumpEvent = {
-      particleId: particle.id,
-      timeoutId: setTimeout(() => {
-        // Choose direction based on rates
-        const jumpRight = Math.random() < (rightRate / totalRate);
-        
-        // For circular model, wrap around
-        const numBoxes = this.state.boxes.length;
-        let targetPos;
-        
-        if (jumpRight) {
-          // Move clockwise - to the next position
-          targetPos = (particle.position + 1) % numBoxes;
-        } else {
-          // Move counterclockwise - to the previous position
-          // Use modulo arithmetic to ensure positive result
-          targetPos = (particle.position - 1 + numBoxes) % numBoxes;
-        }
-        
-        // Check if target position is empty
-        if (!this.isPositionOccupied(targetPos, particle)) {
-          // Start jump animation
-          particle.isJumping = true;
-          particle.jumpProgress = 0;
-          particle.startPosition = particle.position;
-          particle.targetPosition = targetPos;
-          particle.originalColor = particle.color;
-          particle.jumpState = 'entering'; // Start the jump animation sequence
-          
-          // Remove event from tracking array
-          this.state.jumpEvents = this.state.jumpEvents.filter(
-            e => e.timeoutId !== jumpEvent.timeoutId
-          );
-        } else {
-          // Target is occupied, try again
-          this.scheduleNextJump(particle);
-        }
-      }, scaledWaitTime * 1000) // Convert to milliseconds
-    };
+    if (rand < rightProb) {
+      // Attempt to jump right (clockwise)
+      const targetPos = (particle.position + 1) % numBoxes;
+      
+      // Check if position is not occupied
+      if (!this.isPositionOccupied(targetPos, particle)) {
+        this.startJumpAnimation(particle, targetPos);
+      }
+    } else if (rand < totalProb) {
+      // Attempt to jump left (counterclockwise)
+      const targetPos = (particle.position - 1 + numBoxes) % numBoxes;
+      
+      // Check if position is not occupied
+      if (!this.isPositionOccupied(targetPos, particle)) {
+        this.startJumpAnimation(particle, targetPos);
+      }
+    }
+    // Otherwise, particle stays put
+  }
+  
+  /**
+   * Handle boundary dynamics - empty for circular (no boundaries)
+   */
+  handleBoundaryDynamics() {
+    // No boundary dynamics for circular system
+  }
+  
+  /**
+   * Handle parameter updates
+   * @param {Object} parameters - New parameter values
+   */
+  handleParameterUpdate(parameters) {
+    // Update the update interval based on speed
+    if (parameters.updateSpeed !== undefined) {
+      this.state.updateInterval = 500 / parameters.updateSpeed;
+    }
     
-    // Add to jump events array for tracking
-    this.state.jumpEvents.push(jumpEvent);
+    // If numBoxes or numParticles changed drastically, reset simulation
+    if ((parameters.numBoxes !== undefined && Math.abs(parameters.numBoxes - this.state.boxes.length) > 1) ||
+        (parameters.numParticles !== undefined && Math.abs(parameters.numParticles - this.state.particles.length) > 2)) {
+      // Re-initialize with current parameters
+      this.initialize({
+        ...this.plugin.pluginParameters,
+        ...this.plugin.visualizationParameters,
+        ...this.plugin.advancedParameters
+      });
+    }
   }
   
   /**
@@ -155,6 +160,11 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     
     // Draw particles
     this.drawParticles(ctx, parameters);
+    
+    // Draw debug info if enabled
+    if (parameters.debugMode) {
+      this.drawDebugInfo(ctx, parameters);
+    }
   }
   
   /**
@@ -312,6 +322,21 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
   }
   
   /**
+   * Draw model-specific debug information
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {number} startY - Y position to start drawing
+   */
+  drawSpecificDebugInfo(ctx, startY) {
+    let y = startY;
+    
+    ctx.fillText(`Right Prob: ${this.getParameterValue('rightJumpProb', 0.7).toFixed(2)}`, 20, y);
+    y += 20;
+    ctx.fillText(`Left Prob: ${this.getParameterValue('leftJumpProb', 0.3).toFixed(2)}`, 20, y);
+    y += 20;
+    ctx.fillText(`Radius: ${this.state.radius.toFixed(0)}px`, 20, y);
+  }
+  
+  /**
    * Handle user interaction
    * @param {string} type - Interaction type (e.g., "click", "mousemove")
    * @param {Object} event - Event data
@@ -346,7 +371,10 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
           } else if (!this.isPositionOccupied(i)) {
             // Add particle if box is empty
             const maxId = Math.max(...this.state.particles.map(p => p.id), -1);
-            const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
+            const currentParams = {
+              colorPalette: this.getParameterValue('colorPalette')
+            };
+            const particleColor = this.getColorFromPalette(currentParams, this.state.colorIndices.particle);
             
             this.state.particles.push({
               id: maxId + 1,
@@ -366,11 +394,6 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
             // Update particle count in parameters
             const newCount = this.getParameterValue('numParticles', 0) + 1;
             this.plugin.updateParameter('numParticles', newCount, 'visualization');
-            
-            // Schedule a jump if not paused
-            if (!this.state.isPaused) {
-              this.scheduleNextJump(this.state.particles[this.state.particles.length - 1]);
-            }
           }
           
           return true;
