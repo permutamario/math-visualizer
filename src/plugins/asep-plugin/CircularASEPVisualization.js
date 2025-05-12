@@ -372,11 +372,12 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
     const startSite = this.state.sites[particle.startSite];
     const endSite = this.state.sites[particle.targetSite];
     
-    // Determine if it's a wraparound jump (e.g., from site n-1 to 0)
-    const isWraparound = Math.abs(particle.targetSite - particle.startSite) > 1 &&
-                         Math.abs(particle.targetSite - particle.startSite) !== numSites - 1;
+    // FIX: Correctly determine if it's a wraparound jump
+    // Look at the difference between site indices, not the absolute difference
+    const indexDifference = Math.abs(particle.targetSite - particle.startSite);
+    const isWraparound = indexDifference > 1;
     
-    // If not a wraparound jump, do simple linear interpolation
+    // For non-wraparound jumps or small index differences, do simple interpolation
     if (!isWraparound) {
       // Use angular interpolation to follow the circle
       let startAngle = startSite.angle;
@@ -399,25 +400,44 @@ export class CircularASEPVisualization extends BaseASEPVisualization {
         x: Math.cos(angle) * this.state.radius,
         y: Math.sin(angle) * this.state.radius
       };
-    }
-    // For wraparound jump (e.g., site n-1 to site 0), route around the circle
+    } 
+    // For wraparound jumps, we need to determine the correct direction
     else {
-      // Determine direction (clockwise or counterclockwise)
-      const isClockwise = (particle.targetSite > particle.startSite) || 
-                          (particle.startSite === numSites - 1 && particle.targetSite === 0);
+      // FIX: Properly determine jump direction for wraparound jumps
+      // For jumps that wrap around the circle, determine direction based on
+      // right or left jump type, rather than the indices
       
-      // Calculate angles
+      // If target site is site 0 and start site is the last site (n-1),
+      // this is a rightward wraparound jump (clockwise)
+      const isRightJump = (particle.targetSite === 0 && particle.startSite === numSites - 1);
+      
+      // If target site is the last site (n-1) and start site is site 0,
+      // this is a leftward wraparound jump (counterclockwise)
+      const isLeftJump = (particle.targetSite === numSites - 1 && particle.startSite === 0);
+      
+      // Get angles for interpolation
       let startAngle = startSite.angle;
       let endAngle = endSite.angle;
       
-      // Ensure we go the long way around for wraparound
-      if (isClockwise) {
-        if (endAngle > startAngle) {
-          endAngle = endAngle - 2 * Math.PI;
-        }
-      } else {
-        if (startAngle > endAngle) {
-          endAngle = endAngle + 2 * Math.PI;
+      // For right jumps (clockwise wraparound), add 2π to start angle
+      if (isRightJump) {
+        startAngle += 2 * Math.PI;
+      }
+      // For left jumps (counterclockwise wraparound), add 2π to end angle
+      else if (isLeftJump) {
+        endAngle += 2 * Math.PI;
+      }
+      // For other jumps (non-wraparound), handle normally
+      else {
+        // This should not happen, but just in case
+        if (endAngle < startAngle) {
+          if (particle.targetSite > particle.startSite) {
+            // Moving clockwise (right)
+            endAngle += 2 * Math.PI;
+          } else {
+            // Moving counterclockwise (left)
+            startAngle += 2 * Math.PI;
+          }
         }
       }
       
