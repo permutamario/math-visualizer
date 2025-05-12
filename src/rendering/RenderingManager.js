@@ -1,10 +1,11 @@
-// src/rendering/RenderingManager.js - Improved version
+// src/rendering/RenderingManager.js
 
 import { Canvas2DEnvironment } from './Canvas2DEnvironment.js';
 import { ThreeJSEnvironment } from './ThreeJSEnvironment.js';
 
 /**
  * Manages rendering environments and animation loop
+ * Provides direct environment access for plugins
  */
 export class RenderingManager {
   /**
@@ -35,23 +36,6 @@ export class RenderingManager {
     this.renderNoPluginMessage = this.renderNoPluginMessage.bind(this);
   }
 
-  /**
-   * Handle window resize
-   */
-  handleResize() {
-    // Resize the canvas first
-    this.resizeCanvas();
-    
-    // Then let the current environment handle the resize if it exists
-    if (this.currentEnvironment) {
-      console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
-      this.currentEnvironment.handleResize();
-      
-      // Request a render to update the view
-      this.requestRender();
-    }
-  }
-  
   /**
    * Initialize the rendering manager
    * @param {string} canvasId - ID of the canvas element (default: 'visualization-canvas')
@@ -182,6 +166,40 @@ export class RenderingManager {
   }
   
   /**
+   * Resize the canvas to fill its container
+   */
+  resizeCanvas() {
+    if (!this.canvas) return;
+    
+    const container = this.canvas.parentElement || document.body;
+    const { width, height } = container.getBoundingClientRect();
+    
+    // Only resize if dimensions have changed
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      console.log(`Resizing main canvas to ${width}x${height}`);
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
+  }
+  
+  /**
+   * Handle window resize
+   */
+  handleResize() {
+    // Resize the canvas first
+    this.resizeCanvas();
+    
+    // Then let the current environment handle the resize if it exists
+    if (this.currentEnvironment) {
+      console.log(`Handling resize for ${this.currentEnvironment === this.environments['2d'] ? '2D' : '3D'} environment`);
+      this.currentEnvironment.handleResize();
+      
+      // Request a render to update the view
+      this.requestRender();
+    }
+  }
+  
+  /**
    * Update background colors in all rendering environments
    * @param {Object} colorScheme - Color scheme to apply
    */
@@ -200,23 +218,6 @@ export class RenderingManager {
     // Request a render to show the changes if we're currently rendering
     if (this.rendering || this.currentEnvironment) {
       this.requestRender();
-    }
-  }
-  
-  /**
-   * Resize the canvas to fill its container
-   */
-  resizeCanvas() {
-    if (!this.canvas) return;
-    
-    const container = this.canvas.parentElement || document.body;
-    const { width, height } = container.getBoundingClientRect();
-    
-    // Only resize if dimensions have changed
-    if (this.canvas.width !== width || this.canvas.height !== height) {
-      console.log(`Resizing main canvas to ${width}x${height}`);
-      this.canvas.width = width;
-      this.canvas.height = height;
     }
   }
   
@@ -256,17 +257,14 @@ export class RenderingManager {
     // Cap the delta time to prevent large jumps
     const cappedDeltaTime = Math.min(deltaTime, 0.1);
     
-    // Get active plugin and visualization
+    // Get active plugin
     const activePlugin = this.core.getActivePlugin();
     let needsRender = false;
     
-    // Update animation if there's an active visualization
-    if (activePlugin) {
-      const visualization = activePlugin.getCurrentVisualization();
-      if (visualization && typeof visualization.animate === 'function') {
-        // If animate returns true, we need to render
-        needsRender = visualization.animate(cappedDeltaTime) || false;
-      }
+    // Let plugin animate if it has an animate method
+    if (activePlugin && typeof activePlugin.animate === 'function') {
+      // If animate returns true, the plugin wants to render
+      needsRender = activePlugin.animate(cappedDeltaTime) || false;
     }
     
     // Render if requested, needed by animation, or environment needs continuous rendering
@@ -291,12 +289,10 @@ export class RenderingManager {
       return true;
     }
     
-    // Check if active plugin requires continuous rendering
+    // Check if plugin is animating
     const activePlugin = this.core.getActivePlugin();
-    if (activePlugin && activePlugin.getCurrentVisualization()) {
-      const visualization = activePlugin.getCurrentVisualization();
-      // Check for animation flag
-      return visualization.isAnimating || false;
+    if (activePlugin && activePlugin.isAnimating) {
+      return true;
     }
     
     return false;
@@ -318,7 +314,8 @@ export class RenderingManager {
   }
   
   /**
-   * Render the current visualization
+   * Render the current scene
+   * Delegates to the plugin's render method if available
    */
   render() {
     if (!this.currentEnvironment) {
@@ -333,21 +330,33 @@ export class RenderingManager {
       return;
     }
     
-    const visualization = activePlugin.getCurrentVisualization();
-    if (!visualization) {
-      console.warn("Cannot render: no active visualization");
-      return;
+    // If plugin has a render method, use it with direct environment access
+    if (typeof activePlugin.render === 'function') {
+      const env = this.getEnvironmentForPlugin();
+      const params = this.core.getAllParameters ? this.core.getAllParameters() : {};
+      
+      // Let plugin render directly with environment access
+      activePlugin.render(env, params);
+    } else {
+      // Fallback to older visualization method for backward compatibility
+      const visualization = activePlugin.getCurrentVisualization ? 
+                          activePlugin.getCurrentVisualization() : null;
+      
+      if (!visualization) {
+        console.warn("Cannot render: no active visualization and no render method");
+        return;
+      }
+      
+      // Merge all parameter collections for the visualization
+      const combinedParameters = {
+        ...activePlugin.pluginParameters,
+        ...activePlugin.visualizationParameters,
+        ...activePlugin.advancedParameters
+      };
+      
+      // Render using the current environment (old method)
+      this.currentEnvironment.render(visualization, combinedParameters);
     }
-    
-    // Merge all parameter collections for the visualization
-    const combinedParameters = {
-      ...activePlugin.pluginParameters,
-      ...activePlugin.visualizationParameters,
-      ...activePlugin.advancedParameters
-    };
-    
-    // Render using the current environment
-    this.currentEnvironment.render(visualization, combinedParameters);
   }
   
   /**
@@ -439,14 +448,52 @@ export class RenderingManager {
   }
   
   /**
+   * Provide direct access to rendering environment for plugins
+   * (Key new method for plugin architecture redesign)
+   * @returns {Object} Environment access object
+   */
+  getEnvironmentForPlugin() {
+    if (!this.currentEnvironment) return null;
+    
+    if (this.currentEnvironment === this.environments['2d']) {
+      // 2D environment access
+      return {
+        type: '2d',
+        context: this.currentEnvironment.getContext(),
+        canvas: this.canvas,
+        resetCamera: () => this.currentEnvironment.resetCamera(),
+        prepareRender: (ctx) => this.currentEnvironment.prepareRender(ctx),
+        completeRender: (ctx) => this.currentEnvironment.completeRender(ctx)
+      };
+    } else {
+      // 3D environment access
+      return {
+        type: '3d',
+        scene: this.currentEnvironment.getScene(),
+        camera: this.currentEnvironment.getCamera(),
+        renderer: this.currentEnvironment.getRenderer(),
+        controls: this.currentEnvironment.getControls(),
+        THREE: window.THREE, // Provide THREE.js library reference
+        resetCamera: () => {
+          const controls = this.currentEnvironment.getControls();
+          if (controls && typeof controls.reset === 'function') {
+            controls.reset();
+          }
+        }
+      };
+    }
+  }
+  
+  /**
    * Export the current visualization as a PNG
+   * @returns {boolean} Whether export was successful
    */
   exportAsPNG() {
     if (!this.canvas) return false;
     
     const activePlugin = this.core.getActivePlugin();
     const filename = activePlugin ? 
-                    `${activePlugin.constructor.id}-${Date.now()}.png` : 
+                    `${activePlugin.id || 'visualization'}-${Date.now()}.png` : 
                     `visualization-${Date.now()}.png`;
     
     try {
