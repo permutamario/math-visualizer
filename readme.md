@@ -1,409 +1,221 @@
-# Math Visualization Framework
+# Math Visualization Framework: Architecture Philosophy
 
-A modular, extensible framework for creating interactive mathematical visualizations in 2D and 3D.
+## Core Philosophy
 
-## Overview
+The Math Visualization Framework is built on a component plugin architecture that emphasizes clean separation of concerns, an intuitive scripting-like API, and clear responsibilities. This document outlines the guiding principles and rules that define how the framework and plugins interact.
 
-The Math Visualization Framework provides a plugin-based architecture for creating and exploring mathematical visualizations. It supports both 2D canvas and 3D WebGL rendering, seamlessly switching between them based on the active plugin's requirements.
+## Key Architecture Principles
 
-## Architecture Style
+1. **Single Plugin Model**: Only one plugin is active at any time, simplifying concerns around dependencies and conflicts.
 
-The framework follows an event-driven, component-based architecture with clear separation of concerns:
+2. **Scripting-like API**: The framework provides simple, declarative helper methods that allow plugins to define what they need without specifying how those needs are implemented.
 
-- **Modular Design**: Core functionality is separated into independent, loosely coupled components
-- **Event-Driven Communication**: Components interact through events rather than direct method calls
-- **Layered Architecture**: Clear separation between core, rendering, UI, and plugin layers
-- **Dependency Injection**: Components receive their dependencies through constructors
-- **Observable State**: State changes are propagated through listeners/subscribers
-- **Command Pattern**: Actions are encapsulated as commands that can be executed and tracked
-- **Plugin-Based Extension**: Core functionality is extended through a plugin system
+3. **Event-Driven Pattern**: Visualization updates happen in response to parameter changes rather than through explicit render calls.
 
-## Features
+4. **Clean Lifecycle**: Plugins have well-defined load and unload phases with automatic resource management.
 
-- **Plugin-based Architecture**: Easily extend with custom visualizations
-- **Dual Rendering Support**: 2D canvas and 3D WebGL environments
-- **Responsive UI**: Adapts to both desktop and mobile devices
-- **Intuitive Parameter System**: Simplified fluent interface for defining UI controls
-- **Theme Support**: Light and dark mode with customizable color schemes
-- **Export Capabilities**: Save visualizations as PNG images
+5. **Flexible Rendering**: Plugins have direct access to rendering contexts and complete freedom in how they implement rendering.
 
-## Core Architecture
+6. **Single Source of Truth**: The core manages all parameter values to ensure UI consistency.
 
-The framework is built with a modular architecture to ensure clean separation of concerns:
+## Component Responsibilities
 
-### Component Interactions
+### Core Framework Responsibilities
 
-Components interact primarily through events and well-defined interfaces:
+1. **State Management**
+   - Maintain state as single source of truth for parameters and actions
+   - Notify plugins when parameters change
+   - Store default values and parameter schemas
+   - Provide helper methods for parameter operations
 
-```
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│   AppCore     │◄────►│  UIManager    │◄────►│  User         │
-│   ----------  │      │  ----------   │      │  Interface    │
-│   Coordinates │      │  Builds UI    │      │  Controls     │
-│   Components  │      │  from Schemas │      └───────────────┘
-└───────┬───────┘      └───────┬───────┘               ▲
-        │                      │                       │
-        ▼                      ▼                       │
-┌───────────────┐      ┌───────────────┐      ┌───────┴───────┐
-│ PluginSystem  │      │ Parameter     │      │ Rendering     │
-│ ----------    │◄────►│ Builder       │◄────►│ Manager       │
-│ Loads/Manages │      │ ----------    │      │ ----------    │
-│ Plugins       │      │ Creates UI    │      │ Manages 2D/3D │
-└───────┬───────┘      │ Controls      │      │ Environments  │
-        │              └───────────────┘      └───────────────┘
-        ▼                                             ▲
-┌───────────────┐                            ┌────────┴──────┐
-│ Active Plugin │                            │ Visualization │
-│ ----------    │◄───────────────────────────┤ ----------    │
-│ Parameters    │                            │ Renders to    │
-│ Visualizations│                            │ Canvas/WebGL  │
-└───────────────┘                            └───────────────┘
-```
+2. **User Interface Management**
+   - Automatically generate UI elements based on plugin requirements
+   - Handle layout and positioning of UI elements
+   - Manage responsive behavior between mobile and desktop views
+   - Update UI when parameters change
 
-### Core Components
+3. **API Provision**
+   - Expose simple helper methods for parameters and actions
+   - Provide direct access to rendering contexts (canvas context, THREE.js scene)
+   - Initialize and maintain rendering environments (2D and 3D)
 
-- **AppCore**: Central controller that coordinates all components
-- **StateManager**: Manages application state with subscription capabilities
-- **ParameterBuilder**: Creates UI controls with a simplified fluent interface
-- **EventEmitter**: Provides event-based communication between components
-- **ColorSchemeManager**: Handles theme colors and palette management
-- **PluginDiscovery**: Dynamically loads available plugins
+4. **Animation Management**
+   - Provide animation timing through requestAnimation helper
+   - Handle animation cancelation automatically during cleanup
+   - Supply deltaTime values to animation callbacks
 
-### Rendering System
+5. **Visual Theming**
+   - Provide color schemes and theme management
+   - Apply rendering modes for 3D visualization
+   - Ensure consistent visual presentation
 
-- **RenderingManager**: Coordinates between rendering environments
-- **Canvas2DEnvironment**: Handles 2D canvas rendering with pan/zoom
-- **ThreeJSEnvironment**: Provides 3D rendering via THREE.js
+### Plugin Responsibilities
 
-### UI System
+1. **Initialization and Cleanup**
+   - Define parameters using helper methods
+   - Register actions using helper methods
+   - Plugin-specific resource cleanup during unload
 
-- **UIManager**: Controls UI creation based on device type
-- **DesktopLayout**: Desktop-specific UI with floating panels
-- **MobileLayout**: Mobile-specific UI with sliding menus
-- **UIBuilder**: Creates UI controls from parameter definitions
+2. **Rendering Implementation**
+   - Draw directly to the provided rendering context
+   - Decide when and how to render visualization elements
+   - Implement rendering strategy appropriate for the visualization
 
-### Plugin System
+3. **State Management**
+   - Maintain plugin-specific state if needed
+   - Update parameters through framework methods (setParameter)
+   - Synchronize internal state with official parameter values
 
-- **Plugin**: Base class for all visualization plugins with streamlined parameter definition
-- **Visualization**: Base class for rendering implementations
-- **ParameterBuilder**: Fluent interface for defining UI controls
+4. **User Interaction**
+   - Respond to parameter changes through onParameterChanged
+   - Handle user-initiated actions
+   - Process interaction events through handleInteraction
 
-### Plugin Lifecycle
+## Rules for Implementation
 
-The framework implements a well-defined lifecycle for plugins:
+### Rules for Core Framework
 
-1. **Discovery**:
-   - The application scans the `plugin_list.json` file
-   - Plugin metadata is collected (id, name, description, renderingType)
-   - Plugin classes are dynamically imported but not instantiated
+1. **Provide direct access to rendering contexts** - plugins should have immediate access to draw.
 
-2. **Instantiation**:
-   - When a plugin is selected, its class is instantiated
-   - The plugin receives a reference to the AppCore
-   - Memory is allocated only for active plugins
+2. **Always clean up completely between plugin changes** - parameters, actions, and UI elements must reset.
 
-3. **Loading**:
-   - The `load()` method is called on the plugin
-   - Parameters are defined using the fluent ParameterBuilder interface
-   - Visualizations are created and initialized
-   - UI controls are built based on the parameter definitions
-   - The appropriate rendering environment (2D/3D) is activated
+3. **Provide helper methods for common operations** - parameter management, animations, and actions should have simple methods.
 
-4. **Interaction**:
-   - Parameter changes from UI are passed to the plugin's onParameterChanged method
-   - The plugin updates its state and passes just changed parameters to visualization
-   - Rendering is triggered to reflect changes
-   - Action buttons trigger plugin methods
+4. **Handle all environmental concerns** - window resizing, device compatibility, and rendering contexts are core responsibilities.
 
-5. **Animation**:
-   - If the visualization has animation, the render loop calls `animate(deltaTime)`
-   - The visualization returns whether continuous rendering is needed
+5. **Provide meaningful defaults** - color palettes, rendering modes, and control behavior should have reasonable defaults.
 
-6. **Unloading**:
-   - When another plugin is selected, the current plugin's `unload()` method is called
-   - Resources are released (visualizations disposed, event handlers removed)
-   - The plugin returns to a clean state for potential reuse
+6. **Abstract implementation details** - plugins should not need to know how UI elements are created or positioned.
 
-7. **Cleanup**:
-   - When the application shuts down, all active plugins are unloaded
-   - All framework resources are properly disposed
+7. **Enable declarative parameter definition** - parameter registration should happen automatically when using helper methods.
 
-## Available Visualizations
+8. **Support flexible rendering patterns** - allow plugins to render how and when they want.
 
-The framework includes several example plugins:
+### Rules for Plugins
 
-### Circle Plugin
-A simple 2D visualization demonstrating basic framework capabilities.
+1. **Must implement load and unload lifecycle methods** - with proper resource management in both.
 
-### Polytope Viewer
-An advanced 3D visualization for exploring different polytopes:
-- Platonic Solids (tetrahedron, cube, octahedron, dodecahedron, icosahedron)
-- Permutahedron
-- Root Polytope (A3, B3, C3, D3, H3 types)
-- Stellahedron
-- Orbit Polytope
-- Associahedron
+2. **Use helper methods for parameter and action management** - instead of directly manipulating the core API.
 
-### ASEP Simulation
-Asymmetric Simple Exclusion Process simulation with multiple variants:
-- Closed Linear ASEP
-- Open Boundary ASEP
-- Circular ASEP
+3. **Never store state outside of the plugin instance** - all state should be contained within the plugin.
 
-## Creating Your Own Plugin
+4. **Initialize all resources in the start method** - which is called after the environment is ready.
 
-Plugins consist of two main components:
+5. **Use helper methods to create parameters** - addSlider(), addColor(), etc. automatically register parameters.
 
-1. **Plugin Class**: Manages parameters and visualizations
-2. **Visualization Classes**: Handle the actual rendering
+6. **Update parameters through framework methods** - use setParameter() to ensure UI consistency.
 
-### Application Flow
+7. **Call super.unload() for proper cleanup** - ensures all animations and event handlers are properly disposed.
 
-When a user interacts with the framework, the following sequence occurs:
+8. **Use provided rendering contexts directly** - draw directly to the canvas or scene as needed.
 
-1. **User Action**:
-   - User selects a plugin or changes a parameter via the UI
-   - The UIManager captures the event
+## Communication Patterns
 
-2. **Event Propagation**:
-   - For plugin selection: UIManager emits a 'pluginSelect' event
-   - For parameter changes: UIManager emits a 'parameterChange' event
-   - AppCore receives these events through its event handlers
+1. **Core to Plugin**:
+   - Parameter change notifications
+   - Animation frame updates
+   - Action invocations
 
-3. **Plugin Management**:
-   - For plugin selection: AppCore loads the selected plugin
-   - For parameter changes: AppCore forwards to the plugin's onParameterChanged method
+2. **Plugin to Core**:
+   - Parameter creation through helper methods
+   - Parameter updates through setParameter
+   - Action registration through helper methods
 
-4. **Parameter Processing**:
-   - Plugin updates its state and passes only changed parameters to visualizations
-   - Visualization's `update()` method handles specific parameter changes
+3. **User to Plugin**:
+   - Parameter changes (via UI)
+   - Action triggers (via UI)
 
-5. **Rendering**:
-   - Plugin requests a render through RenderingManager
-   - RenderingManager activates the appropriate environment
-   - Visualization's `render2D()` or `render3D()` method is called
-   - Result is displayed on screen
+## Benefits of This Architecture
 
-### Step 1: Create Plugin Directory
+1. **Simplified Plugin Development**: Developers focus on visualization logic using scripting-like helper methods.
 
-```
-src/plugins/your-plugin/
-```
+2. **Clean Separation of Concerns**: Core and plugins have clearly defined responsibilities.
 
-### Step 2: Create Plugin Main Class
+3. **Rendering Flexibility**: Plugins can implement rendering in whatever way best suits their visualization.
+
+4. **Resource Management**: Automatic resource cleanup during plugin unloading.
+
+5. **UI Consistency**: Single source of truth for parameters ensures UI always reflects actual values.
+
+6. **Extensibility**: New plugins can be created without modifying the core.
+
+7. **Maintainability**: Well-defined interfaces make both core and plugin code easier to maintain.
+
+## Implementation Example
 
 ```javascript
-// src/plugins/your-plugin/index.js
-import { Plugin } from '../../core/Plugin.js';
-import { createParameters } from '../../ui/ParameterBuilder.js';
-import { YourVisualization } from './YourVisualization.js';
+// Plugin relies on helper methods for common operations
+async start() {
+  // Add parameters with simple helper methods - automatically registers them
+  this.addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
+  this.addColor('waveColor', 'Wave Color', '#3498db');
+  
+  // Register actions with a simple method
+  this.addAction('reset', 'Reset View', () => {
+    this.phase = 0;
+    this.render(); // Explicit render call if needed
+  });
+  
+  // Request animation with a single method call
+  this.requestAnimation(this.animate.bind(this));
+  
+  // Initial render
+  this.render();
+}
 
-export default class YourPlugin extends Plugin {
-  static id = "your-plugin";
-  static name = "Your Plugin";
-  static description = "Description of your plugin";
-  static renderingType = "2d"; // or "3d"
+// Animation update - separate from rendering
+animate(deltaTime) {
+  // Update animation state
+  this.phase += deltaTime * this.getParameter('frequency');
+  
+  // Trigger a render to show the updated state
+  this.render();
+  
+  return true; // Continue animation
+}
 
-  // Define parameters using the fluent interface
-  defineParameters() {
-    return createParameters()
-      .addSlider('paramName', 'Parameter Label', 50, { min: 0, max: 100, step: 1 })
-      .addColor('color', 'Color', '#3498db', 'visual');
+// Rendering method - can be called any time
+render() {
+  // Direct access to rendering context
+  const ctx = this.renderEnv.context;
+  const canvas = ctx.canvas;
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Apply camera transformations
+  ctx = this.renderEnv.prepareRender(ctx);
+  
+  // Draw wave using current parameters
+  ctx.beginPath();
+  ctx.strokeStyle = this.getParameter('waveColor');
+  ctx.lineWidth = 2;
+  
+  // Drawing code...
+  
+  // Complete rendering
+  this.renderEnv.completeRender(ctx);
+}
+
+// Parameter change handler
+onParameterChanged(parameterId, value, group) {
+  // Update local state if needed
+  if (parameterId === 'amplitude') {
+    this.amplitude = value;
   }
   
-  // Define available actions
-  defineActions() {
-    return [
-      ...super.defineActions(),
-      {
-        id: 'custom-action',
-        label: 'Custom Action'
-      }
-    ];
-  }
+  // Re-render to show changes immediately if needed
+  this.render();
+}
 
-  // Initialize visualization
-  async _initializeDefaultVisualization() {
-    const visualization = new YourVisualization(this);
-    this.registerVisualization('default', visualization);
-    this.currentVisualization = visualization;
-    await visualization.initialize(this.parameters);
-  }
-  
-  // Handle parameter changes
-  onParameterChanged(parameterId, value) {
-    // Update parameter value
-    this.parameters[parameterId] = value;
-    
-    // Update visualization with just the changed parameter
-    if (this.currentVisualization) {
-      this.currentVisualization.update({ [parameterId]: value });
-    }
-    
-    // Update UI
-    this.giveParameters(false);
-    
-    // Request render
-    if (this.core && this.core.renderingManager) {
-      this.core.renderingManager.requestRender();
-    }
-  }
-  
-  // Handle custom actions
-  executeAction(actionId, ...args) {
-    if (actionId === 'custom-action') {
-      // Handle custom action
-      return true;
-    }
-    
-    // Let parent handle standard actions
-    return super.executeAction(actionId, ...args);
-  }
+// Changing parameters (updates UI automatically)
+updateFrequency(value) {
+  // Use setParameter to update the parameter value
+  // This will notify the UI and trigger onParameterChanged
+  this.setParameter('frequency', value);
 }
 ```
 
-### Step 3: Create Visualization Class
+## Conclusion
 
-```javascript
-// src/plugins/your-plugin/YourVisualization.js
-import { Visualization } from '../../core/Visualization.js';
-
-export class YourVisualization extends Visualization {
-  constructor(plugin) {
-    super(plugin);
-    this.state = { /* visualization state */ };
-  }
-
-  async initialize(parameters) {
-    // Setup with initial parameters
-    return true;
-  }
-
-  update(parameters) {
-    // Update based on changed parameters only
-    if (parameters.paramName !== undefined) {
-      // Handle paramName change
-    }
-    
-    if (parameters.color !== undefined) {
-      // Handle color change
-    }
-  }
-
-  // For 2D rendering
-  render2D(ctx, parameters) {
-    // Implement 2D rendering
-  }
-
-  // OR for 3D rendering
-  render3D(THREE, scene, parameters) {
-    // Implement 3D rendering
-  }
-
-  animate(deltaTime) {
-    // Update animation (return true to request continuous rendering)
-    return false;
-  }
-
-  handleInteraction(type, event) {
-    // Handle user interaction
-    return false;
-  }
-
-  dispose() {
-    // Clean up resources
-  }
-}
-```
-
-### Step 4: Register Your Plugin
-
-Add your plugin to `src/plugins/plugin_list.json`:
-
-```json
-[
-  "circle-plugin",
-  "polytope-viewer",
-  "asep-plugin",
-  "your-plugin"
-]
-```
-
-## Parameter Builder System
-
-The new parameter builder system provides a simple, intuitive interface for defining UI controls:
-
-```javascript
-// Import the parameter builder
-import { createParameters } from '../../ui/ParameterBuilder.js';
-
-// Define parameters using fluent interface
-defineParameters() {
-  return createParameters()
-    .addSlider('radius', 'Radius', 100, { min: 10, max: 200, step: 5 })
-    .addColor('fillColor', 'Fill Color', '#3498db')
-    .addCheckbox('stroke', 'Show Outline', true)
-    .addDropdown('shape', 'Shape Type', 'circle', [
-      { value: 'circle', label: 'Circle' },
-      { value: 'square', label: 'Square' },
-      { value: 'triangle', label: 'Triangle' }
-    ])
-    .addNumber('opacity', 'Opacity', 1.0, { min: 0, max: 1, step: 0.1 })
-    .addText('label', 'Label Text', 'Hello World');
-}
-```
-
-Available parameter types:
-
-- **addSlider**: Range slider with min/max/step
-- **addCheckbox**: Boolean toggle
-- **addColor**: Color picker
-- **addDropdown**: Selection from options
-- **addNumber**: Numeric input field
-- **addText**: Text input field
-
-Parameters are organized into two categories:
-- **structural**: Core parameters defining the visualization structure (default for sliders, dropdowns, numbers, text)
-- **visual**: Parameters affecting visual appearance (default for color, checkbox)
-
-You can override the default category by passing a category parameter:
-```javascript
-.addColor('borderColor', 'Border Color', '#000000', 'structural')
-.addCheckbox('showGrid', 'Show Grid', true, 'structural')
-```
-
-## User Interface
-
-The framework provides responsive UI that adapts to the device:
-
-### Desktop UI
-- Floating panels for parameters
-- Plugin selector dropdown
-- Export options panel
-- Fullscreen toggle
-
-### Mobile UI
-- Header with structural controls
-- Bottom action bar
-- Sliding panels for options
-- Touch-friendly controls
-
-## Browser Support
-
-The framework requires modern browser features:
-- ES6 Module support
-- Canvas 2D API
-- WebGL for 3D visualizations
-- CSS Custom Properties
-
-## Installation and Setup
-
-1. Clone the repository
-2. Serve the files using a local web server
-3. Open the application in a browser
-
-No build step is required as the framework uses native ES modules.
-
-## License
-
-[License information]
+The Math Visualization Framework architecture prioritizes separation of concerns, clear responsibility boundaries, and an intuitive scripting-like API. By maintaining the core as the single source of truth for parameter values while providing helper methods for common operations, the framework ensures UI consistency and creates a sustainable ecosystem where visualization plugins can be developed with maximum flexibility.
