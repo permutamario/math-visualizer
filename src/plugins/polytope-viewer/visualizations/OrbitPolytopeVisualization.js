@@ -1,6 +1,6 @@
 // Orbit Polytope Visualization
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
-
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 /**
  * Visualization for orbit polytopes
  */
@@ -17,18 +17,10 @@ export class OrbitPolytopeVisualization extends BasePolytopeVisualization {
    * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
-    return {
-      structural: [
-        {
-          id: 'orbitPoint',
-          type: 'text',
-          label: 'Orbit Point [x,y,z,w]',
-          default: '[1,2,2,3]'
-        }
-      ],
-      visual: []
-    };
-  }
+  return createParameters()
+    .addText('orbitPoint', 'Orbit Point [x,y,z,w]', '[1,2,2,3]')
+    .build();
+}
 
   /**
    * Initialize the visualization

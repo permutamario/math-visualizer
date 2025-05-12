@@ -1,6 +1,6 @@
 // Stellahedron Visualization
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
-
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 /**
  * Visualization for the Stellahedron polytope
  */
@@ -14,11 +14,9 @@ export class StellahedronVisualization extends BasePolytopeVisualization {
    * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
-    return {
-      structural: [],
-      visual: []
-    };
-  }
+  return createParameters()
+    .build(); // Empty parameter set but using the builder pattern
+}
 
   /**
    * Initialize the visualization

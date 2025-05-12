@@ -1,5 +1,6 @@
 // Associahedron Visualization
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 
 /**
  * Visualization for the Associahedron polytope
@@ -13,12 +14,10 @@ export class AssociahedronVisualization extends BasePolytopeVisualization {
    * Get visualization-specific parameters
    * @returns {Object} Parameter schema with structural and visual parameters
    */
-  static getParameters() {
-    return {
-      structural: [],
-      visual: []
-    };
-  }
+static getParameters() {
+  return createParameters()
+    .build(); // Empty parameter set but using the builder pattern
+}
 
   /**
    * Initialize the visualization

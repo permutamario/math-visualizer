@@ -1,6 +1,6 @@
 // src/plugins/polytope-viewer/visualizations/PermutahedronVisualization.js
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
-
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 /**
  * Visualization for Permutahedra based on root systems
  */
@@ -15,22 +15,13 @@ export class PermutahedronVisualization extends BasePolytopeVisualization {
    * @returns {Object} Parameter schema with structural and visual parameters
    */
   static getParameters() {
-    return {
-      structural: [
-        {
-          id: 'rootSystem',
-          type: 'dropdown',
-          label: 'Root System',
-          options: [
-            { value: 'A3', label: 'Type A3' },
-            { value: 'BC3', label: 'Type B3/C3' }
-          ],
-          default: 'A3'
-        }
-      ],
-      visual: []
-    };
-  }
+  return createParameters()
+    .addDropdown('rootSystem', 'Root System', 'A3', [
+      { value: 'A3', label: 'Type A3' },
+      { value: 'BC3', label: 'Type B3/C3' }
+    ])
+    .build();
+}
 
   /**
    * Initialize the visualization

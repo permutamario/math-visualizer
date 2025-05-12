@@ -1,6 +1,6 @@
 // Root Polytope Visualization
 import { BasePolytopeVisualization } from '../BasePolytopeVisualization.js';
-
+import { createParameters } from '../../../ui/ParameterBuilder.js';
 /**
  * Visualization for root system polytopes
  */
@@ -16,26 +16,18 @@ export class RootPolytopeVisualization extends BasePolytopeVisualization {
    * Get visualization-specific parameters
    * @returns {Object} Parameter schema with structural and visual parameters
    */
+
   static getParameters() {
-    return {
-      structural: [
-        {
-          id: 'rootType',
-          type: 'dropdown',
-          label: 'Root System',
-          options: [
-            { value: 'A3', label: 'Type A3' },
-            { value: 'B3', label: 'Type B3' },
-            { value: 'C3', label: 'Type C3' },
-            { value: 'D3', label: 'Type D3' },
-            { value: 'H3', label: 'Type H3' }
-          ],
-          default: 'A3'
-        }
-      ],
-      visual: []
-    };
-  }
+  return createParameters()
+    .addDropdown('rootSystem', 'Root System', 'A3', [
+      { value: 'A3', label: 'Type A3' },
+      { value: 'BC', label: 'Type B3' },
+      { value: 'C3', label: 'Type C3' },
+      { value: 'D3', label: 'Type D3' },
+      { value: 'H3', label: 'Type H3' }
+    ])
+    .build();
+}
 
   /**
    * Initialize the visualization
