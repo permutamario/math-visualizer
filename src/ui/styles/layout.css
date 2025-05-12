@@ -16,7 +16,7 @@
   }
   
   /* Plugin-panel(left side, below logo) */
-  #plugin-panel{
+  #plugin-panel {
     top: 90px;  /* Positioned below the logo */
     left: 20px;
     max-height: calc(40vh - 90px);
