@@ -28,12 +28,16 @@ export class Canvas2DEnvironment {
     };
     
     // Interaction state
-    this.interaction = {
-      isDragging: false,
-      lastX: 0,
-      lastY: 0,
-      keys: {}
-    };
+   this.interaction = {
+  isDragging: false,
+  lastX: 0,
+  lastY: 0,
+  isPinching: false,
+  pinchDistance: 0,
+  lastScale: 1,
+  hasMoved: false,
+  keys: {}
+};
     
     // Background color
     this.backgroundColor = '#f5f5f5'; // Default light mode background
@@ -45,6 +49,9 @@ export class Canvas2DEnvironment {
     this.handleWheel = this.handleWheel.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.handleTouchStart = this.handleTouchStart.bind(this);
+this.handleTouchMove = this.handleTouchMove.bind(this);
+this.handleTouchEnd = this.handleTouchEnd.bind(this);
   }
   
   /**
@@ -83,52 +90,67 @@ export class Canvas2DEnvironment {
    * Activate the 2D environment
    * @returns {boolean} Whether activation was successful
    */
-  activate() {
-    if (this.active) return true;
-    
-    if (!this.initialized) {
-      console.error("Cannot activate uninitialized 2D environment");
-      return false;
-    }
-    
-    // Attach event listeners
-    this.canvas.addEventListener('mousedown', this.handleMouseDown);
-    window.addEventListener('mousemove', this.handleMouseMove);
-    window.addEventListener('mouseup', this.handleMouseUp);
-    this.canvas.addEventListener('wheel', this.handleWheel);
-    window.addEventListener('keydown', this.handleKeyDown);
-    window.addEventListener('keyup', this.handleKeyUp);
-    
-    // Set initial cursor style
-    this.canvas.style.cursor = 'grab';
-    
-    this.active = true;
-    console.log("2D canvas environment activated");
-    return true;
+  ctivate() {
+  if (this.active) return true;
+  
+  if (!this.initialized) {
+    console.error("Cannot activate uninitialized 2D environment");
+    return false;
   }
   
+  // Attach event listeners
+  this.canvas.addEventListener('mousedown', this.handleMouseDown);
+  window.addEventListener('mousemove', this.handleMouseMove);
+  window.addEventListener('mouseup', this.handleMouseUp);
+  this.canvas.addEventListener('wheel', this.handleWheel);
+  window.addEventListener('keydown', this.handleKeyDown);
+  window.addEventListener('keyup', this.handleKeyUp);
+  
+  // Add touch event listeners for mobile support
+  this.canvas.addEventListener('touchstart', this.handleTouchStart);
+  this.canvas.addEventListener('touchmove', this.handleTouchMove);
+  this.canvas.addEventListener('touchend', this.handleTouchEnd);
+  this.canvas.addEventListener('touchcancel', this.handleTouchEnd);
+  
+  // Set initial cursor style
+  this.canvas.style.cursor = 'grab';
+  
+  // Prevent default touch actions to avoid browser behaviors like scrolling
+  this.canvas.style.touchAction = 'none';
+  
+  this.active = true;
+  console.log("2D canvas environment activated");
+  return true;
+}
   /**
    * Deactivate the 2D environment
    * @returns {boolean} Whether deactivation was successful
    */
   deactivate() {
-    if (!this.active) return true;
-    
-    // Remove event listeners
-    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
-    window.removeEventListener('mousemove', this.handleMouseMove);
-    window.removeEventListener('mouseup', this.handleMouseUp);
-    this.canvas.removeEventListener('wheel', this.handleWheel);
-    window.removeEventListener('keydown', this.handleKeyDown);
-    window.removeEventListener('keyup', this.handleKeyUp);
-    
-    // Reset cursor style
-    this.canvas.style.cursor = '';
-    
-    this.active = false;
-    console.log("2D canvas environment deactivated");
-    return true;
-  }
+  if (!this.active) return true;
+  
+  // Remove event listeners
+  this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+  window.removeEventListener('mousemove', this.handleMouseMove);
+  window.removeEventListener('mouseup', this.handleMouseUp);
+  this.canvas.removeEventListener('wheel', this.handleWheel);
+  window.removeEventListener('keydown', this.handleKeyDown);
+  window.removeEventListener('keyup', this.handleKeyUp);
+  
+  // Remove touch event listeners
+  this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+  this.canvas.removeEventListener('touchmove', this.handleTouchMove);
+  this.canvas.removeEventListener('touchend', this.handleTouchEnd);
+  this.canvas.removeEventListener('touchcancel', this.handleTouchEnd);
+  
+  // Reset cursor style
+  this.canvas.style.cursor = '';
+  this.canvas.style.touchAction = '';
+  
+  this.active = false;
+  console.log("2D canvas environment deactivated");
+  return true;
+}
   
   /**
    * Handle window resize
@@ -430,6 +452,149 @@ export class Canvas2DEnvironment {
       activePlugin.handleInteraction('keyup', { key: event.key, event });
     }
   }
+
+  // Add these methods to the Canvas2DEnvironment class to handle touch events
+handleTouchStart(event) {
+  event.preventDefault();
+  
+  // Store touch points for panning and pinch detection
+  if (event.touches.length === 1) {
+    // Single touch - start panning
+    this.interaction.isDragging = true;
+    this.interaction.lastX = event.touches[0].clientX;
+    this.interaction.lastY = event.touches[0].clientY;
+  } else if (event.touches.length === 2) {
+    // Two touches - start pinch zoom
+    this.interaction.isPinching = true;
+    
+    // Calculate initial distance between touch points
+    const dx = event.touches[0].clientX - event.touches[1].clientX;
+    const dy = event.touches[0].clientY - event.touches[1].clientY;
+    this.interaction.pinchDistance = Math.sqrt(dx * dx + dy * dy);
+    this.interaction.lastScale = this.camera.scale;
+  }
+  
+  // Get touch coordinates for plugin interaction
+  const rect = this.canvas.getBoundingClientRect();
+  const x = event.touches[0].clientX - rect.left;
+  const y = event.touches[0].clientY - rect.top;
+  
+  // Pass to active plugin if it has a handleInteraction method
+  const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+  if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+    activePlugin.handleInteraction('touchstart', { x, y, event });
+  }
+}
+
+handleTouchMove(event) {
+  event.preventDefault();
+  
+  if (this.interaction.isDragging && event.touches.length === 1) {
+    // Handle panning
+    const dx = event.touches[0].clientX - this.interaction.lastX;
+    const dy = event.touches[0].clientY - this.interaction.lastY;
+    
+    // Adjust for rotation and scale
+    const cos = Math.cos((-this.camera.rotation * Math.PI) / 180);
+    const sin = Math.sin((-this.camera.rotation * Math.PI) / 180);
+    
+    const rotatedDx = cos * dx - sin * dy;
+    const rotatedDy = sin * dx + cos * dy;
+    
+    this.camera.x += rotatedDx / this.camera.scale;
+    this.camera.y += rotatedDy / this.camera.scale;
+    
+    this.interaction.lastX = event.touches[0].clientX;
+    this.interaction.lastY = event.touches[0].clientY;
+    
+    // Request render
+    if (this.core) {
+      this.core.requestRenderRefresh();
+    }
+  } else if (this.interaction.isPinching && event.touches.length === 2) {
+    // Handle pinch zoom
+    const dx = event.touches[0].clientX - event.touches[1].clientX;
+    const dy = event.touches[0].clientY - event.touches[1].clientY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Calculate scale change
+    const scaleFactor = distance / this.interaction.pinchDistance;
+    
+    // Get center point of the two touches
+    const centerX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+    const centerY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+    
+    // Get canvas coordinates
+    const rect = this.canvas.getBoundingClientRect();
+    const canvasX = centerX - rect.left;
+    const canvasY = centerY - rect.top;
+    
+    // Get coordinates in canvas space
+    const relativeX = canvasX - this.canvas.width / 2;
+    const relativeY = canvasY - this.canvas.height / 2;
+    
+    // Get world coordinates
+    const worldX = relativeX / this.camera.scale - this.camera.x;
+    const worldY = relativeY / this.camera.scale - this.camera.y;
+    
+    // Calculate new scale with limits
+    const newScale = Math.max(0.1, Math.min(10, this.interaction.lastScale * scaleFactor));
+    
+    if (newScale !== this.camera.scale) {
+      const scaleRatio = newScale / this.camera.scale;
+      this.camera.x = worldX + (this.camera.x - worldX) * scaleRatio;
+      this.camera.y = worldY + (this.camera.y - worldY) * scaleRatio;
+      this.camera.scale = newScale;
+      
+      // Request render
+      if (this.core) {
+        this.core.requestRenderRefresh();
+      }
+    }
+  }
+  
+  // Get touch coordinates for plugin interaction
+  if (event.touches.length > 0) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.touches[0].clientX - rect.left;
+    const y = event.touches[0].clientY - rect.top;
+    
+    // Pass to active plugin if it has a handleInteraction method
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('touchmove', { x, y, event });
+    }
+  }
+}
+
+handleTouchEnd(event) {
+  event.preventDefault();
+  
+  // Reset interaction states
+  this.interaction.isDragging = false;
+  this.interaction.isPinching = false;
+  
+  // Get touch coordinates for plugin interaction
+  if (event.changedTouches.length > 0) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.changedTouches[0].clientX - rect.left;
+    const y = event.changedTouches[0].clientY - rect.top;
+    
+    // Pass to active plugin if it has a handleInteraction method
+    const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+    if (activePlugin && typeof activePlugin.handleInteraction === 'function') {
+      activePlugin.handleInteraction('touchend', { x, y, event });
+      
+      // If this wasn't a move/pinch, treat it as a tap
+      if (!this.interaction.hasMoved) {
+        activePlugin.handleInteraction('tap', { x, y, event });
+      }
+    }
+  }
+  
+  // Reset movement detection
+  this.interaction.hasMoved = false;
+}
   
   /**
    * Reset camera to default position
