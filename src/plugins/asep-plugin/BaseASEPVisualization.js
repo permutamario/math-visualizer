@@ -4,6 +4,7 @@ import { createParameters } from '../../ui/ParameterBuilder.js';
 
 /**
  * Base class for all ASEP visualizations with shared functionality
+ * Implements a continuous-time Markov chain model
  */
 export class BaseASEPVisualization extends Visualization {
   constructor(plugin) {
@@ -18,8 +19,7 @@ export class BaseASEPVisualization extends Visualization {
       isPaused: false,          // Flag to control simulation pausing
       boxes: [],                // Array of box positions
       particles: [],            // Array of particle objects
-      updateInterval: 500,      // ms between updates (discrete time steps)
-      lastUpdateTime: 0,        // Track time since last update
+      realTimeFactor: 1.0,      // How many simulation seconds per real second
       boxSize: 40,              // Fixed box size (pixels)
       particleRadius: 14,       // Fixed particle radius (pixels)
       colorIndices: {           // Default color indices from the palette
@@ -27,7 +27,10 @@ export class BaseASEPVisualization extends Visualization {
         box: 1,                 // Second color for boxes
         jump: 2,                // Third color for jumping particles
         portal: 4               // Fifth color for portals
-      }
+      },
+      currentTime: 0,           // Current simulation time
+      nextEventTime: Infinity,  // Time of next event
+      eventsOccurred: 0         // Counter for statistics
     };
   }
 
@@ -53,8 +56,12 @@ export class BaseASEPVisualization extends Visualization {
     // Set isPaused from parameters
     this.state.isPaused = parameters.isPaused || false;
     
-    // Set update interval based on animation speed
-    this.state.updateInterval = 500 / (parameters.animationSpeed || 1.0);
+    // Set real-time factor based on animation speed
+    this.state.realTimeFactor = 2.0 * (parameters.animationSpeed || 1.0);
+    
+    // Reset simulation time and event counter
+    this.state.currentTime = 0;
+    this.state.eventsOccurred = 0;
     
     return true;
   }
@@ -66,11 +73,13 @@ export class BaseASEPVisualization extends Visualization {
     // Reset state
     this.state.boxes = [];
     this.state.particles = [];
-    this.state.lastUpdateTime = 0;
+    this.state.currentTime = 0;
+    this.state.nextEventTime = Infinity;
+    this.state.eventsOccurred = 0;
   }
   
   /**
-   * Create initial particles with random positions
+   * Create initial particles with random positions and initialize their jump clocks
    * @param {Object} parameters - Visualization parameters
    */
   createParticles(parameters) {
@@ -94,7 +103,11 @@ export class BaseASEPVisualization extends Visualization {
     // Get particle color from the palette
     const particleColor = this.getColorFromPalette(parameters, this.state.colorIndices.particle);
     
-    // Create particles
+    // Get jump rates from parameters
+    const rightRate = parameters.rightJumpRate !== undefined ? parameters.rightJumpRate : 0.8;
+    const leftRate = parameters.leftJumpRate !== undefined ? parameters.leftJumpRate : 0.2;
+    
+    // Create particles with jump clocks
     for (let i = 0; i < numParticles; i++) {
       this.state.particles.push({
         id: i,
@@ -108,57 +121,175 @@ export class BaseASEPVisualization extends Visualization {
         radius: this.state.particleRadius,
         jumpSpeed: 2.0,
         jumpState: 'none', // 'none', 'entering', 'inside', 'exiting'
-        insideProgress: 0
+        insideProgress: 0,
+        // Continuous-time Markov chain specific properties
+        rightJumpRate: rightRate,
+        leftJumpRate: leftRate,
+        rightJumpTime: this.generateExponentialTime(rightRate),
+        leftJumpTime: this.generateExponentialTime(leftRate)
       });
     }
+    
+    // Calculate the time of the next event
+    this.calculateNextEventTime();
   }
   
   /**
-   * NEW: Global update method for probability-based updates
-   * @param {number} deltaTime - Time since last frame in seconds
+   * Generate a random time from an exponential distribution
+   * @param {number} rate - Rate parameter (λ) for the exponential distribution
+   * @returns {number} Random time value
+   */
+  generateExponentialTime(rate) {
+    if (rate <= 0) return Infinity;
+    // Generate exponential random variable using inverse transform sampling
+    // T = -ln(U)/λ where U is uniform(0,1) and λ is the rate
+    return -Math.log(Math.random()) / rate;
+  }
+  
+  /**
+   * Calculate the time of the next event across all particles
+   */
+  calculateNextEventTime() {
+    this.state.nextEventTime = Infinity;
+    let nextEventParticle = null;
+    let nextEventDirection = null;
+    
+    // Find the minimum jump time across all particles
+    for (const particle of this.state.particles) {
+      if (particle.isJumping) continue; // Skip particles already in motion
+      
+      // Check right jump time
+      if (particle.rightJumpTime < this.state.nextEventTime) {
+        this.state.nextEventTime = particle.rightJumpTime;
+        nextEventParticle = particle;
+        nextEventDirection = 'right';
+      }
+      
+      // Check left jump time
+      if (particle.leftJumpTime < this.state.nextEventTime) {
+        this.state.nextEventTime = particle.leftJumpTime;
+        nextEventParticle = particle;
+        nextEventDirection = 'left';
+      }
+    }
+    
+    // Store which particle and direction will trigger the next event
+    this.state.nextEventParticle = nextEventParticle;
+    this.state.nextEventDirection = nextEventDirection;
+  }
+  
+  /**
+   * Update the simulation based on continuous-time Markov chain
+   * @param {number} deltaTime - Real time elapsed since last frame in seconds
    */
   updateSimulation(deltaTime) {
     if (this.state.isPaused) return;
     
-    // Accumulate time since last update
-    this.state.lastUpdateTime += deltaTime * 1000; // convert to ms
+    // Scale real time to simulation time based on speed factor
+    const simulationDeltaTime = deltaTime * this.state.realTimeFactor;
     
-    // Only update at fixed intervals (for discrete-time model)
-    if (this.state.lastUpdateTime < this.state.updateInterval) return;
+    // Advance simulation time
+    this.state.currentTime += simulationDeltaTime;
     
-    // Reset timer
-    this.state.lastUpdateTime = 0;
-    
-    // Process particles in random order to avoid bias
-    const shuffledParticles = [...this.state.particles];
-    for (let i = shuffledParticles.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffledParticles[i], shuffledParticles[j]] = [shuffledParticles[j], shuffledParticles[i]];
-    }
-    
-    // Process each particle
-    for (const particle of shuffledParticles) {
-      if (particle.isJumping) continue; // Skip particles already in motion
+    // Process events that should have occurred by current time
+    while (!this.state.isPaused && this.state.nextEventTime <= this.state.currentTime) {
+      // Execute the next event
+      this.executeNextEvent();
       
-      this.attemptParticleJump(particle);
+      // Recalculate next event time
+      this.calculateNextEventTime();
     }
     
-    // Handle boundary dynamics
-    this.handleBoundaryDynamics();
+    // Handle boundary dynamics (entry/exit for open system)
+    this.handleBoundaryDynamics(simulationDeltaTime);
   }
   
   /**
-   * NEW: Method to attempt particle jumps based on probabilities
-   * @param {Object} particle - Particle to attempt jump with
+   * Execute the next scheduled event in the simulation
    */
-  attemptParticleJump(particle) {
-    // Override in subclasses to implement specific jump logic
+  executeNextEvent() {
+    const particle = this.state.nextEventParticle;
+    const direction = this.state.nextEventDirection;
+    
+    if (!particle || !direction) return;
+    
+    // Update events counter
+    this.state.eventsOccurred++;
+    
+    // Reset the clock for the triggered direction
+    if (direction === 'right') {
+      particle.rightJumpTime = this.state.currentTime + this.generateExponentialTime(particle.rightJumpRate);
+    } else {
+      particle.leftJumpTime = this.state.currentTime + this.generateExponentialTime(particle.leftJumpRate);
+    }
+    
+    // Attempt the jump in the specified direction
+    this.attemptJump(particle, direction);
   }
   
   /**
-   * NEW: Method to handle boundary dynamics
+   * Attempt a jump in the specified direction
+   * @param {Object} particle - Particle attempting to jump
+   * @param {string} direction - Direction of jump ('right' or 'left')
    */
-  handleBoundaryDynamics() {
+  attemptJump(particle, direction) {
+    if (particle.isJumping) return; // Already jumping
+    
+    let targetPosition;
+    
+    if (direction === 'right') {
+      targetPosition = particle.position + 1;
+      
+      // Check if target position is valid for this model
+      if (!this.isValidRightJump(particle, targetPosition)) return;
+      
+      // Check if target position is occupied
+      if (this.isPositionOccupied(targetPosition, particle)) return;
+      
+      // Start jump animation
+      this.startJumpAnimation(particle, targetPosition);
+    } 
+    else if (direction === 'left') {
+      targetPosition = particle.position - 1;
+      
+      // Check if target position is valid for this model
+      if (!this.isValidLeftJump(particle, targetPosition)) return;
+      
+      // Check if target position is occupied
+      if (this.isPositionOccupied(targetPosition, particle)) return;
+      
+      // Start jump animation
+      this.startJumpAnimation(particle, targetPosition);
+    }
+  }
+  
+  /**
+   * Check if a right jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
+   */
+  isValidRightJump(particle, targetPosition) {
+    // Must be implemented by subclasses
+    return false;
+  }
+  
+  /**
+   * Check if a left jump to target position is valid
+   * @param {Object} particle - Particle attempting to jump
+   * @param {number} targetPosition - Position to jump to
+   * @returns {boolean} Whether the jump is valid
+   */
+  isValidLeftJump(particle, targetPosition) {
+    // Must be implemented by subclasses
+    return false;
+  }
+  
+  /**
+   * Method to handle boundary dynamics
+   * @param {number} deltaTime - Simulation time elapsed
+   */
+  handleBoundaryDynamics(deltaTime) {
     // Override in subclasses to implement boundary-specific logic
   }
   
@@ -249,7 +380,7 @@ export class BaseASEPVisualization extends Visualization {
       this.state.particles = this.state.particles.filter(p => !particlesToRemove.includes(p));
     }
     
-    // Update the simulation with probability-based model
+    // Update the simulation with continuous-time model
     this.updateSimulation(deltaTime);
     
     // Allow subclasses to perform additional animation
@@ -389,9 +520,14 @@ export class BaseASEPVisualization extends Visualization {
       this.state.isPaused = parameters.isPaused;
     }
     
-    // Update animation speed
+    // Update animation speed which affects simulation speed
     if (parameters.animationSpeed !== undefined) {
-      this.state.updateInterval = 500 / parameters.animationSpeed;
+      this.state.realTimeFactor = 2.0 * parameters.animationSpeed;
+    }
+    
+    // Update jump rates if provided
+    if (parameters.rightJumpRate !== undefined || parameters.leftJumpRate !== undefined) {
+      this.updateJumpRates(parameters);
     }
     
     // Allow subclasses to handle specific parameter updates
@@ -413,6 +549,59 @@ export class BaseASEPVisualization extends Visualization {
       particle.color = particleColor;
       particle.originalColor = particleColor;
     });
+  }
+  
+  /**
+   * Update jump rates for all particles
+   * @param {Object} parameters - New parameters with jump rates
+   */
+  updateJumpRates(parameters) {
+    if (!Array.isArray(this.state.particles) || this.state.particles.length === 0) return;
+    
+    // Get new rates
+    const rightRate = parameters.rightJumpRate !== undefined ? parameters.rightJumpRate : undefined;
+    const leftRate = parameters.leftJumpRate !== undefined ? parameters.leftJumpRate : undefined;
+    
+    // Update particles
+    this.state.particles.forEach(particle => {
+      // Only update if the rate has changed
+      if (rightRate !== undefined && particle.rightJumpRate !== rightRate) {
+        particle.rightJumpRate = rightRate;
+        // Rescale the remaining time proportionally if the particle isn't currently jumping
+        if (!particle.isJumping) {
+          const timeToEvent = particle.rightJumpTime - this.state.currentTime;
+          if (timeToEvent > 0) {
+            const oldRate = particle.rightJumpRate;
+            // Rescaling formula: new_time = old_time * (old_rate / new_rate)
+            const newTimeToEvent = rightRate > 0 ? timeToEvent * (oldRate / rightRate) : Infinity;
+            particle.rightJumpTime = this.state.currentTime + newTimeToEvent;
+          } else {
+            // If the event was already due, generate a new time
+            particle.rightJumpTime = this.state.currentTime + this.generateExponentialTime(rightRate);
+          }
+        }
+      }
+      
+      if (leftRate !== undefined && particle.leftJumpRate !== leftRate) {
+        particle.leftJumpRate = leftRate;
+        // Rescale the remaining time proportionally if the particle isn't currently jumping
+        if (!particle.isJumping) {
+          const timeToEvent = particle.leftJumpTime - this.state.currentTime;
+          if (timeToEvent > 0) {
+            const oldRate = particle.leftJumpRate;
+            // Rescaling formula: new_time = old_time * (old_rate / new_rate)
+            const newTimeToEvent = leftRate > 0 ? timeToEvent * (oldRate / leftRate) : Infinity;
+            particle.leftJumpTime = this.state.currentTime + newTimeToEvent;
+          } else {
+            // If the event was already due, generate a new time
+            particle.leftJumpTime = this.state.currentTime + this.generateExponentialTime(leftRate);
+          }
+        }
+      }
+    });
+    
+    // Recalculate next event time
+    this.calculateNextEventTime();
   }
   
   /**
@@ -541,7 +730,7 @@ export class BaseASEPVisualization extends Visualization {
     
     // Draw a semi-transparent background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 220, 130);
+    ctx.fillRect(10, 10, 220, 150);
     
     // Draw text
     ctx.fillStyle = 'white';
@@ -554,7 +743,11 @@ export class BaseASEPVisualization extends Visualization {
     y += 20;
     ctx.fillText(`Paused: ${this.state.isPaused}`, 20, y);
     y += 20;
-    ctx.fillText(`Update Interval: ${this.state.updateInterval.toFixed(0)} ms`, 20, y);
+    ctx.fillText(`Simulation Time: ${this.state.currentTime.toFixed(2)}s`, 20, y);
+    y += 20;
+    ctx.fillText(`Time Factor: ${this.state.realTimeFactor.toFixed(1)}x`, 20, y);
+    y += 20;
+    ctx.fillText(`Events: ${this.state.eventsOccurred}`, 20, y);
     y += 20;
     
     // Add specific debug info for each model
