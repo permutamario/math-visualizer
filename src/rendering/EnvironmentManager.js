@@ -202,26 +202,28 @@ export class EnvironmentManager {
   */
  getEnvironmentForPlugin() {
 
-    if (this.currentEnvironment === this.environments['2d']) {
-    return {
-      type: '2d',
-      // Direct access to Konva objects (preferred approach)
-      konva: Konva,
-      stage: this.currentEnvironment.stage,
-      layer: this.currentEnvironment.layer,
-      
-      // Camera controls
-      panCamera: (dx, dy) => this.currentEnvironment.panCamera(dx, dy),
-      zoomCamera: (factor, cx, cy) => this.currentEnvironment.zoomCamera(factor, cx, cy),
-      resetCamera: () => this.currentEnvironment.resetCamera(),
-      
-      // Legacy canvas support (deprecated)
-      context: this.currentEnvironment.ctx,
-      canvas: this.canvas,
-      prepareRender: (ctx) => this.currentEnvironment.prepareRender(ctx),
-      completeRender: (ctx) => this.currentEnvironment.completeRender(ctx)
-    };
-   } else {
+if (this.currentEnvironment === this.environments['2d']) {
+  return {
+    type: '2d',
+    // Direct access to Konva objects (preferred approach)
+    konva: Konva,
+    stage: this.currentEnvironment.stage,
+    layer: this.currentEnvironment.layer,
+    
+    // Camera controls
+    panCamera: (dx, dy) => this.currentEnvironment.panCamera(dx, dy),
+    zoomCamera: (factor, cx, cy) => this.currentEnvironment.zoomCamera(factor, cx, cy),
+    resetCamera: () => this.currentEnvironment.resetCamera(),
+    setAutomaticCameraControls: (enabled) => this.currentEnvironment.setAutomaticCameraControls(enabled),
+    
+    // Legacy canvas support (deprecated)
+    context: this.currentEnvironment.ctx,
+    canvas: this.canvas,
+    prepareRender: (ctx) => this.currentEnvironment.prepareRender(ctx),
+    completeRender: (ctx) => this.currentEnvironment.completeRender(ctx)
+  };
+}
+   else {
      // 3D environment access
      return {
        type: '3d',
