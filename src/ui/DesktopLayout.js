@@ -21,8 +21,8 @@ export class DesktopLayout extends BaseLayout {
     
     // Parameter groups storage
     this.parameterGroups = {
-      plugin: { schema: [], values: {} },
-      visualization: { schema: [], values: {} },
+      visual: { schema: [], values: {} },
+      structural: { schema: [], values: {} },
       advanced: { schema: [], values: {} }
     };
     
@@ -68,17 +68,17 @@ export class DesktopLayout extends BaseLayout {
     // Remove any existing panels
     this.removePanels();
     
-    // Create plugin parameters panel (left side)
-    this.panels.plugin = layoutUtils.createPanel('plugin-panel', 'Plugin Parameters', 'control-panel');
-    document.body.appendChild(this.panels.plugin);
+    // Create visual parameters panel (left side)
+    this.panels.visual = layoutUtils.createPanel('visual-panel', 'Visual Parameters', 'control-panel');
+    document.body.appendChild(this.panels.visual);
     
-    // Create visualization parameters panel (right side)
-    this.panels.visualization = layoutUtils.createPanel('visualization-panel', 'Visualization Parameters', 'control-panel right-panel');
-    document.body.appendChild(this.panels.visualization);
+    // Create structural parameters panel (right side)
+    this.panels.structural = layoutUtils.createPanel('structural-panel', 'Structural Parameters', 'control-panel right-panel');
+    document.body.appendChild(this.panels.structural);
     
-    // Create export panel (left side, below plugin panel)
-    this.panels.export = layoutUtils.createPanel('export-panel', 'Export Options', 'control-panel export-panel');
-    document.body.appendChild(this.panels.export);
+    // Create actions panel (left side, below visual panel)
+    this.panels.actions = layoutUtils.createPanel('actions-panel', 'Actions', 'control-panel export-panel');
+    document.body.appendChild(this.panels.actions);
     
     // Only create advanced panel if needed (bottom right)
     /** 
@@ -195,15 +195,15 @@ export class DesktopLayout extends BaseLayout {
     this.parameterGroups = parameterGroups;
     
     // Rebuild panels if needed or if they don't exist
-    if (rebuild || !this.panels.plugin || !this.panels.visualization) {
+    if (rebuild || !this.panels.visual || !this.panels.structural) {
       this.createPanels();
     }
     
-    // Update plugin parameters panel
-    this.updatePluginPanel(parameterGroups.plugin.schema, parameterGroups.plugin.values);
+    // Update visual parameters panel
+    this.updateVisualPanel(parameterGroups.visual.schema, parameterGroups.visual.values);
     
-    // Update visualization parameters panel
-    this.updateVisualizationPanel(parameterGroups.visualization.schema, parameterGroups.visualization.values);
+    // Update structural parameters panel
+    this.updateStructuralPanel(parameterGroups.structural.schema, parameterGroups.structural.values);
     
     // Update advanced panel if needed
     if (parameterGroups.advanced.schema.length > 0) {
@@ -220,8 +220,8 @@ export class DesktopLayout extends BaseLayout {
       delete this.panels.advanced;
     }
     
-    // Update the export panel with actions
-    this.updateExportPanel(this.actions);
+    // Update the actions panel with actions
+    this.updateActionsPanel(this.actions);
   }
   
   /**
@@ -255,32 +255,32 @@ export class DesktopLayout extends BaseLayout {
   }
   
   /**
-   * Update plugin parameters panel
+   * Update visual parameters panel
    * @param {Array} schema - Parameter schema
    * @param {Object} values - Current values
    */
-  updatePluginPanel(schema, values) {
-    const panel = this.panels.plugin;
+  updateVisualPanel(schema, values) {
+    const panel = this.panels.visual;
     
     // Clear existing controls (except the title)
     while (panel.childNodes.length > 1) {
       panel.removeChild(panel.lastChild);
     }
     
-    // Check if we have plugin parameters
+    // Check if we have visual parameters
     if (!schema || schema.length === 0) {
-      panel.appendChild(layoutUtils.createPlaceholder('No plugin parameters available.'));
+      panel.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.forEach(param => {
-      const controlId = `plugin-${param.id}`;
+      const controlId = `visual-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
         { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value, 'plugin')
+        (value) => this.handleParameterChange(param.id, value, 'visual')
       );
       
       panel.appendChild(control);
@@ -288,32 +288,32 @@ export class DesktopLayout extends BaseLayout {
   }
   
   /**
-   * Update visualization parameters panel
+   * Update structural parameters panel
    * @param {Array} schema - Parameter schema
    * @param {Object} values - Current values
    */
-  updateVisualizationPanel(schema, values) {
-    const panel = this.panels.visualization;
+  updateStructuralPanel(schema, values) {
+    const panel = this.panels.structural;
     
     // Clear existing controls (except the title)
     while (panel.childNodes.length > 1) {
       panel.removeChild(panel.lastChild);
     }
     
-    // Check if we have visualization parameters
+    // Check if we have structural parameters
     if (!schema || schema.length === 0) {
-      panel.appendChild(layoutUtils.createPlaceholder('No visualization parameters available.'));
+      panel.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.forEach(param => {
-      const controlId = `visualization-${param.id}`;
+      const controlId = `structural-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
         { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value, 'visualization')
+        (value) => this.handleParameterChange(param.id, value, 'structural')
       );
       
       panel.appendChild(control);
@@ -361,16 +361,16 @@ export class DesktopLayout extends BaseLayout {
     // Call parent method to store actions
     super.updateActions(actions);
     
-    // Update export panel
-    this.updateExportPanel(actions);
+    // Update actions panel
+    this.updateActionsPanel(actions);
   }
   
   /**
-   * Update export panel with actions
+   * Update actions panel with actions
    * @param {Array<Object>} actions - Available actions
    */
-  updateExportPanel(actions) {
-    const panel = this.panels.export;
+  updateActionsPanel(actions) {
+    const panel = this.panels.actions;
     
     // Clear existing controls (except the title)
     while (panel.childNodes.length > 1) {
@@ -379,7 +379,7 @@ export class DesktopLayout extends BaseLayout {
     
     // Check if we have actions
     if (!actions || actions.length === 0) {
-      panel.appendChild(layoutUtils.createPlaceholder('No export options available.'));
+      panel.appendChild(layoutUtils.createPlaceholder('No actions available.'));
       return;
     }
     

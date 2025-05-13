@@ -21,20 +21,20 @@ export class MobileLayout extends BaseLayout {
     this.exportButton = null;
     this.pluginButton = null;
     this.visualMenu = null;
-    this.exportMenu = null;
+    this.actionsMenu = null;
     this.selectionWindow = null;
     this.themeToggleButton = null;
     
     // Parameter groups storage
     this.parameterGroups = {
-      plugin: { schema: [], values: {} },
-      visualization: { schema: [], values: {} },
+      visual: { schema: [], values: {} },
+      structural: { schema: [], values: {} },
       advanced: { schema: [], values: {} }
     };
     
     // Bind methods
     this.toggleVisualMenu = this.toggleVisualMenu.bind(this);
-    this.toggleExportMenu = this.toggleExportMenu.bind(this);
+    this.toggleActionsMenu = this.toggleActionsMenu.bind(this);
     this.openSelectionWindow = this.openSelectionWindow.bind(this);
   }
   
@@ -80,7 +80,7 @@ export class MobileLayout extends BaseLayout {
     this.headerTitle = this.createHeaderTitle();
     document.body.appendChild(this.headerTitle);
     
-    // Create header with visualization parameters (previously structural)
+    // Create header with structural parameters (previously visualization)
     this.header = this.createHeader();
     document.body.appendChild(this.header);
     
@@ -88,13 +88,13 @@ export class MobileLayout extends BaseLayout {
     this.controlBar = this.createControlBar();
     document.body.appendChild(this.controlBar);
     
-    // Create visual options menu (now for plugin parameters)
+    // Create visual options menu (now for visual parameters, previously plugin)
     this.visualMenu = this.createVisualMenu();
     document.body.appendChild(this.visualMenu);
     
-    // Create export menu
-    this.exportMenu = this.createExportMenu();
-    document.body.appendChild(this.exportMenu);
+    // Create actions menu (previously export menu)
+    this.actionsMenu = this.createActionsMenu();
+    document.body.appendChild(this.actionsMenu);
     
     // Create selection window
     this.selectionWindow = new SelectionWindow(
@@ -129,9 +129,9 @@ export class MobileLayout extends BaseLayout {
       this.visualMenu.parentNode.removeChild(this.visualMenu);
     }
     
-    // Remove export menu
-    if (this.exportMenu && this.exportMenu.parentNode) {
-      this.exportMenu.parentNode.removeChild(this.exportMenu);
+    // Remove actions menu
+    if (this.actionsMenu && this.actionsMenu.parentNode) {
+      this.actionsMenu.parentNode.removeChild(this.actionsMenu);
     }
     
     // Dispose of selection window
@@ -166,7 +166,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Create the header with visualization parameters (previously structural)
+   * Create the header with structural parameters (previously visualization)
    * @returns {HTMLElement} Header element
    */
   createHeader() {
@@ -177,8 +177,8 @@ export class MobileLayout extends BaseLayout {
     header.style.backgroundColor = 'var(--control-bg)';
     header.style.color = 'var(--text-color)';
     
-    // Placeholder for visualization parameters - will be filled when schema is provided
-    header.appendChild(layoutUtils.createPlaceholder('No visualization parameters available.'));
+    // Placeholder for structural parameters - will be filled when schema is provided
+    header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
     
     return header;
   }
@@ -220,7 +220,7 @@ export class MobileLayout extends BaseLayout {
     const controlBar = document.createElement('div');
     controlBar.className = 'mobile-control-bar';
     
-    // Create options button for plugin parameters
+    // Create options button for visual parameters
     this.optionsButton = document.createElement('button');
     this.optionsButton.id = 'mobile-options-button';
     this.optionsButton.textContent = 'Options';
@@ -239,13 +239,13 @@ export class MobileLayout extends BaseLayout {
     this.pluginButton.appendChild(pluginIcon);
     this.pluginButton.addEventListener('click', this.openSelectionWindow);
     
-    // Create export button
+    // Create actions button (previously export button)
     this.exportButton = document.createElement('button');
     this.exportButton.id = 'mobile-export-button';
-    this.exportButton.textContent = 'Export';
+    this.exportButton.textContent = 'Actions';
     this.exportButton.style.backgroundColor = 'var(--control-bg)';
     this.exportButton.style.color = 'var(--text-color)';
-    this.exportButton.addEventListener('click', this.toggleExportMenu);
+    this.exportButton.addEventListener('click', this.toggleActionsMenu);
     
     // Add buttons to control bar
     controlBar.appendChild(this.optionsButton);
@@ -256,7 +256,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Create the visual options menu (now for plugin parameters)
+   * Create the visual options menu (previously plugin parameters)
    * @returns {HTMLElement} Visual options menu
    */
   createVisualMenu() {
@@ -269,21 +269,21 @@ export class MobileLayout extends BaseLayout {
     
     // Add title
     const title = document.createElement('h3');
-    title.textContent = 'Plugin Options';
+    title.textContent = 'Visual Options';
     title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Placeholder content - will be filled when schema is provided
-    menu.appendChild(layoutUtils.createPlaceholder('No plugin parameters available.'));
+    menu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
     
     return menu;
   }
   
   /**
-   * Create the export menu
-   * @returns {HTMLElement} Export menu
+   * Create the actions menu (previously export menu)
+   * @returns {HTMLElement} Actions menu
    */
-  createExportMenu() {
+  createActionsMenu() {
     const menu = document.createElement('div');
     menu.id = 'mobile-export-menu';
     menu.className = 'mobile-options-menu hidden';
@@ -293,12 +293,12 @@ export class MobileLayout extends BaseLayout {
     
     // Add title
     const title = document.createElement('h3');
-    title.textContent = 'Export Options';
+    title.textContent = 'Actions';
     title.style.color = 'var(--text-color)';
     menu.appendChild(title);
     
     // Placeholder content - will be filled when actions are provided
-    menu.appendChild(layoutUtils.createPlaceholder('No export options available.'));
+    menu.appendChild(layoutUtils.createPlaceholder('No actions available.'));
     
     return menu;
   }
@@ -315,7 +315,7 @@ export class MobileLayout extends BaseLayout {
     
     // Close any open menus
     this.visualMenu.classList.add('hidden');
-    this.exportMenu.classList.add('hidden');
+    this.actionsMenu.classList.add('hidden');
     
     if (this.selectionWindow) {
       // Update plugins and active ID before showing
@@ -325,7 +325,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Toggle the visual menu (plugin parameters)
+   * Toggle the visual menu (visual parameters)
    * @param {Event} event - Click event
    */
   toggleVisualMenu(event) {
@@ -335,20 +335,20 @@ export class MobileLayout extends BaseLayout {
     this.visualMenu.classList.toggle('hidden');
     
     // Hide other menus if open
-    if (!this.exportMenu.classList.contains('hidden')) {
-      this.exportMenu.classList.add('hidden');
+    if (!this.actionsMenu.classList.contains('hidden')) {
+      this.actionsMenu.classList.add('hidden');
     }
   }
   
   /**
-   * Toggle the export menu
+   * Toggle the actions menu
    * @param {Event} event - Click event
    */
-  toggleExportMenu(event) {
+  toggleActionsMenu(event) {
     event.stopPropagation();
     
-    // Toggle export menu
-    this.exportMenu.classList.toggle('hidden');
+    // Toggle actions menu
+    this.actionsMenu.classList.toggle('hidden');
     
     // Hide other menus if open
     if (!this.visualMenu.classList.contains('hidden')) {
@@ -368,11 +368,11 @@ export class MobileLayout extends BaseLayout {
       this.visualMenu.classList.add('hidden');
     }
     
-    // Check if clicking outside export menu
-    if (!this.exportMenu.classList.contains('hidden') &&
-        !this.exportMenu.contains(event.target) &&
+    // Check if clicking outside actions menu
+    if (!this.actionsMenu.classList.contains('hidden') &&
+        !this.actionsMenu.contains(event.target) &&
         !this.exportButton.contains(event.target)) {
-      this.exportMenu.classList.add('hidden');
+      this.actionsMenu.classList.add('hidden');
     }
   }
   
@@ -385,14 +385,14 @@ export class MobileLayout extends BaseLayout {
     // Store parameter groups
     this.parameterGroups = parameterGroups;
     
-    // Update header with visualization parameters (previously structural)
-    this.updateHeaderControls(parameterGroups.visualization.schema, parameterGroups.visualization.values);
+    // Update header with structural parameters (previously visualization)
+    this.updateHeaderControls(parameterGroups.structural.schema, parameterGroups.structural.values);
     
-    // Update visual menu with plugin parameters
-    this.updateVisualMenu(parameterGroups.plugin.schema, parameterGroups.plugin.values);
+    // Update visual menu with visual parameters (previously plugin)
+    this.updateVisualMenu(parameterGroups.visual.schema, parameterGroups.visual.values);
     
-    // Update export panel
-    this.updateExportMenu(this.actions);
+    // Update actions panel
+    this.updateActionsMenu(this.actions);
     
     // For advanced parameters, if they exist we could add them to the visual menu or create a separate menu
     if (parameterGroups.advanced.schema && parameterGroups.advanced.schema.length > 0) {
@@ -431,7 +431,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Update header with visualization parameters (previously structural)
+   * Update header with structural parameters (previously visualization)
    * @param {Array} schema - Parameter schema
    * @param {Object} values - Current values
    */
@@ -441,20 +441,20 @@ export class MobileLayout extends BaseLayout {
       this.header.removeChild(this.header.lastChild);
     }
     
-    // Check if we have visualization parameters
+    // Check if we have structural parameters
     if (!schema || schema.length === 0) {
-      this.header.appendChild(layoutUtils.createPlaceholder('No visualization parameters available.'));
+      this.header.appendChild(layoutUtils.createPlaceholder('No structural parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.forEach(param => {
-      const controlId = `visualization-${param.id}`;
+      const controlId = `structural-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
         { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value, 'visualization')
+        (value) => this.handleParameterChange(param.id, value, 'structural')
       );
       
       this.header.appendChild(control);
@@ -462,7 +462,7 @@ export class MobileLayout extends BaseLayout {
   }
   
   /**
-   * Update visual menu with plugin parameters
+   * Update visual menu with visual parameters (previously plugin)
    * @param {Array} schema - Parameter schema
    * @param {Object} values - Current values
    */
@@ -472,20 +472,20 @@ export class MobileLayout extends BaseLayout {
       this.visualMenu.removeChild(this.visualMenu.lastChild);
     }
     
-    // Check if we have plugin parameters
+    // Check if we have visual parameters
     if (!schema || schema.length === 0) {
-      this.visualMenu.appendChild(layoutUtils.createPlaceholder('No plugin parameters available.'));
+      this.visualMenu.appendChild(layoutUtils.createPlaceholder('No visual parameters available.'));
       return;
     }
     
     // Create controls for each parameter
     schema.forEach(param => {
-      const controlId = `plugin-${param.id}`;
+      const controlId = `visual-${param.id}`;
       const control = layoutUtils.createControl(
         this.builder,
         { ...param, id: controlId }, // Add group prefix to ID
         values[param.id],
-        (value) => this.handleParameterChange(param.id, value, 'plugin')
+        (value) => this.handleParameterChange(param.id, value, 'visual')
       );
       
       this.visualMenu.appendChild(control);
@@ -535,23 +535,23 @@ export class MobileLayout extends BaseLayout {
     // Call parent method to store actions
     super.updateActions(actions);
     
-    // Update export menu
-    this.updateExportMenu(actions);
+    // Update actions menu
+    this.updateActionsMenu(actions);
   }
   
   /**
-   * Update export menu with actions
+   * Update actions menu with actions
    * @param {Array<Object>} actions - Available actions
    */
-  updateExportMenu(actions) {
+  updateActionsMenu(actions) {
     // Clear existing controls (except the title)
-    while (this.exportMenu.childNodes.length > 1) {
-      this.exportMenu.removeChild(this.exportMenu.lastChild);
+    while (this.actionsMenu.childNodes.length > 1) {
+      this.actionsMenu.removeChild(this.actionsMenu.lastChild);
     }
     
     // Check if we have actions
     if (!actions || actions.length === 0) {
-      this.exportMenu.appendChild(layoutUtils.createPlaceholder('No export options available.'));
+      this.actionsMenu.appendChild(layoutUtils.createPlaceholder('No actions available.'));
       return;
     }
     
@@ -566,7 +566,7 @@ export class MobileLayout extends BaseLayout {
         action.label,
         () => {
           // Hide menu after action
-          this.exportMenu.classList.add('hidden');
+          this.actionsMenu.classList.add('hidden');
           
           // Emit action event
           this.emit('action', action.id);
@@ -576,7 +576,7 @@ export class MobileLayout extends BaseLayout {
       buttonContainer.appendChild(button);
     });
     
-    this.exportMenu.appendChild(buttonContainer);
+    this.actionsMenu.appendChild(buttonContainer);
   }
   
   /**
