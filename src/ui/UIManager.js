@@ -158,52 +158,6 @@ async initialize() {
     }
   }
   
-  /**
-   * Backward compatibility method for old parameter format
-   * @param {Object} schema - Parameter schema
-   * @param {Object} values - Parameter values
-   * @deprecated Use updatePluginParameterGroups instead
-   */
-  buildControlsFromSchema(schema, values) {
-    try {
-      console.warn("Using deprecated buildControlsFromSchema method, consider updating to use parameter groups");
-      
-      // Extract plugin and visualization parameters from old format
-      const pluginParams = [];
-      const visualizationParams = [];
-      
-      if (schema.structural && Array.isArray(schema.structural)) {
-        // Treat structural as plugin parameters
-        pluginParams.push(...schema.structural);
-      }
-      
-      if (schema.visual && Array.isArray(schema.visual)) {
-        // Treat visual as visualization parameters
-        visualizationParams.push(...schema.visual);
-      }
-      
-      // Create parameter group data
-      const parameterData = {
-        pluginParameters: {
-          schema: pluginParams,
-          values: values || {}
-        },
-        visualizationParameters: {
-          schema: visualizationParams,
-          values: values || {}
-        },
-        advancedParameters: {
-          schema: [],
-          values: {}
-        }
-      };
-      
-      // Update UI with parameter groups
-      this.updatePluginParameterGroups(parameterData, true);
-    } catch (error) {
-      console.error("Failed to build controls from schema:", error);
-    }
-  }
   
   /**
    * Backward compatibility method for updating values
