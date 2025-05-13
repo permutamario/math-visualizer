@@ -270,9 +270,6 @@ export class Plugin {
     } else {
       console.warn(`Cannot add parameter ${param.id} - no method available for group ${group}`);
     }
-    
-    // Request a render refresh since UI may have changed
-    this.refresh();
   }
   
   // Removed - no longer needed with direct parameter registration
