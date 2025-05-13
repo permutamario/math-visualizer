@@ -173,22 +173,21 @@ export default class MirrorCurvesPlugin extends Plugin {
     updateHelperPoints() {
         this.helperPoints = calculateAllHelperPoints(this.curves, this.gridLayout.cellSize);
     }
-
-    startNextAnimation() {
-	if (this.animationQueue.length === 0) {
-	    this.isAnimating = false;
-	    this.animationPath = null;
-	    return;
-	}
-	
-	// Get the next curve from the queue
-	this.animationCurve = this.animationQueue.shift();
-	
-	// Reset animation progress (using progress instead of frame)
-	this.animationProgress = 0;
-	
-	this.isAnimating = true;
+startNextAnimation() {
+    if (this.animationQueue.length === 0) {
+        this.isAnimating = false;
+        this.animationPath = null;
+        return;
     }
+    
+    // Get the next curve from the queue
+    this.animationCurve = this.animationQueue.shift();
+    
+    // Reset animation progress
+    this.animationProgress = 0;
+    
+    this.isAnimating = true;
+}
 
     
 animate(deltaTime) {
@@ -207,19 +206,25 @@ animate(deltaTime) {
     
     // Handle animation if active
     if (this.isAnimating && this.animationCurve) {
-        // Increment animation frame
-        this.animationFrame++;
-        
-        // Get animation speed parameter and calculate frame count
-        const baseFrameCount = 30; 
+        // Get animation speed parameter - this controls how much progress we make per frame
         const speedMultiplier = this.getParameter('animationSpeed');
-        const frameCount = Math.ceil(baseFrameCount / speedMultiplier);
         
-        // Update animation path
+        // Increment animation progress based on speed
+        this.animationProgress += (deltaTime * speedMultiplier);
+        
+        // Cap the progress at 1.0 (100%)
+        if (this.animationProgress > 1.0) {
+            this.animationProgress = 1.0;
+        }
+        
+        // Use a constant frame count
+        const frameCount = 1.0; // Now we're using normalized progress (0-1)
+        
+        // Update animation path using the progress value
         const animResult = this.curveRenderer.createAnimationPath(
             this.animationCurve,
             this.gridLayout.cellSize,
-            this.animationFrame,
+            this.animationProgress,
             frameCount
         );
         
