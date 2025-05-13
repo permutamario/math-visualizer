@@ -109,25 +109,34 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.animationHandler = this.requestAnimation(this.animate.bind(this));
     }
     
-    initializeGrid() {
-        const rows = this.getParameter('rows');
-        const cols = this.getParameter('cols');
-        
-        // Create a new grid
-        this.grid = new Grid(rows, cols);
-        
-        // Randomize mirrors with current probability
-        const probability = this.getParameter('mirrorProbability');
-        this.grid.randomizeMirrors(probability);
-        
-        // Reset curves
-        this.curves = [];
-        this.animationPath = null;
-        this.helperPoints = [];
-        
-        // Mark everything as dirty to force redraw
-        this.markAllDirty();
+initializeGrid() {
+    const rows = this.getParameter('rows');
+    const cols = this.getParameter('cols');
+    
+    // Create a new grid
+    this.grid = new Grid(rows, cols);
+    
+    // Randomize mirrors with current probability
+    const probability = this.getParameter('mirrorProbability');
+    this.grid.randomizeMirrors(probability);
+    
+    // Reset curves AND animation state
+    this.curves = [];
+    this.animationPath = null;
+    this.helperPoints = [];
+    this.animationQueue = []; // Clear queue
+    this.isAnimating = false; // Reset animation flag
+    this.animationCurve = null; // Reset current animation
+    this.distanceTraveled = 0; // Reset distance
+    
+    // Clear renderer cache if available
+    if (this.curveRenderer) {
+        this.curveRenderer.clearCache();
     }
+    
+    // Mark everything as dirty to force redraw
+    this.markAllDirty();
+}
     
     randomizeMirrors() {
         if (!this.grid) return;
@@ -138,6 +147,8 @@ export default class MirrorCurvesPlugin extends Plugin {
         // Reset curves and animations when mirrors change
         this.clearCurves();
         this.markAllDirty();
+
+	this.updateStaticCurves();
     }
     
     discoverAllCurves() {
@@ -182,23 +193,28 @@ export default class MirrorCurvesPlugin extends Plugin {
         }
     }
     
-    clearCurves() {
-        this.curves = [];
-        this.animationPath = null;
-        this.helperPoints = [];
-        this.isAnimating = false;
-        this.animationCurve = null;
-        this.animationQueue = []; // Clear animation queue
-        
-        // Reset used directions in the grid
-        if (this.grid) {
-            this.grid.resetUsedDirections();
-        }
-        
-        // Mark relevant layers as dirty
-        this.isDirtyStaticCurves = true;
-        this.isDirtyAnimation = true;
+clearCurves() {
+    this.curves = [];
+    this.animationPath = null;
+    this.helperPoints = [];
+    this.isAnimating = false;
+    this.animationCurve = null;
+    this.animationQueue = []; // Clear animation queue
+    
+    // Clear renderer cache
+    if (this.curveRenderer) {
+        this.curveRenderer.clearCache();
     }
+    
+    // Reset used directions in the grid
+    if (this.grid) {
+        this.grid.resetUsedDirections();
+    }
+    
+    // Mark relevant layers as dirty
+    this.isDirtyStaticCurves = true;
+    this.isDirtyAnimation = true;
+}
     
     updateHelperPoints() {
         this.helperPoints = calculateAllHelperPoints(this.curves, this.gridLayout.cellSize);
@@ -231,103 +247,55 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.isDirtyAnimation = true;
     }
     
-    animate(deltaTime) {
-        // Apply background color from parameter if background is dirty
-        if (this.isDirtyBackground && this.renderEnv.stage) {
-            this.renderEnv.stage.container().style.backgroundColor = 
-                this.getParameter('backgroundColor');
-            
-            if (this.backgroundRect) {
-                this.backgroundRect.fill(this.getParameter('backgroundColor'));
-                this.backgroundLayer.batchDraw();
-            }
-            
-            this.isDirtyBackground = false;
+  animate(deltaTime) {
+    // Apply background color from parameter if background is dirty
+    if (this.isDirtyBackground && this.renderEnv.stage) {
+        this.renderEnv.stage.container().style.backgroundColor = 
+            this.getParameter('backgroundColor');
+        
+        if (this.backgroundRect) {
+            this.backgroundRect.fill(this.getParameter('backgroundColor'));
+            this.backgroundLayer.batchDraw();
         }
         
-        // Check if stage size has changed
-        const stage = this.renderEnv.stage;
-        const currentWidth = stage.width();
-        const currentHeight = stage.height();
-        
-        if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
-            this.updateLayout();
-        }
-        
-        // Optional frame throttling
-        // const currentTime = performance.now();
-        // if (this.isAnimating && currentTime - this.lastFrameTime < this.frameInterval) {
-        //     return true; // Skip this frame for animation smoothness
-        // }
-        // this.lastFrameTime = currentTime;
-        
-        // Handle animation if active
-        if (this.isAnimating && this.animationCurve) {
-            // Get animation speed parameter - defines pixels per second
-            const speed = this.getParameter('animationSpeed') * 200; // Scale to make the parameter more intuitive
-            
-            // Calculate distance to travel this frame
-            const distanceThisFrame = speed * deltaTime;
-            
-            // Update distance traveled
-            this.distanceTraveled += distanceThisFrame;
-            
-            // Update animation path using the distance traveled
-            const animResult = this.curveRenderer.createAnimationPathByDistance(
-                this.animationCurve,
-                this.gridLayout.cellSize,
-                this.distanceTraveled,
-                {
-                    tension: this.getParameter('tension'),
-                    curveStyle: this.getParameter('curveStyle'),
-                    smooth: this.getParameter('smooth')
-                }
-            );
-            
-            if (animResult && animResult.completed) {
-                // Animation is complete, add curve to list
-                this.animationCurve.isCompleted = true;
-                this.curves.push(this.animationCurve);
-                
-                // Reset animation state
-                this.animationPath = null;
-                this.animationCurve = null;
-                
-                // Update helper points
-                this.updateHelperPoints();
-                
-                // Start next animation in queue
-                this.startNextAnimation();
-                
-                // Mark static curves as dirty since we added a new curve
-                this.isDirtyStaticCurves = true;
-            } else if (animResult) {
-                // Update animation path
-                this.animationPath = animResult;
-                this.isDirtyAnimation = true;
-            }
-            
-            // Only update animation layer if animating
-            if (this.isDirtyAnimation) {
-                this.updateAnimation();
-                this.isDirtyAnimation = false;
-            }
-            
-            // Update static curves if needed (e.g., new curve completed)
-            if (this.isDirtyStaticCurves) {
-                this.updateStaticCurves();
-                this.isDirtyStaticCurves = false;
-            }
-        }
-        
-        // Update grid if needed
-        if (this.isDirtyGrid) {
-            this.updateGrid();
-            this.isDirtyGrid = false;
-        }
-        
-        return true; // Continue animation
+        this.isDirtyBackground = false;
     }
+    
+    // Check if stage size has changed
+    const stage = this.renderEnv.stage;
+    const currentWidth = stage.width();
+    const currentHeight = stage.height();
+    
+    if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
+        this.updateLayout();
+    }
+    
+    // Handle animation if active
+    if (this.isAnimating && this.animationCurve) {
+        // Animation code...
+        
+        // Only update animation layer if animating
+        if (this.isDirtyAnimation) {
+            this.updateAnimation();
+            this.isDirtyAnimation = false;
+        }
+    }
+    
+    // MOVED OUTSIDE the animation condition - this is the key fix
+    // Update static curves if needed (e.g., new curve completed or cleared)
+    if (this.isDirtyStaticCurves) {
+        this.updateStaticCurves();
+        this.isDirtyStaticCurves = false;
+    }
+    
+    // Update grid if needed
+    if (this.isDirtyGrid) {
+        this.updateGrid();
+        this.isDirtyGrid = false;
+    }
+    
+    return true; // Continue animation
+}
     
     setupKonvaObjects() {
         const { stage, konva } = this.renderEnv;
@@ -374,44 +342,47 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     updateLayout() {
-        const stage = this.renderEnv.stage;
-        
-        // Get stage dimensions
-        const stageWidth = stage.width();
-        const stageHeight = stage.height();
-        
-        // Update background rectangle size
-        if (this.backgroundRect) {
-            this.backgroundRect.width(stageWidth);
-            this.backgroundRect.height(stageHeight);
-            this.backgroundRect.fill(this.getParameter('backgroundColor'));
-            this.isDirtyBackground = true;
-        }
-        
-        // Calculate layout
-        this.gridLayout = calculateGridLayout(
-            stageWidth,
-            stageHeight,
-            this.grid.rows,
-            this.grid.cols
-        );
-        
-        // Apply layout to groups
-        applyLayout(this.gridGroup, this.staticCurveGroup, this.gridLayout);
-        applyLayout(this.gridGroup, this.animationGroup, this.gridLayout);
-        
-        // Store current dimensions
-        this.lastWidth = stageWidth;
-        this.lastHeight = stageHeight;
-        
-        // Mark all as dirty after layout change
-        this.markAllDirty();
-        
-        // Update all components with new layout
-        this.updateGrid();
-        this.updateStaticCurves();
-        this.updateAnimation();
+    const stage = this.renderEnv.stage;
+    
+    // Get stage dimensions
+    const stageWidth = stage.width();
+    const stageHeight = stage.height();
+    
+    // Update background rectangle size
+    if (this.backgroundRect) {
+        this.backgroundRect.width(stageWidth);
+        this.backgroundRect.height(stageHeight);
+        this.backgroundRect.fill(this.getParameter('backgroundColor'));
+        this.isDirtyBackground = true;
     }
+    
+    // Calculate layout
+    this.gridLayout = calculateGridLayout(
+        stageWidth,
+        stageHeight,
+        this.grid.rows,
+        this.grid.cols
+    );
+    
+    // Clear curves when layout changes to prevent animation issues
+    this.clearCurves();
+    
+    // Apply layout to groups
+    applyLayout(this.gridGroup, this.staticCurveGroup, this.gridLayout);
+    applyLayout(this.gridGroup, this.animationGroup, this.gridLayout);
+    
+    // Store current dimensions
+    this.lastWidth = stageWidth;
+    this.lastHeight = stageHeight;
+    
+    // Mark all as dirty after layout change
+    this.markAllDirty();
+    
+    // Update all components with new layout
+    this.updateGrid();
+    this.updateStaticCurves();
+    this.updateAnimation();
+}
     
     // Update each component independently
     
