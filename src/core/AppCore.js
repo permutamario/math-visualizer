@@ -251,27 +251,27 @@ addParametersVisual(parameters) {
 }
 
   /**
- * Adds structural parameters to the application
- * @param {Array<Object>} parameters - Array of parameter definitions
- */
-addParametersStructural(parameters) {
-  if (!Array.isArray(parameters)) {
-    console.error("Structural parameters must be an array");
-    return;
+   * Adds structural parameters to the application
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   */
+  addParametersStructural(parameters) {
+    if (!Array.isArray(parameters)) {
+      console.error("Structural parameters must be an array");
+      return;
+    }
+    
+    this._processParameters(parameters, 'structural');
+    
+    // Update UI 
+    if (this.uiManager) {
+      this.uiManager.updatePluginParameterGroups({
+        pluginParameters: { 
+          schema: this.structuralParameters.schema, 
+          values: this.structuralParameters.values 
+        }
+      });
+    }
   }
-  
-  this._processParameters(parameters, 'structural');
-  
-  // Update UI 
-  if (this.uiManager) {
-    this.uiManager.updateParameterGroups({
-      structural: { 
-        schema: this.structuralParameters.schema, 
-        values: this.structuralParameters.values 
-      }
-    });
-  }
-}
 
   /**
    * Processes and stores parameter definitions

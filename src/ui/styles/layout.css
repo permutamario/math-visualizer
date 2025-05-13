@@ -16,7 +16,7 @@
   }
   
   /* Plugin-panel(left side, below logo) */
-  #plugin-panel {
+  #visual-panel {
     top: 90px;  /* Positioned below the logo */
     left: 20px;
     max-height: calc(40vh - 90px);
@@ -27,14 +27,14 @@
 }
   
   /* Export panel (left side, below visual panel) */
-  #export-panel {
+  #actions-panel {
     top: calc(40vh + 40px);  /* Positioned below visual panel */
     left: 20px;
     max-height: calc(30vh);
   }
   
   /* Visualization Panel (right side) */
-  #visualization-panel {
+  #structural-panel {
     top: 90px;  /* Aligned with top */
     right: 20px;
     max-height: calc(100vh - 40px);

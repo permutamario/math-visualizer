@@ -90,11 +90,12 @@ async initialize() {
   /**
    * Update UI with parameter groups
    * @param {Object} parameterData - Parameter group data
-   * @param {Object} parameterData.visual - Visual parameters
-   * @param {Object} parameterData.structural - Structural parameters 
-   * @param {Object} parameterData.advanced - Advanced parameters
+   * @param {Object} parameterData.visualParameters - visual parameters
+   * @param {Object} parameterData.structuralParameters - Structural parameters 
+   * @param {Object} parameterData.advancedParameters - Advanced parameters
    * @param {boolean} rebuild - Whether to rebuild the entire UI
    */
+  updateParameterGroups(parameterData, rebuild = false) {
   updateParameterGroups(parameterData, rebuild = false) {
     try {
       // Validate parameter data
@@ -108,8 +109,8 @@ async initialize() {
         this.parameterGroups.visual = parameterData.visual;
       }
       
-      if (parameterData.structural) {
-        this.parameterGroups.structural = parameterData.structural;
+      if (parameterData.structrualParameters) {
+        this.parameterGroups.structural = parameterData.structrualParameters;
       }
       
       if (parameterData.advanced) {
