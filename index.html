@@ -122,53 +122,55 @@
   
   <!-- Core application script -->
   <script type="module">
-    // Import THREE.js and camera-controls
-    import * as THREE from 'three';
-    import CameraControls from 'camera-controls';
+  // Import THREE.js and camera-controls
+  import * as THREE from 'three';
+  import CameraControls from 'camera-controls';
+  import * as Konva from 'konva';
+  
+  // Initialize camera-controls with THREE.js
+  CameraControls.install({ THREE });
+  
+  // Make libraries globally available for plugins
+  window.THREE = THREE;
+  window.CameraControls = CameraControls;
+  window.Konva = Konva;
+  
+  // Import application entry point
+  import { main } from './src/index.js';
+  
+  // Start the application
+  document.addEventListener('DOMContentLoaded', () => {
+    // Update loading message
+    document.querySelector('.loading-text').textContent = 'Starting application...';
     
-    // Initialize camera-controls with THREE.js
-    CameraControls.install({ THREE });
-    
-    // Make THREE and CameraControls globally available for plugins
-    window.THREE = THREE;
-    window.CameraControls = CameraControls;
-    
-    // Import application entry point
-    import { main } from './src/index.js';
-    
-    // Start the application
-    document.addEventListener('DOMContentLoaded', () => {
-      // Update loading message
-      document.querySelector('.loading-text').textContent = 'Starting application...';
+    // Initialize application
+    main().catch(error => {
+      console.error('Failed to start application:', error);
       
-      // Initialize application
-      main().catch(error => {
-        console.error('Failed to start application:', error);
-        
-        // Show error message
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-          const loadingTitle = loadingScreen.querySelector('.loading-title');
-          if (loadingTitle) {
-            loadingTitle.textContent = 'Error';
-            loadingTitle.style.color = '#d93025';
-          }
-          
-          const loadingText = loadingScreen.querySelector('.loading-text');
-          if (loadingText) {
-            loadingText.textContent = `Failed to start: ${error.message}`;
-            loadingText.style.color = '#d93025';
-          }
-          
-          // Remove spinner
-          const spinner = loadingScreen.querySelector('.spinner');
-          if (spinner) {
-            spinner.remove();
-          }
+      // Show error message
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) {
+        const loadingTitle = loadingScreen.querySelector('.loading-title');
+        if (loadingTitle) {
+          loadingTitle.textContent = 'Error';
+          loadingTitle.style.color = '#d93025';
         }
-      });
+        
+        const loadingText = loadingScreen.querySelector('.loading-text');
+        if (loadingText) {
+          loadingText.textContent = `Failed to start: ${error.message}`;
+          loadingText.style.color = '#d93025';
+        }
+        
+        // Remove spinner
+        const spinner = loadingScreen.querySelector('.spinner');
+        if (spinner) {
+          spinner.remove();
+        }
+      }
     });
-  </script>
+  });
+</script>
 
 </body>
 </html>
