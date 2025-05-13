@@ -78,6 +78,9 @@ export class AppCore {
       
       // Update UI with available plugins
       this.uiManager.updatePlugins(this.availablePlugins, null);
+      this.uiManager.on('parameterChange', (parameterId, value, group) => {
+  this.changeParameter(parameterId, value, group);
+});
       
       console.log("Math Visualization Framework initialized successfully");
       return true;
