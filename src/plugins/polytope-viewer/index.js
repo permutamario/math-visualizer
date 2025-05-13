@@ -76,7 +76,7 @@ export default class PolytopeVisualization extends Plugin {
   async discoverPolytopes() {
     try {
       // Fetch the manifest file - you'll need to create this file
-      const response = await fetch('/math-visualizer/src/plugins/polytopes/manifest.json');
+      const response = await fetch('/math-visualizer/src/plugins/polytope-viewer/polytopes/manifest.json');
       if (!response.ok) {
         throw new Error(`Failed to load polytope manifest: ${response.statusText}`);
       }
