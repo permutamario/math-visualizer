@@ -173,13 +173,170 @@ export class ColorSchemeManager {
   }
   
   /**
+   * Get palette info from the active scheme
+   * @returns {Array<Object>} Array of palette info objects with id and name
+   */
+  getPaletteInfo() {
+    const scheme = this.getActiveScheme();
+    if (!scheme || !scheme.palettes) return [];
+    
+    return Object.entries(scheme.palettes).map(([id, palette]) => ({
+      id,
+      name: palette.name || id
+    }));
+  }
+  
+  /**
+   * Get the current palette name
+   * @returns {string} Current palette name
+   */
+  getCurrentPaletteName() {
+    return this.core && this.core.state ? 
+      this.core.state.get('currentPalette', 'default') : 'default';
+  }
+  
+  /**
+   * Set the current palette
+   * @param {string} paletteName - Palette name to set as current
+   * @returns {boolean} Whether the change was successful
+   */
+  setCurrentPalette(paletteName) {
+    const scheme = this.getActiveScheme();
+    if (!scheme || !scheme.palettes[paletteName]) {
+      return false;
+    }
+    
+    // Update current palette in state
+    if (this.core && this.core.state) {
+      this.core.state.set('currentPalette', paletteName);
+      
+      // Emit event for palette change
+      if (this.core.events) {
+        this.core.events.emit('paletteChanged', paletteName);
+      }
+      
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * Get the current palette object
+   * @param {string} paletteName - Name of palette (default: current palette)
+   * @returns {Object} The palette object
+   */
+  getPaletteObject(paletteName = null) {
+    const scheme = this.getActiveScheme();
+    const activePaletteName = paletteName || this.getCurrentPaletteName();
+    
+    if (!scheme || !scheme.palettes) {
+      return { main: [], structural: {}, functional: {} };
+    }
+    
+    const palette = scheme.palettes[activePaletteName];
+    if (!palette) {
+      return scheme.palettes.default || { main: [], structural: {}, functional: {} };
+    }
+    
+    // Handle legacy palette format (just an array)
+    if (Array.isArray(palette)) {
+      return {
+        main: palette,
+        structural: {
+          grid: scheme.background === '#f5f5f5' ? '#cccccc' : '#444444',
+          weak: scheme.background === '#f5f5f5' ? '#dddddd' : '#333333',
+          strong: scheme.background === '#f5f5f5' ? '#333333' : '#bbbbbb',
+          guide: scheme.background === '#f5f5f5' ? '#999999' : '#777777',
+          highlight: scheme.background === '#f5f5f5' ? '#ff0000' : '#ff5555'
+        },
+        functional: {
+          positive: palette[3] || '#34a853',
+          negative: palette[1] || '#ea4335',
+          neutral: palette[2] || '#fbbc04',
+          selected: palette[0] || '#4285f4',
+          interactive: scheme.accent || '#1a73e8'
+        }
+      };
+    }
+    
+    return palette;
+  }
+  
+  /**
+   * Get structural color from the current palette
+   * @param {string} element - Structural element name ('grid', 'weak', 'strong', etc.)
+   * @param {string} paletteName - Name of palette (default: current palette)
+   * @returns {string} Color value
+   */
+  getStructuralColor(element, paletteName = null) {
+    const palette = this.getPaletteObject(paletteName);
+    return palette.structural?.[element] || '#000000';
+  }
+  
+  /**
+   * Get main color from the current palette
+   * @param {number} index - Color index
+   * @param {string} paletteName - Name of palette (default: current palette)
+   * @returns {string} Color value
+   */
+  getMainColor(index = 0, paletteName = null) {
+    const palette = this.getPaletteObject(paletteName);
+    const colors = palette.main || [];
+    
+    if (colors.length === 0) {
+      return '#000000';
+    }
+    
+    return colors[index % colors.length];
+  }
+  
+  /**
+   * Get all main colors from the current palette
+   * @param {string} paletteName - Name of palette (default: current palette)
+   * @returns {Array<string>} Array of main colors
+   */
+  getMainColors(paletteName = null) {
+    const palette = this.getPaletteObject(paletteName);
+    return palette.main || [];
+  }
+  
+  /**
+   * Get a functional color from the current palette
+   * @param {string} purpose - Functional purpose ('positive', 'negative', etc.)
+   * @param {string} paletteName - Name of palette (default: current palette)
+   * @returns {string} Color value
+   */
+  getFunctionalColor(purpose, paletteName = null) {
+    const palette = this.getPaletteObject(paletteName);
+    return palette.functional?.[purpose] || this.getMainColor(0);
+  }
+  
+  /**
    * Get a palette from the active scheme
    * @param {string} paletteName - Palette name (default: 'default')
    * @returns {Array<string>} Color palette
    */
   getPalette(paletteName = 'default') {
     const palettes = this.schemes[this.activeScheme].palettes;
-    return palettes[paletteName] || palettes.default;
+    
+    // Check if palette exists and has the main array
+    if (palettes[paletteName] && palettes[paletteName].main) {
+      return palettes[paletteName].main;
+    }
+    
+    // Legacy support: if palette is directly an array
+    if (Array.isArray(palettes[paletteName])) {
+      return palettes[paletteName];
+    }
+    
+    // Fallback to default palette
+    if (palettes.default && palettes.default.main) {
+      return palettes.default.main;
+    }
+    
+    // Final fallback
+    return palettes.default || [];
   }
   
   /**

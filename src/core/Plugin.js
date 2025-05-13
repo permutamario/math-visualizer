@@ -623,4 +623,110 @@ export class Plugin {
     
     return false;
   }
+
+
+     // ======== COLOR SCHEME METHODS  ========
+    /**
+ * Color Management Helper Methods
+ * 
+ * These methods simplify access to the standardized color system.
+ * - Structural colors: For UI elements like grids, axes, guides
+ * - Main colors: For primary visualization elements (curves, shapes, etc.)
+ * - Functional colors: For semantic meaning (positive/negative, selected, etc.)
+ */
+
+/**
+ * Get a structural color from the current palette
+ * @param {string} element - Structural element name ('grid', 'weak', 'strong', 'guide', 'highlight')
+ * @returns {string} Color value
+ */
+getStructuralColor(element) {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return '#000000';
+  }
+  return this.core.colorSchemeManager.getStructuralColor(element);
+}
+
+/**
+ * Get a main color from the current palette by index
+ * @param {number} index - Main color index (0-based)
+ * @returns {string} Color value
+ */
+getMainColor(index = 0) {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return '#000000';
+  }
+  return this.core.colorSchemeManager.getMainColor(index);
+}
+
+/**
+ * Get all main colors from the current palette
+ * @returns {Array<string>} Array of main colors
+ */
+getMainColors() {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return [];
+  }
+  return this.core.colorSchemeManager.getMainColors();
+}
+
+/**
+ * Get a functional color from the current palette
+ * @param {string} purpose - Functional purpose ('positive', 'negative', 'neutral', 'selected', 'interactive')
+ * @returns {string} Color value
+ */
+getFunctionalColor(purpose) {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return '#000000';
+  }
+  return this.core.colorSchemeManager.getFunctionalColor(purpose);
+}
+
+/**
+ * Register to be notified of palette changes
+ * @param {Function} callback - Function to call when palette changes
+ */
+onPaletteChanged(callback) {
+  if (!this.core || !this.core.events) return;
+  
+  this.core.events.on('paletteChanged', callback);
+  this._eventHandlers.push({
+    type: 'paletteChanged',
+    callback
+  });
+}
+
+/**
+ * Get available palette names and information
+ * @returns {Array<Object>} Array of palette info objects with id and name
+ */
+getPaletteInfo() {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return [];
+  }
+  return this.core.colorSchemeManager.getPaletteInfo();
+}
+
+/**
+ * Get the current palette name
+ * @returns {string} Current palette name
+ */
+getCurrentPaletteName() {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return 'default';
+  }
+  return this.core.colorSchemeManager.getCurrentPaletteName();
+}
+
+/**
+ * Set the current palette
+ * @param {string} paletteName - Palette name
+ * @returns {boolean} Whether the change was successful
+ */
+setCurrentPalette(paletteName) {
+  if (!this.core || !this.core.colorSchemeManager) {
+    return false;
+  }
+  return this.core.colorSchemeManager.setCurrentPalette(paletteName);
+}
 }
