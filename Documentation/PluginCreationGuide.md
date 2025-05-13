@@ -13,6 +13,7 @@ The framework follows these core principles:
 3. **Event-Driven Pattern**: Visualization updates happen in response to parameter changes rather than explicit render calls.
 4. **Clean Lifecycle**: Plugins have well-defined load and unload phases with automatic resource management.
 5. **Modern Rendering Libraries**: Konva for 2D visualizations and Three.js for 3D visualizations provide powerful capabilities with a consistent API.
+6. **Render Modes**: The framework supports multiple render modes (e.g., standard, metallic, glass) for 3D visualizations, allowing for easy switching between styles. The framework handles the application of these modes automatically. The plugin shuold not directly modify the materials or lighting of the objects. Instead, it should use the render mode manager to apply the desired render mode.
 6. **Single Source of Truth**: The core maintains all parameter values to ensure UI consistency.
 
 ## Creating a Plugin

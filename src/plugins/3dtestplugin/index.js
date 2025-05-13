@@ -114,11 +114,9 @@ export default class APITest3D extends Plugin {
     const count = this.getParameter('count');
     const scale = this.getParameter('scale');
     const showWireframe = this.getParameter('showWireframe');
-    const primaryColor = this.getParameter('primaryColor');
     const secondaryColor = this.getParameter('secondaryColor');
     const shape = this.getParameter('shape');
     const complexity = this.getParameter('complexity');
-    const opacity = this.getParameter('opacity');
     
     // Create geometry based on shape parameter
     let geometry;
@@ -145,15 +143,11 @@ export default class APITest3D extends Plugin {
         geometry = new THREE.SphereGeometry(0.5, complexity, complexity);
     }
     
-    // Create materials
-    const material = new THREE.MeshStandardMaterial({
-      color: primaryColor,
-      roughness: 0.7,
-      metalness: 0.3,
-      transparent: opacity < 1,
-      opacity: opacity
-    });
+    // We'll create basic meshes with default material
+    // The RenderModeManager will handle proper material assignment
+    const placeholderMaterial = new THREE.MeshBasicMaterial();
     
+    // Create wireframe material separately - not managed by RenderModeManager
     const wireframeMaterial = new THREE.MeshBasicMaterial({
       color: secondaryColor,
       wireframe: true,
@@ -169,25 +163,26 @@ export default class APITest3D extends Plugin {
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius;
       
-      // Create main mesh
-      const mesh = new THREE.Mesh(geometry, material.clone());
+      // Create main mesh with placeholder material
+      // RenderModeManager will replace this with appropriate material
+      const mesh = new THREE.Mesh(geometry, placeholderMaterial.clone());
       mesh.position.set(x, 0, z);
       mesh.scale.set(scale, scale, scale);
       this.meshGroup.add(mesh);
       this.state.objects.push(mesh);
       
-      // Add wireframe if enabled
+      // Add wireframe if enabled - keep outside meshGroup so RenderModeManager doesn't affect it
       if (showWireframe) {
         const wireframe = new THREE.Mesh(geometry, wireframeMaterial.clone());
         wireframe.position.copy(mesh.position);
         wireframe.rotation.copy(mesh.rotation);
         wireframe.scale.copy(mesh.scale);
         mesh.userData.wireframe = wireframe;
-        this.meshGroup.add(wireframe);
+        this.renderEnv.scene.add(wireframe);  // Add directly to scene instead of meshGroup
       }
     }
     
-    // Apply render mode
+    // Apply render mode which will set up proper materials based on our parameters
     this.applyRenderMode();
   }
   
@@ -222,37 +217,12 @@ export default class APITest3D extends Plugin {
   
   // Setup scene lights
   setupLights() {
-    const { scene, THREE } = this.renderEnv;
+    // We no longer set up lights manually
+    // The RenderModeManager will handle lighting based on the selected mode
+    console.log("Lighting is handled by the RenderModeManager based on render mode");
     
-    // Clear existing lights
-    this.state.lights.forEach(light => {
-      if (light.parent) {
-        light.parent.remove(light);
-      }
-    });
+    // Clear existing lights array to avoid unnecessary removal attempts
     this.state.lights = [];
-    
-    // Get light intensity parameter
-    const intensity = this.getParameter('lightIntensity');
-    
-    // Create ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, intensity * 0.4);
-    scene.add(ambientLight);
-    this.state.lights.push(ambientLight);
-    
-    // Create directional lights
-    const directions = [
-      { pos: [5, 5, 5], color: 0xffffff },
-      { pos: [-5, 3, -5], color: 0xffffff },
-      { pos: [0, -5, 0], color: 0xffffff }
-    ];
-    
-    directions.forEach(dir => {
-      const light = new THREE.DirectionalLight(dir.color, intensity * 0.6);
-      light.position.set(...dir.pos);
-      scene.add(light);
-      this.state.lights.push(light);
-    });
   }
   
   // Setup scene helpers (grid, axes)
@@ -278,23 +248,18 @@ export default class APITest3D extends Plugin {
     // Get render mode parameters
     const renderMode = this.getParameter('renderMode');
     const opacity = this.getParameter('opacity');
+    const primaryColor = this.getParameter('primaryColor');
     
     // Use render mode manager if available
     if (this.core && this.core.renderModeManager && this.meshGroup) {
-      // Get color palette from color scheme manager if available
-      let colorPalette = null;
-      if (this.core.colorSchemeManager) {
-        colorPalette = this.core.colorSchemeManager.getPalette('default');
-      }
-      
-      // Apply render mode
+      // Let the render mode manager handle materials and lighting
       this.core.renderModeManager.applyRenderMode(
         this.renderEnv.scene,
         this.meshGroup,
         renderMode,
         {
           opacity: opacity,
-          colorPalette: colorPalette
+          baseColor: new this.renderEnv.THREE.Color(primaryColor)
         }
       );
     }
@@ -350,13 +315,8 @@ export default class APITest3D extends Plugin {
         break;
         
       case 'primaryColor':
-        // Update color for all main objects
-        this.state.objects.forEach(obj => {
-          if (obj.material && !obj.material.wireframe) {
-            obj.material.color.set(value);
-            obj.material.needsUpdate = true;
-          }
-        });
+        // Let render mode manager handle primary color updates
+        this.applyRenderMode();
         break;
         
       case 'secondaryColor':
@@ -375,12 +335,8 @@ export default class APITest3D extends Plugin {
         break;
         
       case 'showWireframe':
-        // Show/hide wireframes
-        this.state.objects.forEach(obj => {
-          if (obj.userData.wireframe) {
-            obj.userData.wireframe.visible = value;
-          }
-        });
+        // Show/hide wireframes - need to recreate to properly handle
+        this.createObjects();
         break;
         
       case 'renderMode':
@@ -412,8 +368,8 @@ export default class APITest3D extends Plugin {
         break;
         
       case 'lightIntensity':
-        // Update light intensities
-        this.setupLights();
+        // Let render mode manager handle lighting - we don't need to
+        // override the framework's lighting management
         break;
         
       case 'enablePostprocessing':
@@ -640,6 +596,19 @@ export default class APITest3D extends Plugin {
     // Let base class handle animation and event cleanup
     await super.unload();
     
+    // Remove wireframes first (they're added directly to scene)
+    this.state.objects.forEach(obj => {
+      if (obj.userData.wireframe && obj.userData.wireframe.parent) {
+        obj.userData.wireframe.parent.remove(obj.userData.wireframe);
+        if (obj.userData.wireframe.geometry) {
+          obj.userData.wireframe.geometry.dispose();
+        }
+        if (obj.userData.wireframe.material) {
+          obj.userData.wireframe.material.dispose();
+        }
+      }
+    });
+    
     // Clean up Three.js objects
     if (this.meshGroup) {
       if (this.renderEnv && this.renderEnv.scene) {
@@ -672,12 +641,8 @@ export default class APITest3D extends Plugin {
       this.axesHelper = null;
     }
     
-    // Remove lights
-    this.state.lights.forEach(light => {
-      if (light.parent) {
-        light.parent.remove(light);
-      }
-    });
+    // Remove lights - actually, we don't need to do this since they are controlled
+    // by the RenderModeManager and will be cleaned up when the environment changes
     
     // Clear state
     this.state.objects = [];
