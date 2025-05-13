@@ -1,7 +1,8 @@
-import { Plugin } from '../../src/core/Plugin.js';
+// plugins/polytope-viewer/index.js
+import { Plugin3D } from '../../src/core/Plugin3D.js';
 import PolytopeFamily from './PolytopeFamily.js';
 
-export default class PolytopeVisualization extends Plugin {
+export default class PolytopeVisualization extends Plugin3D {
   // Required static properties
   static id = 'polytope-visualization';
   static name = 'Polytope Visualization';
@@ -14,16 +15,15 @@ export default class PolytopeVisualization extends Plugin {
     // State for polytope families
     this.families = [];
     this.currentFamily = null;
-    this.meshGroup = null;
-	
   }
   
   async start() {
-    
     // Add visual parameters
     this.addCheckbox('showEdges', 'Show Edges', true);
+    this.addColorPalette(); // Use the plugin's color palette helper
     this.addDropdown('renderMode', 'Render Mode', 'standard', 
-                ['standard', 'metallic', 'glass', 'toon'], 'visual');
+                    ['standard', 'metallic', 'glass', 'toon'], 'visual');
+    this.addSlider('opacity', 'Opacity', 0.85, { min: 0.1, max: 1.0, step: 0.05 }, 'visual');
     
     // Discover available polytope families
     await this.discoverFamilies();
@@ -31,8 +31,9 @@ export default class PolytopeVisualization extends Plugin {
     // Set initial parameters (including structural params for family selection)
     this.setParameters();
 
+    // Create the polytope and update visualization
     this.createPolytope();
-    this.sendMesh();
+    this.updateVisualization();
   }
   
   async discoverFamilies() {
@@ -97,11 +98,10 @@ export default class PolytopeVisualization extends Plugin {
       this.addDropdown(
         'familyType',
         'Polytope Family',
-        this.currentFamily.name,
+        this.families.find(f => f.instance === this.currentFamily)?.id || this.families[0].id,
         familyOptions,
         'structural'
       );
-	console.log('ADDGSD',this.currentFamily.name);
       
       // Add parameters specific to the current family
       if (this.currentFamily) {
@@ -117,54 +117,24 @@ export default class PolytopeVisualization extends Plugin {
     return this.currentFamily.createPolytope();
   }
   
-  sendMesh() {
+  updateVisualization() {
     if (!this.currentFamily) return;
 
-    // Get THREE.js objects from rendering environment
-    const { scene, THREE } = this.renderEnv;
+    // Create new mesh from the current family
+    const newMeshGroup = this.currentFamily.createMesh();
     
-    // Remove existing mesh group if any
-    if (this.meshGroup) {
-      scene.remove(this.meshGroup);
-      
-      // Clean up geometries and materials
-      this.meshGroup.traverse(obj => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(m => m.dispose());
-          } else {
-            obj.material.dispose();
-          }
-        }
-      });
-    }
+    // Register the mesh group with Plugin3D's resource tracking
+    // This will also add it to the scene
+    this.setMainMesh(newMeshGroup);
     
-    // Create new mesh group
-    this.meshGroup = this.currentFamily.createMesh();
-    
-    // Add to scene
-    scene.add(this.meshGroup);
-    
-    // Apply render mode if available
-    if (this.core && this.core.renderModeManager) {
-      const renderMode = this.getParameter('renderMode') || 'standard';
-      const opacity = this.getParameter('opacity') || 0.85;
-      const colorPalette = this.core.colorSchemeManager.getPalette(
-        this.getParameter('colorPalette') || 'default'
-      );
-      
-      this.core.renderModeManager.applyRenderMode(
-        scene,
-        this.meshGroup,
-        renderMode,
-        {
-          opacity: opacity,
-          colorPalette: colorPalette
-        }
-      );
-    }
-	this.refresh();
+    // Apply render mode using Plugin3D's helper method
+    this.applyRenderMode(
+      this.getParameter('renderMode') || 'standard',
+      {
+        opacity: this.getParameter('opacity') || 0.85,
+        colorPalette: this.getParameter('colorPalette') || 'default'
+      }
+    );
   }
   
   onParameterChanged(parameterId, value, group) {
@@ -180,48 +150,41 @@ export default class PolytopeVisualization extends Plugin {
         
         // Create and display the new polytope
         this.createPolytope();
-        this.sendMesh();
+        this.updateVisualization();
       }
     } 
     else if (group === 'structural') {
       // Family-specific parameter changed, recreate the polytope
       this.createPolytope();
-      this.sendMesh();
+      this.updateVisualization();
     }
     else if (parameterId === 'showEdges') {
-      // Recreate the mesh when edge visibility changes
-      this.sendMesh();
+      // Update visualization when edge visibility changes
+      this.updateVisualization();
     }
-    // Visual parameter changes (opacity, renderMode, colorPalette) are handled 
-    // automatically by the core's render mode manager
+    else if (parameterId === 'opacity' || parameterId === 'colorPalette') {
+      // Update render properties for these visual parameters
+      this.updateRenderProperties({
+        opacity: this.getParameter('opacity'),
+        colorPalette: this.getParameter('colorPalette')
+      });
+    }
+    else if (parameterId === 'renderMode') {
+      // Apply new render mode
+      this.applyRenderMode(value, {
+        opacity: this.getParameter('opacity'),
+        colorPalette: this.getParameter('colorPalette')
+      });
+    }
   }
   
+  // The unload method can be greatly simplified as Plugin3D handles cleanup
   async unload() {
-    // Remove the mesh from the scene
-    if (this.meshGroup && this.renderEnv && this.renderEnv.scene) {
-      this.renderEnv.scene.remove(this.meshGroup);
-    }
-    
-    // Clean up meshes
-    if (this.meshGroup) {
-      this.meshGroup.traverse(obj => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(m => m.dispose());
-          } else {
-            obj.material.dispose();
-          }
-        }
-      });
-      this.meshGroup = null;
-    }
-    
     // Clear families
     this.families = [];
     this.currentFamily = null;
     
-    // Let parent class handle remaining cleanup
+    // Let Plugin3D handle mesh cleanup and other resources
     await super.unload();
   }
 }

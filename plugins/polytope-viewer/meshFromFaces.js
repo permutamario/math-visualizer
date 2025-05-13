@@ -1,30 +1,22 @@
 /**
  * Creates a THREE.js mesh from a collection of polygonal faces
+ * with automatic resource tracking via Plugin3D
  * 
- * @param {Object} plugin - The plugin instance
+ * @param {Plugin3D} plugin - The plugin instance
  * @param {Array<Array<number>>} vertices - Array of vertex coordinates [x,y,z]
  * @param {Array<Array<number>>} faces - Array of faces, where each face is an array of vertex indices
  * @param {Array<number>} [edges] - Optional array of edges, where each edge is a pair of vertex indices
  * @returns {THREE.Group} A THREE.js group containing the mesh
  */
 export function meshFromFaces(plugin, vertices, faces, edges) {
-  // Get the rendering environment and palette
-  const { renderEnv } = plugin;
-  const { THREE } = renderEnv;
+  const { THREE } = plugin.renderEnv;
   
   // Create a group to hold all the meshes
-  const group = new THREE.Group();
+  const group = plugin.createGroup();
   
   // Get the color palette from plugin parameters
   const paletteName = plugin.getParameter('colorPalette') || 'default';
-  let colorPalette = [];
-  
-  if (plugin.core && plugin.core.colorSchemeManager) {
-    colorPalette = plugin.core.colorSchemeManager.getPalette(paletteName);
-  } else {
-    // Fallback color palette
-    colorPalette = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'];
-  }
+  const colorPalette = plugin.core.colorSchemeManager.getPalette(paletteName);
   
   // Get the opacity
   const opacity = plugin.getParameter('opacity') || 0.85;
@@ -37,8 +29,8 @@ export function meshFromFaces(plugin, vertices, faces, edges) {
     // Get color for this face from the palette
     const color = new THREE.Color(colorPalette[faceIndex % colorPalette.length]);
     
-    // Create a geometry for this face
-    const geometry = new THREE.BufferGeometry();
+    // Create a geometry for this face and register it with Plugin3D
+    const geometry = plugin.addGeometry(new THREE.BufferGeometry());
     
     // Create position array for vertices
     const positions = [];
@@ -48,10 +40,6 @@ export function meshFromFaces(plugin, vertices, faces, edges) {
         return; // Skip this face
       }
       const vertex = vertices[vertexIndex];
-      if (!vertex) {
-        console.error(`Vertex at index ${vertexIndex} is undefined`);
-        return; // Skip this face
-      }
       positions.push(vertex[0], vertex[1], vertex[2]);
     }
     
@@ -70,27 +58,27 @@ export function meshFromFaces(plugin, vertices, faces, edges) {
     // Compute normals
     geometry.computeVertexNormals();
     
-    // Create material
-    const material = new THREE.MeshStandardMaterial({
+    // Create material and register it with Plugin3D
+    const material = plugin.addMaterial(new THREE.MeshStandardMaterial({
       color: color,
       transparent: transparent,
       opacity: opacity,
       side: THREE.DoubleSide
-    });
+    }));
     
-    // Create mesh and add to group
-    const mesh = new THREE.Mesh(geometry, material);
+    // Create mesh and add to group with Plugin3D tracking
+    const mesh = plugin.addMesh(new THREE.Mesh(geometry, material));
     group.add(mesh);
   });
   
   // Add edges if provided
   if (edges && plugin.getParameter('showEdges')) {
     const edgeColor = new THREE.Color(0x000000);
-    const edgeMaterial = new THREE.LineBasicMaterial({ 
+    const edgeMaterial = plugin.addMaterial(new THREE.LineBasicMaterial({ 
       color: edgeColor,
       transparent: transparent,
       opacity: Math.min(1, opacity + 0.1)
-    });
+    }));
     
     edges.forEach(edge => {
       if (edge[0] === undefined || edge[1] === undefined || 
@@ -113,8 +101,8 @@ export function meshFromFaces(plugin, vertices, faces, edges) {
         new THREE.Vector3(end[0], end[1], end[2])
       ];
       
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry, edgeMaterial);
+      const geometry = plugin.addGeometry(new THREE.BufferGeometry().setFromPoints(points));
+      const line = plugin.addMesh(new THREE.Line(geometry, edgeMaterial));
       group.add(line);
     });
   }
