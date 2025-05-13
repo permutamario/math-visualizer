@@ -175,8 +175,6 @@ export class EnvironmentManager {
      this.currentEnvironment.handleResize();
    }
    
-   // Request a render refresh to show the updated view
-   this.core.requestRenderRefresh();
  }
  
  /**
@@ -195,8 +193,6 @@ export class EnvironmentManager {
      }
    });
    
-   // Request a render refresh to show the updated colors
-   this.core.requestRenderRefresh();
  }
  
  /**

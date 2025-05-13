@@ -99,69 +99,89 @@ export class AnimationManager {
   * @param {number} timestamp - Current timestamp from requestAnimationFrame
   * @private
   */
- animate(timestamp) {
-   // Calculate delta time in seconds
-   const deltaTime = (timestamp - this.lastFrameTime) / 1000; 
-   this.lastFrameTime = timestamp;
-   this.frameDelta = deltaTime;
-   
-   // Update FPS counter
-   this._updateFpsStats(timestamp, deltaTime);
-   
-   // Process animations in queue
-   let continueAnimating = false;
-   
-   // Process continuous animations
-   for (const animationId of this.animationQueue) {
-     try {
-       // Get the animation callback and execute it
-       const callback = animationId;
-       if (typeof callback === 'function') {
-         // Call the animation function with delta time
-         const result = callback(deltaTime);
-         
-         // If callback returns false, remove from queue
-         if (result === false) {
-           this.animationQueue.delete(animationId);
-         } else {
-           continueAnimating = true;
-         }
-       }
-     } catch (error) {
-       console.error("Error in animation callback:", error);
-       // Remove problematic animation from queue
-       this.animationQueue.delete(animationId);
-     }
-   }
-   
-   // Process single frame requests
-   for (const callback of this.singleFrameQueue) {
-     try {
-       if (typeof callback === 'function') {
-         callback(deltaTime);
-       }
-     } catch (error) {
-       console.error("Error in single frame callback:", error);
-     }
-   }
-   
-   // Clear single frame queue
-   this.singleFrameQueue.clear();
-   
-   // Check if we need to continue the animation loop
-   if (continueAnimating || this.singleFrameQueue.size > 0) {
-     // Continue animation loop
-     this.animationId = requestAnimationFrame(this.animate);
-   } else {
-     // Stop animation loop when no more animations are active
-     this._stopAnimationLoop();
-   }
-   
-   // Always request a render refresh
-   if (this.core && typeof this.core.requestRenderRefresh === 'function') {
-     this.core.requestRenderRefresh();
-   }
- }
+ /**
+ * Animation loop callback
+ * @param {number} timestamp - Current timestamp from requestAnimationFrame
+ * @private
+ */
+animate(timestamp) {
+  // Calculate delta time in seconds
+  const deltaTime = (timestamp - this.lastFrameTime) / 1000; 
+  this.lastFrameTime = timestamp;
+  this.frameDelta = deltaTime;
+  
+  // Update FPS counter
+  this._updateFpsStats(timestamp, deltaTime);
+  
+  // Process animations in queue
+  let continueAnimating = false;
+  
+  // Process continuous animations
+  for (const animationId of this.animationQueue) {
+    try {
+      // Get the animation callback and execute it
+      const callback = animationId;
+      if (typeof callback === 'function') {
+        // Call the animation function with delta time
+        const result = callback(deltaTime);
+        
+        // If callback returns false, remove from queue
+        if (result === false) {
+          this.animationQueue.delete(animationId);
+        } else {
+          continueAnimating = true;
+        }
+      }
+    } catch (error) {
+      console.error("Error in animation callback:", error);
+      // Remove problematic animation from queue
+      this.animationQueue.delete(animationId);
+    }
+  }
+  
+  // Process single frame requests
+  for (const callback of this.singleFrameQueue) {
+    try {
+      if (typeof callback === 'function') {
+        callback(deltaTime);
+      }
+    } catch (error) {
+      console.error("Error in single frame callback:", error);
+    }
+  }
+  
+  // Clear single frame queue
+  this.singleFrameQueue.clear();
+  
+  // Check if we need to continue the animation loop
+  if (continueAnimating || this.singleFrameQueue.size > 0) {
+    // Continue animation loop
+    this.animationId = requestAnimationFrame(this.animate);
+  } else {
+    // Stop animation loop when no more animations are active
+    this._stopAnimationLoop();
+  }
+  
+  // Instead of requesting render through core,
+  // get the active plugin and call its render method directly
+  const activePlugin = this.core.getActivePlugin ? this.core.getActivePlugin() : null;
+  
+  if (activePlugin) {
+    // For 3D environment, we need to render via the environment
+    const renderEnv = this.core.environmentManager?.getCurrentEnvironment();
+    if (renderEnv && renderEnv === this.core.environmentManager?.environments['3d']) {
+      // Use 3D environment's render method
+      if (typeof renderEnv.render === 'function') {
+        const parameters = this.core.getAllParameters ? this.core.getAllParameters() : {};
+        renderEnv.render(parameters);
+      }
+    } 
+    // For 2D or if the plugin has a render method, call plugin's render directly
+    else if (typeof activePlugin.render === 'function') {
+      activePlugin.render();
+    }
+  } 
+}
  
  /**
   * Update FPS statistics

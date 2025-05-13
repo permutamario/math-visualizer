@@ -433,16 +433,6 @@ export class Plugin {
   
   // ======== RENDERING HELPER METHODS ========
   
-  /**
-   * Request a render refresh
-   * Call this when you need to update the visualization
-   * (Not needed after parameter changes, which trigger refresh automatically)
-   */
-  refresh() {
-    if (this.core && typeof this.core.requestRenderRefresh === 'function') {
-      this.core.requestRenderRefresh();
-    }
-  }
 
   /**
  * Handle canvas resize events (optional override)
@@ -454,6 +444,7 @@ onCanvasResize(width, height) {
   // Plugins can override this to handle resizing if needed
 }
   
+
   // ======== ANIMATION HELPER METHODS ========
   
   /**

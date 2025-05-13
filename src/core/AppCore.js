@@ -106,11 +106,9 @@ async start() {
       return true;
     }
     
-    // Instead of calling a non-existent startRenderLoop method,
-    // request a single frame to kickstart the rendering process
+    // Show the "Select a Plugin" message only
     this.animationManager.requestFrame(() => {
-      // Show the "Select a Plugin" message
-      this.requestRenderRefresh();
+      this._renderWelcomeMessage();
     });
     
     this.isInitialStartup = false;
@@ -131,20 +129,15 @@ async start() {
  * Request a refresh of the current rendering
  * Called when parameters change or other events that require re-rendering
  */
-requestRenderRefresh() {
-  // Return early if no environment manager
-  if (!this.environmentManager) return;
-  
-  // Get current plugin
-  const plugin = this.getActivePlugin();
-  
-  // Get current parameters
-  const parameters = this.getAllParameters();
-  
-  // Render with current environment
-  this.environmentManager.renderWithCurrentEnvironment(plugin, parameters);
-}
+/**
+ * Make welcome message
+ * 
+ */
 
+_renderWelcomeMessage() {
+  if (!this.environmentManager) return;
+  this.environmentManager.renderWithCurrentEnvironment(null, {});
+}
   /**
    * Cleans up resources when the application is shutting down
    */
@@ -214,9 +207,7 @@ requestRenderRefresh() {
         // Update UI with currently active plugin
         const activePlugin = this.getActivePlugin();
         this.uiManager.updatePlugins(this.availablePlugins, activePlugin?.id || null);
-        
-        // Request a render to show the plugin content
-        this.requestRenderRefresh();
+
       } else {
         this.uiManager.showError(`Failed to load plugin "${pluginId}"`);
       }

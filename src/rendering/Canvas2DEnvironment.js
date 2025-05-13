@@ -174,11 +174,6 @@ this.handleTouchEnd = this.handleTouchEnd.bind(this);
     if (colorScheme && colorScheme.background) {
       this.backgroundColor = colorScheme.background;
       console.log(`2D canvas background updated to ${this.backgroundColor}`);
-      
-      // Request a render to show the change
-      if (this.core) {
-        this.core.requestRenderRefresh();
-      }
     }
   }
   

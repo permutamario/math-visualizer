@@ -117,11 +117,7 @@ export class PluginLoader {
         // Store current plugin
         this.currentPlugin = pluginInstance;
         
-        // Request initial render
-        if (this.core) {
-          this.core.requestRenderRefresh();
-        }
-        
+
         console.log(`Plugin ${pluginMeta.name} loaded successfully`);
         return true;
       } else {
