@@ -25,7 +25,7 @@ export class PluginLoader {
       console.log("Discovering plugins...");
       
       // Fetch plugin list from plugin_list.json
-      const response = await fetch('src/plugins/plugin_list.json');
+      const response = await fetch('plugins/plugin_list.json');
       if (!response.ok) {
         throw new Error(`Failed to load plugin list: ${response.statusText}`);
       }
@@ -37,7 +37,7 @@ export class PluginLoader {
       for (const pluginId of pluginList) {
         try {
           // Dynamic import of the plugin module
-          const module = await import(`../plugins/${pluginId}/index.js`);
+          const module = await import(`../../plugins/${pluginId}/index.js`);
           const PluginClass = module.default;
           
           // Validate plugin class

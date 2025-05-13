@@ -383,6 +383,55 @@ addParametersStructural(parameters) {
     return true;
   }
 
+/**
+ * Removes all parameters from the specified group
+ * @param {string|null} group - Parameter group to empty ('visual', 'structural', or null for all)
+ * @returns {boolean} Whether the operation was successful
+ */
+emptyParameters(group = null) {
+  try {
+    // Determine which groups to empty
+    const groups = group ? [group] : ['visual', 'structural', 'advanced'];
+    
+    groups.forEach(groupName => {
+      const groupKey = `${groupName}Parameters`;
+      
+      // Skip if group doesn't exist
+      if (!this[groupKey]) {
+        console.warn(`Parameter group ${groupName} not found`);
+        return;
+      }
+      
+      // Empty the parameters schema and values
+      this[groupKey].schema = [];
+      this[groupKey].values = {};
+    });
+    
+    // Update UI if available
+    if (this.uiManager) {
+      // Create parameter groups object with emptied groups
+      const parameterGroups = {};
+      groups.forEach(groupName => {
+        const groupKey = `${groupName}Parameters`;
+        if (this[groupKey]) {
+          parameterGroups[groupName] = {
+            schema: [],
+            values: {}
+          };
+        }
+      });
+      
+      // Update the UI with emptied parameter groups
+      this.uiManager.updateParameterGroups(parameterGroups);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error emptying parameters:", error);
+    return false;
+  }
+}
+
   /**
    * Resets parameters to their default values
    * @param {string|null} group - Parameter group to reset ('visual', 'structural', or null for all)

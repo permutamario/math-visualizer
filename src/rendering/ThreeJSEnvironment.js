@@ -1,8 +1,5 @@
 // src/rendering/ThreeJSEnvironment.js
 
-// THREE.js is imported globally in index.html
-// This environment uses the global THREE object
-
 /**
  * 3D rendering environment using THREE.js
  */
@@ -43,8 +40,16 @@ export class ThreeJSEnvironment {
     this.lastColorPalette = null;
     this.renderedOnce = false;
     
+    // Event tracking 
+    this.interactionEvents = {
+      count: 0,
+      lastType: null,
+      timestamp: Date.now()
+    };
+    
     // Bind methods
     this.handleResize = this.handleResize.bind(this);
+    this._onCanvasEvent = this._onCanvasEvent.bind(this);
   }
   
   /**
@@ -79,6 +84,8 @@ export class ThreeJSEnvironment {
       this.threeCanvas.style.left = '0';
       this.threeCanvas.style.width = '100%';
       this.threeCanvas.style.height = '100%';
+      this.threeCanvas.style.zIndex = '0'; // Ensure it's at base level
+      this.threeCanvas.style.pointerEvents = 'auto'; // Critical - ensure events reach this canvas
       
       // Add the THREE.js canvas as a sibling to the main canvas
       if (this.canvas.parentElement) {
@@ -128,11 +135,11 @@ export class ThreeJSEnvironment {
       // Create clock for animation
       this.clock = new THREE.Clock();
       
-      // Create camera controls
-      this._setupCameraControls();
-      
       // Add lighting
       this._setupLighting();
+      
+      // Set up event listeners BEFORE hiding canvas
+      this._setupEventListeners();
       
       // Hide the THREE.js canvas initially
       this.threeCanvas.style.display = 'none';
@@ -190,8 +197,11 @@ export class ThreeJSEnvironment {
       this.canvas.style.display = 'none';
     }
     
-    // Set up camera controls
-    this._setupCameraControls();
+    // Initialize camera controls
+    const controlsInitialized = this.initializeCameraControls();
+    if (!controlsInitialized) {
+      console.error("CRITICAL: Camera controls initialization failed!");
+    }
     
     this.active = true;
     console.log("3D environment activated");
@@ -202,6 +212,54 @@ export class ThreeJSEnvironment {
     }
     
     return true;
+  }
+  
+  /**
+   * Set up event listeners for the 3D canvas
+   * @private
+   */
+  _setupEventListeners() {
+    if (!this.threeCanvas) return;
+    
+    const events = [
+      'mousedown', 'mousemove', 'mouseup', 'mouseover', 'mouseout',
+      'click', 'dblclick', 'contextmenu',
+      'touchstart', 'touchmove', 'touchend',
+      'wheel'
+    ];
+    
+    // Add listeners for each event type
+    events.forEach(eventType => {
+      this.threeCanvas.addEventListener(eventType, this._onCanvasEvent, { 
+        passive: false // Allow preventDefault for wheel events
+      });
+    });
+    
+    console.log("Event listeners set up for 3D canvas");
+  }
+  
+  /**
+   * Handle events on the 3D canvas
+   * @param {Event} event - DOM event
+   * @private
+   */
+  _onCanvasEvent(event) {
+    // Track event for debugging
+    this.interactionEvents.count++;
+    this.interactionEvents.lastType = event.type;
+    this.interactionEvents.timestamp = Date.now();
+    
+    // Prevent default only for wheel events to avoid page scrolling
+    if (event.type === 'wheel') {
+      event.preventDefault();
+    }
+    
+    // Log every 10th event to avoid console spam
+    if (this.interactionEvents.count % 10 === 0) {
+      console.log(`3D canvas event: ${event.type}, total events: ${this.interactionEvents.count}`);
+    }
+    
+    // Do not stop propagation - we want the events to reach camera controls naturally
   }
   
   /**
@@ -294,9 +352,11 @@ export class ThreeJSEnvironment {
     if (!this.active || !this.renderer || !this.scene || !this.camera) return;
     
     // Update controls if using animation
-    if (this.clock) {
+    if (this.clock && this.controls) {
       const delta = this.clock.getDelta();
-      this.updateControls(delta);
+      if (typeof this.controls.update === 'function') {
+        this.controls.update(delta);
+      }
     }
     
     // Get the active plugin
@@ -341,14 +401,6 @@ export class ThreeJSEnvironment {
   }
 
   /**
-   * Get the scene
-   * @returns {THREE.Scene} The current scene
-   */
-  getScene() {
-    return this.scene;
-  }
-  
-  /**
    * Check if WebGL is available
    * @returns {boolean} Whether WebGL is supported
    * @private
@@ -365,46 +417,107 @@ export class ThreeJSEnvironment {
   }
   
   /**
-   * Set up camera controls
-   * @private
+   * Explicitly initialize camera controls
+   * This can be called after all libraries are definitely loaded
+   * @returns {boolean} Whether initialization was successful
    */
-  _setupCameraControls() {
+  initializeCameraControls() {
     try {
-      // Access CameraControls from the window object - it's imported in index.html
-      if (typeof window.CameraControls === 'undefined') {
-        console.warn("CameraControls not available from window. Checking for global CameraControls.");
-        
-        // Check for global CameraControls (in case it's available but not on window)
-        if (typeof CameraControls === 'undefined') {
-          console.warn("CameraControls not available. Using fallback controls.");
-          this._setupFallbackControls();
-          return;
-        }
+      // Check if CameraControls is available
+      const hasCameraControlsWindow = typeof window.CameraControls !== 'undefined';
+      const hasCameraControlsGlobal = typeof CameraControls !== 'undefined';
+      
+      console.log("Camera Controls availability check:", {
+        window: hasCameraControlsWindow ? "Available" : "Missing",
+        global: hasCameraControlsGlobal ? "Available" : "Missing"
+      });
+      
+      if (!hasCameraControlsWindow && !hasCameraControlsGlobal) {
+        throw new Error("CameraControls library is not available. Make sure it's properly loaded.");
       }
       
-      // Use the CameraControls from wherever it's available
-      const CameraControlsClass = window.CameraControls || CameraControls;
+      // Get the constructor from wherever it's available
+      const CameraControlsClass = hasCameraControlsWindow ? window.CameraControls : CameraControls;
       
-      // Create the controls instance
+      // Ensure THREE is installed for CameraControls
+      if (typeof CameraControlsClass.install === 'function' && typeof THREE !== 'undefined') {
+        // Install THREE to ensure it's properly set up
+        CameraControlsClass.install({ THREE });
+        console.log("CameraControls.install() called with THREE");
+      }
+      
+      // Create controls instance
+      if (!this.camera || !this.renderer) {
+        throw new Error("Camera or renderer not initialized");
+      }
+      
       this.controls = new CameraControlsClass(this.camera, this.renderer.domElement);
       
-      // Configure controls
-      this.controls.dampingFactor = 0.05;
+      // Set initial properties
+      this.controls.dampingFactor = 0.1; // Increased for more responsive feel
       this.controls.draggingDampingFactor = 0.25;
       
       // For Camera Controls v2+, set the proper properties
       if (this.controls.smoothTime !== undefined) {
-        this.controls.smoothTime = 0.25;          // New in v2
-        this.controls.draggingSmoothTime = 0.125; // New in v2
+        this.controls.smoothTime = 0.25;
+        this.controls.draggingSmoothTime = 0.125;
       }
       
       // Set initial position
       this.controls.setLookAt(0, 1, 5, 0, 0, 0);
       
-      console.log("Camera controls initialized successfully");
+      // Double check control instance properties
+      const controlCheck = {
+        domElement: this.controls.domElement === this.renderer.domElement,
+        enabled: this.controls.enabled === true,
+        distance: this.controls.getDistance(),
+        target: this.controls.getTarget(new THREE.Vector3()),
+        position: this.camera.position
+      };
+      
+      console.log("Camera controls initialized successfully:", controlCheck);
+      
+      // Add simple debug indicator for visual feedback when control is activated
+      const addDebugIndicator = () => {
+        if (!this.threeCanvas) return;
+        
+        const indicator = document.createElement('div');
+        indicator.id = 'camera-control-debug';
+        indicator.style.position = 'fixed';
+        indicator.style.top = '10px';
+        indicator.style.right = '120px';
+        indicator.style.background = 'rgba(255, 0, 0, 0.5)';
+        indicator.style.color = 'white';
+        indicator.style.padding = '5px 10px';
+        indicator.style.borderRadius = '4px';
+        indicator.style.fontSize = '12px';
+        indicator.style.zIndex = '10000';
+        indicator.style.pointerEvents = 'none';
+        indicator.style.transition = 'opacity 0.3s ease';
+        indicator.style.opacity = '0';
+        indicator.textContent = 'Camera Active';
+        
+        document.body.appendChild(indicator);
+        
+        // Add mouse/touch event listeners to show indicator when interacting
+        const showIndicator = () => {
+          indicator.style.opacity = '1';
+          setTimeout(() => {
+            indicator.style.opacity = '0';
+          }, 500);
+        };
+        
+        this.threeCanvas.addEventListener('mousedown', showIndicator);
+        this.threeCanvas.addEventListener('touchstart', showIndicator);
+        this.threeCanvas.addEventListener('wheel', showIndicator);
+      };
+      
+      addDebugIndicator();
+      
+      return true;
     } catch (error) {
-      console.error("Error setting up camera controls:", error);
-      this._setupFallbackControls();
+      console.error("Failed to initialize camera controls:", error);
+      throw error; // Re-throw to make failures explicit
     }
   }
 
@@ -413,21 +526,33 @@ export class ThreeJSEnvironment {
    * @param {number} deltaTime - Time in seconds since last frame
    */
   updateControls(deltaTime) {
-    if (this.controls) {
-      if (typeof this.controls.update === 'function') {
-        this.controls.update(deltaTime);
-      }
+    if (this.controls && typeof this.controls.update === 'function') {
+      this.controls.update(deltaTime);
     }
   }
 
-  /*
-  * Dispose
-  */
+  /**
+   * Dispose of all resources
+   */
   dispose() {
     console.log("Disposing 3D environment");
     
     // Properly deactivate first
     this.deactivate();
+    
+    // Remove event listeners from canvas
+    if (this.threeCanvas) {
+      const events = [
+        'mousedown', 'mousemove', 'mouseup', 'mouseover', 'mouseout',
+        'click', 'dblclick', 'contextmenu',
+        'touchstart', 'touchmove', 'touchend',
+        'wheel'
+      ];
+      
+      events.forEach(eventType => {
+        this.threeCanvas.removeEventListener(eventType, this._onCanvasEvent);
+      });
+    }
     
     // Dispose of THREE.js resources
     if (this.scene) {
@@ -452,6 +577,12 @@ export class ThreeJSEnvironment {
       this.threeCanvas = null;
     }
     
+    // Remove debug indicator if exists
+    const debugIndicator = document.getElementById('camera-control-debug');
+    if (debugIndicator && debugIndicator.parentNode) {
+      debugIndicator.parentNode.removeChild(debugIndicator);
+    }
+    
     // Reset other properties
     this.scene = null;
     this.camera = null;
@@ -468,29 +599,6 @@ export class ThreeJSEnvironment {
     if (this.canvas) {
       this.canvas.style.display = 'block';
     }
-  }
-  
-  /**
-   * Set up fallback controls when CameraControls is not available
-   * @private
-   */
-  _setupFallbackControls() {
-    console.warn("Using fallback camera controls");
-    
-    // Simple fallback control object
-    this.controls = {
-      update: (delta) => {
-        // Simple orbital movement
-        if (this.camera) {
-          const time = Date.now() * 0.001;
-          this.camera.position.x = Math.sin(time * 0.1) * 5;
-          this.camera.position.z = Math.cos(time * 0.1) * 5;
-          this.camera.lookAt(0, 0, 0);
-        }
-        return true; // Always request a render
-      },
-      dispose: () => {}
-    };
   }
   
   /**

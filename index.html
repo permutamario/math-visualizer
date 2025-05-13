@@ -90,6 +90,7 @@
   </style>
   
   <!-- Load Konva directly -->
+
   <script src="https://cdn.jsdelivr.net/npm/konva@8/konva.min.js"></script>
   
   <!-- Import map for other module dependencies -->
@@ -100,6 +101,11 @@
       "camera-controls": "./vendors/camera-controls.module.js"
     }
   }
+  </script>
+
+  <script type="module">
+    import qh from 'https://esm.sh/quickhull3d';
+    window.QuickHull = qh;
   </script>
 </head>
 <body>

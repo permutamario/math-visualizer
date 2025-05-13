@@ -7,7 +7,7 @@
 export async function discoverPlugins() {
   try {
     // Load the plugin list from plugin_list.json
-    const response = await fetch('src/plugins/plugin_list.json');
+    const response = await fetch('math-visualizer/plugins/plugin_list.json');
     
     if (!response.ok) {
       throw new Error(`Failed to load plugin list: ${response.statusText}`);
@@ -22,7 +22,7 @@ export async function discoverPlugins() {
     for (const pluginId of pluginList) {
       try {
         // Dynamically import the plugin module
-        const module = await import(`../plugins/${pluginId}/index.js`);
+        const module = await import(`../../plugins/${pluginId}/index.js`);
         
         // Get the plugin class (expecting it to be the default export)
         const PluginClass = module.default;
