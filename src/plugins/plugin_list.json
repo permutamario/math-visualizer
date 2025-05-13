@@ -1,6 +1,4 @@
 [
   "testplugin",
-  "3dtestplugin",
-  "dynamictest",
-  "knots-plugin"
+  "polytope-viewer"
 ]
