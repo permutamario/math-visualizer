@@ -98,7 +98,8 @@ export default class PolygonVisualization extends Plugin {
     const sides = this.getParameter('sides');
     const radius = this.getParameter('radius');
     const rotationDegrees = this.getParameter('rotation');
-    const rotation = rotationDegrees * Math.PI / 180; // Convert to radians
+    // Convert to radians and adjust direction to match Konva's rotation
+    const rotation = (rotationDegrees * Math.PI / 180);
     const vertexSize = this.getParameter('vertexSize');
     const showVertices = this.getParameter('showVertices');
     
@@ -110,9 +111,11 @@ export default class PolygonVisualization extends Plugin {
     
     // Create circle for each vertex
     for (let i = 0; i < sides; i++) {
+      // Calculate angle for each vertex
+      // Note: To match Konva's RegularPolygon, start at -π/2 (top) and go clockwise
+      const angle = (i * 2 * Math.PI / sides) - Math.PI/2 + rotation;
+      
       // Calculate vertex position
-      // For a regular polygon, vertices are equally spaced around a circle
-      const angle = (i * 2 * Math.PI / sides) + rotation;
       const x = radius * Math.cos(angle);
       const y = radius * Math.sin(angle);
       
@@ -178,8 +181,37 @@ export default class PolygonVisualization extends Plugin {
     // Update based on the changed parameter
     switch (parameterId) {
       case 'sides':
-        // Update polygon sides
-        this.polygon.sides(value);
+        // For sides, we need to recreate the polygon for reliable update
+        if (this.polygon) {
+          // Store current properties
+          const props = {
+            radius: this.polygon.radius(),
+            fill: this.polygon.fill(),
+            stroke: this.polygon.stroke(),
+            strokeWidth: this.polygon.strokeWidth(),
+            rotation: this.polygon.rotation()
+          };
+          
+          // Remove old polygon
+          this.polygon.destroy();
+          
+          // Create new polygon with updated sides
+          this.polygon = new this.renderEnv.konva.RegularPolygon({
+            sides: value,
+            radius: props.radius,
+            fill: props.fill,
+            stroke: props.stroke,
+            strokeWidth: props.strokeWidth,
+            rotation: props.rotation
+          });
+          
+          // Add new polygon to group
+          this.polygonGroup.add(this.polygon);
+          
+          // Move polygon to bottom layer (behind vertices)
+          this.polygon.moveToBottom();
+        }
+        
         // Update vertices to match new sides
         this.updateVertices();
         break;
