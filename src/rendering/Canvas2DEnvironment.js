@@ -1,5 +1,5 @@
 // src/rendering/Canvas2DEnvironment.js
-import Konva from 'konva';
+
 
 /**
  * 2D rendering environment using Konva
