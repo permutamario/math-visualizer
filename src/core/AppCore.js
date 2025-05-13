@@ -238,7 +238,7 @@ export class AppCore {
     // Update UI 
     if (this.uiManager) {
       this.uiManager.updatePluginParameterGroups({
-        visualizationParameters: { 
+        structural: { 
           schema: this.visualParameters.schema, 
           values: this.visualParameters.values 
         }
@@ -261,7 +261,7 @@ export class AppCore {
     // Update UI 
     if (this.uiManager) {
       this.uiManager.updatePluginParameterGroups({
-        pluginParameters: { 
+        visual: { 
           schema: this.structuralParameters.schema, 
           values: this.structuralParameters.values 
         }
