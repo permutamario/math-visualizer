@@ -15,6 +15,7 @@ export default class PolytopeVisualization extends Plugin {
     this.families = [];
     this.currentFamily = null;
     this.meshGroup = null;
+	
   }
   
   async start() {
@@ -96,10 +97,11 @@ export default class PolytopeVisualization extends Plugin {
       this.addDropdown(
         'familyType',
         'Polytope Family',
-        this.families[0].id,
+        this.currentFamily.name,
         familyOptions,
         'structural'
       );
+	console.log('ADDGSD',this.currentFamily.name);
       
       // Add parameters specific to the current family
       if (this.currentFamily) {
