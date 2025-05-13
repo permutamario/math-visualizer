@@ -1,25 +1,25 @@
-# Math Visualization Framework: Plugin Developer Guide (Updated)
+# Math Visualization Framework: Updated Plugin Developer Guide
 
 ## Introduction
 
-The Math Visualization Framework is built on a component plugin architecture that emphasizes clean separation of concerns, an intuitive API, and clear responsibilities. This guide will help you create plugins using the enhanced Plugin base class, which provides a more scripting-like experience for developers.
+The Math Visualization Framework is built on a component plugin architecture that emphasizes clean separation of concerns and an intuitive API. This updated guide will help you create plugins using the enhanced Plugin base class with the framework's modern rendering approach using **Konva for 2D** and **Three.js for 3D** visualizations.
 
-## Plugin Architecture Philosophy
+## Key Framework Architecture Updates
 
-The framework follows key principles:
+The framework now leverages Konva for 2D visualizations, providing a powerful and efficient rendering library that offers:
 
-1. **Single Plugin Model**: Only one plugin is active at any time
-2. **Scripting-like API**: Plugins define what they need through simple, declarative helper methods
-3. **Event-Driven Pattern**: Visualization updates happen in response to parameter changes
-4. **Clean Lifecycle**: Plugins have well-defined load and unload phases
-5. **Rendering Environment Handling**: Plugins have access to premade environments for drawing
+1. Object-oriented shape manipulation
+2. Event handling
+3. Animations and tweening
+4. Layer-based rendering
+5. Transformations (scale, rotate, etc.)
+6. Built-in camera/viewport controls
 
-## Enhanced Plugin Structure
+## Creating a Plugin
 
-Every plugin must extend the base `Plugin` class, which includes helper methods for common operations:
+Every plugin must extend the base `Plugin` class and define required static properties:
 
 ```javascript
-// src/plugins/my-visualization/index.js
 import { Plugin } from '../../core/Plugin.js';
 
 export default class MyVisualization extends Plugin {
@@ -37,13 +37,14 @@ export default class MyVisualization extends Plugin {
     };
   }
   
-  // Lifecycle methods to implement
+  // Lifecycle methods
   async start() {
-    // Initialize your plugin here using the enhanced helper methods
+    // Initialize your plugin here using the helper methods
+    // Set up parameters, actions, and rendering objects
   }
   
   async unload() {
-    // Let the base class handle cleanup
+    // Let the base class handle general cleanup
     await super.unload();
     
     // Add any plugin-specific cleanup
@@ -52,72 +53,147 @@ export default class MyVisualization extends Plugin {
 }
 ```
 
-## Core Services
-
-The core provides several services to plugins which are now wrapped in convenient helper methods:
-
-1. **Parameter Management**: Add parameters with simple method calls
-2. **Rendering Environment**: Access to 2D or 3D rendering contexts
-3. **Action Registration**: Define UI actions with simple method calls
-4. **Animation Loop**: Simplified animation lifecycle management
-5. **Theme Management**: Color schemes and visual settings
-
 ## Plugin Lifecycle
 
-### Initialization (start)
+### 1. Initialization (start)
 
 The `start` method is where you initialize your plugin:
 
 ```javascript
 async start() {
-  // 1. Get rendering environment - automatically done in the base class
-  // this.renderEnv is already available
-
-  // 2. Register visual parameters using helper methods
+  // 1. Register parameters using helper methods
   this.addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
-  this.addSlider('frequency', 'Wave Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 });
+  this.addColor('lineColor', 'Line Color', '#3498db');
   
-  // 3. Register structural parameters
+  // 2. Register structural parameters (for UI organization)
   this.addDropdown('waveType', 'Wave Type', 'sine', ['sine', 'square', 'sawtooth'], 'structural');
   
-  // 4. Register actions
+  // 3. Register actions
   this.addAction('reset', 'Reset View', () => {
     // Reset the visualization
-    this.reset();
-    // Request a render refresh
-    this.refresh();
+    this.resetView();
   });
   
-  // 5. Set up drawing objects and scene
+  // 4. Set up Konva objects for 2D or THREE.js objects for 3D
   if (this.renderEnv.type === '2d') {
-    // 2D environment setup
+    this.setupKonvaObjects();
   } else {
-    // 3D environment setup
-    this.setupScene();
+    this.setupThreeJsObjects();
   }
   
-  // 6. Initialize animation
+  // 5. Initialize animation
   this.animationHandler = this.requestAnimation(this.animate.bind(this));
+}
+
+// For 2D with Konva
+setupKonvaObjects() {
+  // Get Konva stage and layer
+  const { stage, layer } = this.renderEnv;
+  
+  // Create Konva objects
+  this.waveGroup = new this.renderEnv.konva.Group();
+  this.waveLine = new this.renderEnv.konva.Line({
+    points: [],
+    stroke: this.getParameter('lineColor'),
+    strokeWidth: 2,
+    lineCap: 'round',
+    lineJoin: 'round'
+  });
+  
+  // Add to layer
+  this.waveGroup.add(this.waveLine);
+  layer.add(this.waveGroup);
 }
 ```
 
-### Cleanup (unload)
+### 2. Animation and Updates
 
-Most cleanup is handled by the base class, but you can add plugin-specific cleanup:
+```javascript
+animate(deltaTime) {
+  // Update animation state
+  this.phase += deltaTime * this.getParameter('frequency');
+  
+  if (this.renderEnv.type === '2d') {
+    this.updateKonvaObjects();
+  } else {
+    this.updateThreeJsObjects();
+  }
+  
+  return true; // Continue animation
+}
+
+// For 2D with Konva
+updateKonvaObjects() {
+  const { width, height } = this.renderEnv.stage.size();
+  const amplitude = this.getParameter('amplitude');
+  
+  // Calculate wave points
+  const points = [];
+  for (let x = 0; x < width; x += 5) {
+    const y = height/2 + Math.sin(x * 0.01 + this.phase) * amplitude * height/4;
+    points.push(x, y);
+  }
+  
+  // Update Konva shape
+  this.waveLine.points(points);
+  this.waveLine.stroke(this.getParameter('lineColor'));
+  
+  // Trigger a redraw
+  this.renderEnv.layer.batchDraw();
+}
+```
+
+### 3. Responding to Parameter Changes
+
+```javascript
+onParameterChanged(parameterId, value, group) {
+  // Update visualization based on parameter changes
+  if (parameterId === 'lineColor') {
+    this.waveLine.stroke(value);
+    this.renderEnv.layer.batchDraw();
+  } else if (parameterId === 'amplitude') {
+    // Parameter updates are automatically handled during animation
+    // No action needed here unless you want immediate updates
+  }
+}
+```
+
+### 4. Handling User Interaction
+
+```javascript
+handleInteraction(type, data) {
+  switch (type) {
+    case 'click':
+      // Handle click at coordinates (data.x, data.y)
+      console.log(`Clicked at (${data.x}, ${data.y})`);
+      break;
+      
+    case 'wheel':
+      // You can use built-in camera control or custom handling
+      // For custom handling:
+      const { deltaY } = data;
+      const zoomFactor = deltaY > 0 ? 0.9 : 1.1;
+      this.renderEnv.zoomCamera(zoomFactor, data.x, data.y);
+      break;
+  }
+}
+```
+
+### 5. Cleanup (unload)
 
 ```javascript
 async unload() {
-  // The base class will handle:
-  // - Animation cancellation
-  // - Event handler cleanup
-  // - State reset
+  // The base class will handle animation cancellation and event cleanup
   await super.unload();
   
-  // Add any plugin-specific cleanup:
+  // Clean up Konva objects
+  if (this.renderEnv.type === '2d' && this.waveGroup) {
+    this.waveGroup.destroy();
+    this.waveGroup = null;
+  }
   
-  // Clean up any 3D objects if needed
-  if (this.renderEnv && this.renderEnv.type === '3d' && this.meshGroup) {
-    // Remove meshes from scene
+  // Clean up THREE.js objects
+  if (this.renderEnv.type === '3d' && this.meshGroup) {
     this.renderEnv.scene.remove(this.meshGroup);
     
     // Dispose of geometries and materials
@@ -134,362 +210,92 @@ async unload() {
     
     this.meshGroup = null;
   }
-  
-  // Reset internal state
-  this.myState = null;
 }
 ```
 
-## Parameter Management
+## Complete List of Plugin Helper Methods
 
-The enhanced Plugin class provides direct methods for parameter management:
+### Parameter Management
 
 ```javascript
-// Add parameters with convenient helper methods
-this.addSlider('amplitude', 'Wave Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
-this.addCheckbox('showPoints', 'Show Points', true);
-this.addColor('lineColor', 'Line Color', '#3498db');
-this.addDropdown('style', 'Style', 'smooth', ['smooth', 'sharp', 'dotted']);
-this.addNumber('iterations', 'Iterations', 10, { min: 1, max: 50, step: 1 });
-this.addText('title', 'Title', 'My Visualization');
+// Adding parameters
+this.addSlider('id', 'Label', defaultValue, { min: 0, max: 100, step: 1 }, 'visual|structural|advanced');
+this.addCheckbox('id', 'Label', defaultValue, 'visual|structural|advanced');
+this.addColor('id', 'Label', '#hexcolor', 'visual|structural|advanced');
+this.addDropdown('id', 'Label', defaultValue, ['option1', 'option2'], 'visual|structural|advanced');
+this.addNumber('id', 'Label', defaultValue, { min: 0, max: 100, step: 1 }, 'visual|structural|advanced');
+this.addText('id', 'Label', defaultValue, 'visual|structural|advanced');
 
-// For structural or advanced parameters, specify the group
-this.addSlider('detail', 'Detail Level', 5, { min: 1, max: 10, step: 1 }, 'structural');
-this.addCheckbox('debug', 'Show Debug Info', false, 'advanced');
-
-// Get parameter values
-const amplitude = this.getParameter('amplitude');
+// Getting and setting parameters
+const value = this.getParameter('id');
+this.setParameter('id', newValue);
 const allParams = this.getAllParameters();
 
-// Set parameter values (updates UI automatically)
-this.setParameter('amplitude', 1.5);
-
-// Remove parameters if needed
-this.removeParameter('title');
-
-// Empty all parameters
-this.emptyParameters(); // Or specify a group: this.emptyParameters('visual');
+// Removing parameters
+this.removeParameter('id', 'visual|structural|advanced');
+this.emptyParameters('visual|structural|advanced'); // or null for all
 ```
 
-React to parameter changes:
+### Action Management
 
 ```javascript
-onParameterChanged(parameterId, value, group) {
-  // Update local state based on parameter changes
-  if (parameterId === 'amplitude') {
-    this.amplitude = value;
-  } else if (parameterId === 'frequency') {
-    this.frequency = value;
-    // Reset phase when frequency changes
-    this.phase = 0;
-  }
-  
-  // For 3D, update mesh properties if needed
-  if (this.renderEnv.type === '3d' && this.meshGroup) {
-    // No need to call refresh() - parameter changes trigger rendering automatically
-    this.updateMeshes();
-  }
-}
+// Adding actions
+this.addAction('id', 'Label', () => { /* callback */ }, { /* options */ });
+
+// Removing actions
+this.removeAction('id');
 ```
 
-## Rendering Implementation
-
-### 2D Rendering
-
-For 2D plugins, the rendering approach is similar:
+### Animation Management
 
 ```javascript
-animate(deltaTime) {
-  // Update animation state
-  this.phase += deltaTime * this.frequency;
-  
-  // The environment is guaranteed to be 2D if renderingType is '2d'
-  const ctx = this.renderEnv.context;
-  const parameters = this.getAllParameters();
-  
-  // Draw your visualization
-  this.drawWave(ctx, parameters);
-  
-  return true; // Continue animation
-}
+// Starting animations
+this.animationHandler = this.requestAnimation(this.animate.bind(this));
 
-// Custom drawing method
-drawWave(ctx, parameters) {
-  const { amplitude, frequency, lineColor } = parameters;
-  const width = ctx.canvas.width;
-  const height = ctx.canvas.height;
-  
-  // Apply camera transformations
-  ctx = this.renderEnv.prepareRender(ctx);
-  
-  // Draw your visualization
-  ctx.beginPath();
-  ctx.strokeStyle = lineColor;
-  ctx.lineWidth = 2;
-  
-  for (let x = 0; x < width; x++) {
-    const normalizedX = x / width * 2 * Math.PI * frequency;
-    const y = height/2 + Math.sin(normalizedX + this.phase) * amplitude * height/4;
-    
-    if (x === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  }
-  
-  ctx.stroke();
-  
-  // Restore context state
-  this.renderEnv.completeRender(ctx);
-}
+// Stopping animations
+this.cancelAnimation(this.animationHandler);
 ```
 
-### 3D Rendering
-
-For 3D plugins, you can directly add objects to the scene:
+### Rendering Environment (2D - Konva)
 
 ```javascript
-// Set up scene with THREE.js objects
-setupScene() {
-  // The environment is guaranteed to be 3D if renderingType is '3d'
-  
-  // Get all parameters
-  const parameters = this.getAllParameters();
-  const { amplitude, frequency, color } = parameters;
-  
-  // Create a group for all meshes
-  this.meshGroup = new THREE.Group();
-  
-  // Create a wave mesh
-  const geometry = new THREE.BufferGeometry();
-  const vertices = [];
-  const resolution = 100;
-  
-  for (let i = 0; i <= resolution; i++) {
-    const x = (i / resolution) * 10 - 5;
-    const y = Math.sin(x * frequency) * amplitude;
-    const z = 0;
-    vertices.push(x, y, z);
-  }
-  
-  const positions = new Float32Array(vertices);
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  
-  const material = new THREE.LineBasicMaterial({ color });
-  const line = new THREE.Line(geometry, material);
-  
-  this.meshGroup.add(line);
-  
-  // Add to scene - no need to check if scene exists
-  this.renderEnv.scene.add(this.meshGroup);
-}
+// Access to Konva objects
+const stage = this.renderEnv.stage;
+const layer = this.renderEnv.layer;
+const Konva = this.renderEnv.konva;
 
-// Update meshes based on parameters
-updateMeshes() {
-  const parameters = this.getAllParameters();
-  const { amplitude, frequency, color } = parameters;
-  
-  // Update the wave mesh
-  const line = this.meshGroup.children[0];
-  if (line && line.geometry) {
-    const positions = line.geometry.attributes.position;
-    const resolution = positions.count;
-    
-    for (let i = 0; i < resolution; i++) {
-      const x = (i / (resolution - 1)) * 10 - 5;
-      const y = Math.sin((x + this.phase) * frequency) * amplitude;
-      
-      positions.setY(i, y);
-    }
-    
-    positions.needsUpdate = true;
-  }
-  
-  // Update material color if needed
-  if (line && line.material && line.material.color) {
-    if (line.material.color.getHex() !== color) {
-      line.material.color.set(color);
-      line.material.needsUpdate = true;
-    }
-  }
-}
+// Camera controls
+this.renderEnv.panCamera(dx, dy);
+this.renderEnv.zoomCamera(factor, centerX, centerY);
+this.renderEnv.resetCamera();
+this.renderEnv.setAutomaticCameraControls(enabled);
 ```
 
-## Animation
-
-The enhanced Plugin class provides helper methods for animation:
+### Rendering Environment (3D - THREE.js)
 
 ```javascript
-async start() {
-  // Request animation with helper method
-  this.animationHandler = this.requestAnimation(this.animate.bind(this));
-  
-  // You can have multiple animations if needed
-  this.secondaryAnimation = this.requestAnimation(this.animateSecondary.bind(this));
-}
+// Access to THREE.js objects
+const scene = this.renderEnv.scene;
+const camera = this.renderEnv.camera;
+const renderer = this.renderEnv.renderer;
+const controls = this.renderEnv.controls;
+const THREE = this.renderEnv.THREE;
 
-animate(deltaTime) {
-  // Update animation state
-  this.phase += deltaTime * this.frequency;
-  
-  // For 2D, draw directly
-  if (this.renderEnv.type === '2d') {
-    const ctx = this.renderEnv.context;
-    const parameters = this.getAllParameters();
-    this.drawWave(ctx, parameters);
-  }
-  
-  // For 3D, update meshes
-  if (this.renderEnv.type === '3d' && this.meshGroup) {
-    this.updateMeshes();
-  }
-  
-  return true; // Continue animation
-}
-
-// You can cancel animations manually if needed
-cancelMyAnimation() {
-  if (this.secondaryAnimation) {
-    this.cancelAnimation(this.secondaryAnimation);
-    this.secondaryAnimation = null;
-  }
-}
+// Camera reset
+this.renderEnv.resetCamera();
 ```
 
-The base `unload()` method will automatically cancel all animations, so you don't need to worry about cleanup.
+## Example: 2D Visualization with Konva
 
-## User Interaction
-
-Handle user interaction through the `handleInteraction` method:
-
-```javascript
-handleInteraction(type, data) {
-  switch (type) {
-    case 'click':
-      const { x, y } = data;
-      // Handle click at coordinates (x, y)
-      console.log(`Clicked at (${x}, ${y})`);
-      break;
-      
-    case 'mousedown':
-      // Handle mouse down
-      this.isDragging = true;
-      this.lastMousePos = { x: data.x, y: data.y };
-      break;
-      
-    case 'mousemove':
-      // Handle mouse move
-      if (this.isDragging) {
-        const dx = data.x - this.lastMousePos.x;
-        const dy = data.y - this.lastMousePos.y;
-        // Use dx/dy for interaction
-        this.lastMousePos = { x: data.x, y: data.y };
-        
-        // Request a refresh to show changes
-        this.refresh();
-      }
-      break;
-      
-    case 'mouseup':
-      // Handle mouse up
-      this.isDragging = false;
-      break;
-      
-    case 'wheel':
-      // Handle mouse wheel
-      const { deltaY } = data;
-      // Zoom in/out based on deltaY
-      this.zoom *= (1 - deltaY * 0.001);
-      
-      // Request a refresh to show changes
-      this.refresh();
-      break;
-      
-    case 'touchstart':
-    case 'touchmove':
-    case 'touchend':
-    case 'tap':
-      // Handle touch events
-      break;
-      
-    case 'keydown':
-    case 'keyup':
-      // Handle keyboard events
-      const { key } = data;
-      if (key === 'r') {
-        // Reset view when 'r' is pressed
-        this.reset();
-        this.refresh();
-      }
-      break;
-  }
-}
-```
-
-## Key Concepts to Remember
-
-1. **Simplified Parameter Management**: Use helper methods to add parameters
-   ```javascript
-   this.addSlider('amplitude', 'Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
-   ```
-
-2. **Easy Access to Parameters**: Get and set parameters directly
-   ```javascript
-   const amplitude = this.getParameter('amplitude');
-   this.setParameter('amplitude', 1.5);
-   ```
-
-3. **Simple Animation Setup**: Request animations with a single method call
-   ```javascript
-   this.animationHandler = this.requestAnimation(this.animate.bind(this));
-   ```
-
-4. **Easier Rendering Refreshes**: Request refreshes directly
-   ```javascript
-   this.refresh();
-   ```
-
-5. **Action Registration**: Add actions with a simple method call
-   ```javascript
-   this.addAction('reset', 'Reset View', this.reset.bind(this));
-   ```
-
-6. **Automatic Resource Cleanup**: Base class handles most cleanup
-   ```javascript
-   async unload() {
-     await super.unload(); // Handles animation, event, and parameter cleanup
-     // Add plugin-specific cleanup
-   }
-   ```
-
-## Best Practices
-
-1. **Trust the environment type**: The framework guarantees the environment matches your plugin's `renderingType`
-
-2. **Use the helper methods**: Take advantage of the Plugin class's helper methods
-
-3. **Respond to parameter changes**: Implement `onParameterChanged` to react to user input
-
-4. **Keep state in the plugin**: Don't modify global objects or DOM directly
-
-5. **Clean up plugin-specific resources**: Call `super.unload()` and add any additional cleanup
-
-6. **Use descriptive parameter names**: Parameters are your plugin's API
-
-7. **Group parameters logically**: Use the group parameter to organize parameters into visual, structural, and advanced groups
-
-## Example: Simple Wave Visualization (2D)
-
-Here's a simple example of a 2D wave visualization plugin using the enhanced Plugin class:
+Here's a complete example of a 2D visualization using Konva:
 
 ```javascript
 import { Plugin } from '../../core/Plugin.js';
 
-export default class WaveVisualization extends Plugin {
-  static id = 'wave-visualization';
-  static name = 'Wave Visualization';
-  static description = 'A simple sine wave visualization';
+export default class KonvaWaveVisualization extends Plugin {
+  static id = 'konva-wave-visualization';
+  static name = 'Konva Wave Visualization';
+  static description = 'A sine wave visualization using Konva';
   static renderingType = '2d';
   
   constructor(core) {
@@ -498,120 +304,147 @@ export default class WaveVisualization extends Plugin {
   }
   
   async start() {
-    // Add parameters using helper methods
+    // Add parameters
     this.addSlider('amplitude', 'Amplitude', 1.0, { min: 0, max: 2, step: 0.1 });
     this.addSlider('frequency', 'Frequency', 1.0, { min: 0.1, max: 5, step: 0.1 });
     this.addColor('waveColor', 'Wave Color', '#3498db');
     
-    // Add an action
+    // Add an action for reset
     this.addAction('reset', 'Reset Wave', () => {
       this.phase = 0;
-      this.refresh();
     });
+    
+    // Set up Konva objects
+    this.setupKonvaObjects();
     
     // Start animation
     this.requestAnimation(this.animate.bind(this));
   }
   
+  setupKonvaObjects() {
+    // Get Konva stage and layer
+    const { stage, layer, konva } = this.renderEnv;
+    
+    // Create a group for all wave objects
+    this.waveGroup = new konva.Group();
+    
+    // Create the wave line
+    this.waveLine = new konva.Line({
+      points: [],
+      stroke: this.getParameter('waveColor'),
+      strokeWidth: 2,
+      lineCap: 'round',
+      lineJoin: 'round'
+    });
+    
+    // Add to group and layer
+    this.waveGroup.add(this.waveLine);
+    layer.add(this.waveGroup);
+  }
+  
   animate(deltaTime) {
     // Update phase based on frequency
-    const params = this.getAllParameters();
-    this.phase += deltaTime * params.frequency;
+    const frequency = this.getParameter('frequency');
+    this.phase += deltaTime * frequency;
     
-    // Draw directly when animating
-    const ctx = this.renderEnv.context;
-    this.drawWave(ctx, params);
+    // Update Konva objects
+    this.updateWave();
     
     return true; // Continue animation
   }
   
-  drawWave(ctx, parameters) {
-    const { amplitude, frequency, waveColor } = parameters;
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
+  updateWave() {
+    // Get parameters and dimensions
+    const amplitude = this.getParameter('amplitude');
+    const { width, height } = this.renderEnv.stage.size();
     
-    // Start with transformations if using camera
-    ctx = this.renderEnv.prepareRender(ctx);
-    
-    ctx.beginPath();
-    ctx.strokeStyle = waveColor;
-    ctx.lineWidth = 2;
-    
-    for (let x = 0; x < width; x++) {
-      const normalizedX = x / width * 2 * Math.PI * frequency;
-      const y = height/2 + Math.sin(normalizedX + this.phase) * amplitude * height/4;
-      
-      if (x === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
+    // Calculate wave points
+    const points = [];
+    for (let x = 0; x < width; x += 5) {
+      const y = height/2 + Math.sin(x * 0.01 + this.phase) * amplitude * height/4;
+      points.push(x, y);
     }
     
-    ctx.stroke();
+    // Update wave line
+    this.waveLine.points(points);
+    this.waveLine.stroke(this.getParameter('waveColor'));
     
-    // End with transformations if using camera
-    this.renderEnv.completeRender(ctx);
+    // Redraw the layer
+    this.renderEnv.layer.batchDraw();
   }
   
   onParameterChanged(parameterId, value, group) {
-    // Animation will pick up parameter changes automatically
-    // No need to do anything here
+    // For immediate visual updates without waiting for animation frame
+    if (parameterId === 'waveColor' && this.waveLine) {
+      this.waveLine.stroke(value);
+      this.renderEnv.layer.batchDraw();
+    }
   }
   
-  // Base class handles unload automatically including animation cancellation
+  handleInteraction(type, data) {
+    if (type === 'click') {
+      // For example, toggle animation on click
+      this.setParameter('frequency', this.getParameter('frequency') > 0 ? 0 : 1.0);
+    }
+  }
+  
+  async unload() {
+    // Let base class handle animation and event cleanup
+    await super.unload();
+    
+    // Clean up Konva objects
+    if (this.waveGroup) {
+      this.waveGroup.destroy();
+      this.waveGroup = null;
+    }
+  }
 }
 ```
 
-## Example: 3D Visualization
-
-For 3D visualizations, you can use the same enhanced helper methods:
+## Example: 3D Visualization with THREE.js
 
 ```javascript
 import { Plugin } from '../../core/Plugin.js';
 
-export default class Sphere3D extends Plugin {
-  static id = 'sphere-3d';
-  static name = '3D Sphere';
+export default class SphereVisualization extends Plugin {
+  static id = 'sphere-visualization';
+  static name = '3D Sphere Visualization';
   static description = 'A 3D sphere with dynamic surface';
   static renderingType = '3d';
   
   constructor(core) {
     super(core);
     this.phase = 0;
-    this.meshGroup = null;
   }
   
   async start() {
-    // Add parameters using helper methods
-    this.addSlider('amplitude', 'Wave Amplitude', 0.3, { min: 0, max: 1, step: 0.05 });
-    this.addSlider('speed', 'Animation Speed', 1.0, { min: 0, max: 3, step: 0.1 });
+    // Add parameters
+    this.addSlider('radius', 'Radius', 1.0, { min: 0.5, max: 2.0, step: 0.1 });
+    this.addSlider('detail', 'Detail', 32, { min: 8, max: 64, step: 8 });
     this.addColor('sphereColor', 'Sphere Color', '#3498db');
     
-    // Add an action
-    this.addAction('reset', 'Reset Sphere', () => {
-      this.phase = 0;
-      this.refresh();
-    });
-    
-    // Set up 3D scene
-    this.setupScene();
+    // Set up THREE.js objects
+    this.setupThreeJsObjects();
     
     // Start animation
     this.requestAnimation(this.animate.bind(this));
   }
   
-  setupScene() {
-    // Create a group for our meshes
+  setupThreeJsObjects() {
+    // Get THREE.js objects
+    const { scene, THREE } = this.renderEnv;
+    
+    // Create a group for all meshes
     this.meshGroup = new THREE.Group();
     
-    // Get parameters
-    const params = this.getAllParameters();
+    // Create a sphere
+    const radius = this.getParameter('radius');
+    const detail = this.getParameter('detail');
+    const color = this.getParameter('sphereColor');
     
-    // Create a sphere geometry
-    const geometry = new THREE.SphereGeometry(1, 32, 32);
+    const geometry = new THREE.SphereGeometry(radius, detail, detail);
     const material = new THREE.MeshStandardMaterial({
-      color: params.sphereColor,
+      color: color,
       roughness: 0.3,
       metalness: 0.2
     });
@@ -619,65 +452,42 @@ export default class Sphere3D extends Plugin {
     this.sphere = new THREE.Mesh(geometry, material);
     this.meshGroup.add(this.sphere);
     
-    // Add the group to the scene - guaranteed to exist
-    this.renderEnv.scene.add(this.meshGroup);
+    // Add to scene
+    scene.add(this.meshGroup);
   }
   
   animate(deltaTime) {
-    const params = this.getAllParameters();
-    this.phase += deltaTime * params.speed;
-    
-    // Update sphere vertices
-    if (this.sphere && this.sphere.geometry) {
-      const positions = this.sphere.geometry.attributes.position;
-      const amplitude = params.amplitude;
-      
-      for (let i = 0; i < positions.count; i++) {
-        const x = positions.getX(i);
-        const y = positions.getY(i);
-        const z = positions.getZ(i);
-        
-        // Calculate original position (normalized)
-        const length = Math.sqrt(x*x + y*y + z*z);
-        const nx = x / length;
-        const ny = y / length;
-        const nz = z / length;
-        
-        // Apply wave effect
-        const wave = Math.sin(this.phase + 5 * nx + 5 * ny) * amplitude;
-        const newLength = 1 + wave;
-        
-        // Set new position
-        positions.setX(i, nx * newLength);
-        positions.setY(i, ny * newLength);
-        positions.setZ(i, nz * newLength);
-      }
-      
-      positions.needsUpdate = true;
-      this.sphere.geometry.computeVertexNormals();
+    // Rotate sphere
+    if (this.sphere) {
+      this.sphere.rotation.x += deltaTime * 0.2;
+      this.sphere.rotation.y += deltaTime * 0.5;
     }
-    
-    // No need to call refresh() for 3D environments
-    // as they typically render continuously
     
     return true; // Continue animation
   }
   
   onParameterChanged(parameterId, value, group) {
-    // Update material color if changed
-    if (parameterId === 'sphereColor' && this.sphere && this.sphere.material) {
+    if (!this.sphere) return;
+    
+    if (parameterId === 'sphereColor') {
       this.sphere.material.color.set(value);
       this.sphere.material.needsUpdate = true;
+    } else if (parameterId === 'radius' || parameterId === 'detail') {
+      // Recreate geometry with new parameters
+      const radius = this.getParameter('radius');
+      const detail = this.getParameter('detail');
+      
+      const oldGeometry = this.sphere.geometry;
+      this.sphere.geometry = new this.renderEnv.THREE.SphereGeometry(radius, detail, detail);
+      oldGeometry.dispose();
     }
-    
-    // Other parameter changes are picked up in the animate method
   }
   
   async unload() {
-    // Let base class handle animation cancellation
+    // Let base class handle animation and event cleanup
     await super.unload();
     
-    // Clean up 3D resources
+    // Clean up THREE.js objects
     if (this.meshGroup) {
       this.renderEnv.scene.remove(this.meshGroup);
       
@@ -700,4 +510,22 @@ export default class Sphere3D extends Plugin {
 }
 ```
 
-Follow this guide to create plugins that seamlessly integrate with the Math Visualization Framework, providing users with an interactive and consistent experience.
+## Best Practices
+
+1. **Use Konva for all 2D rendering** - The framework now prefers Konva over direct canvas operations for 2D visualizations.
+
+2. **Use helper methods** - Take advantage of the Plugin class's helper methods for parameters, actions, etc.
+
+3. **Handle proper cleanup** - Always call `super.unload()` and properly dispose of all created resources.
+
+4. **React to parameter changes** - Implement `onParameterChanged` to update your visualization when parameters change.
+
+5. **Use appropriate groups for parameters** - Organize parameters into 'visual', 'structural', and 'advanced' groups.
+
+6. **Use Konva layers correctly** - Add objects to the provided layer rather than creating new ones.
+
+7. **Implement interaction handling** - Use the `handleInteraction` method to respond to user interaction events.
+
+8. **Utilize camera controls** - Use the provided camera controls for panning and zooming.
+
+By following these guidelines and using the enhanced Plugin base class, you can create powerful, interactive visualizations within the Math Visualization Framework.
