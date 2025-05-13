@@ -4,6 +4,7 @@ import { MirrorCurve } from './mirrorCurve.js';
 import { findNextCurve, findAllCurves } from './curveStartFinder.js';
 import { getSplinePoints } from './spline.js';
 
+
 /**
  * Calculate a helper point for a grid line with directional offset
  * @param {Object} line - The grid line object 
@@ -22,26 +23,28 @@ function findHelperPoint(line, direction, cellSize) {
         y = (line.row + 0.5) * cellSize;
     }
     
-    // Offset based on direction (similar to calculateCurvedPoints in animationManager)
-    const d = cellSize / 4;
-    
-    if (line.type === 'vertical') {
-        if (direction === 1 || direction === 3) { // NE or SE
-            x += d;
-        } else if (direction === 0 || direction === 2) { // NW or SW
-            x -= d;
-        }
-    } else { // horizontal
-        if (direction === 0 || direction === 1) { // NW or NE
-            y -= d;
-        } else if (direction === 2 || direction === 3) { // SW or SE
-            y += d;
+    // Only apply offset if the line is a mirror
+    if (line.isMirror) {
+        // Calculate offset distance
+        const d = cellSize / 6;
+        
+        if (line.type === 'vertical') {
+            if (direction === 1 || direction === 3) { // NE or SE
+                x += d;
+            } else if (direction === 0 || direction === 2) { // NW or SW
+                x -= d;
+            }
+        } else { // horizontal
+            if (direction === 0 || direction === 1) { // NW or NE
+                y -= d;
+            } else if (direction === 2 || direction === 3) { // SW or SE
+                y += d;
+            }
         }
     }
     
     return { x, y };
 }
-
 export default class MirrorCurvesPlugin extends Plugin {
   // Required static properties
   static id = 'mirror-curves';
