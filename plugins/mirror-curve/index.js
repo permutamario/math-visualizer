@@ -122,7 +122,7 @@ export default class MirrorCurvesPlugin extends Plugin {
 	
 	// Reset used directions
 	this.grid.resetUsedDirections();
-	
+
 	// Find all curves
 	this.curves = findAllCurves(this.grid);
 	
@@ -192,6 +192,9 @@ export default class MirrorCurvesPlugin extends Plugin {
 	// Add layers to stage
 	stage.add(this.gridLayer);
 	stage.add(this.curveLayer);
+	
+	// Set initial background color
+	stage.container().style.backgroundColor = this.getParameter('backgroundColor');
 	
 	// Initial update
 	this.updateLayout();

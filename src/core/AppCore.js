@@ -30,7 +30,8 @@ export class AppCore {
     
     // Parameter collections
     this.visualParameters = { schema: [], values: {} };
-    this.structuralParameters = { schema: [], values: {} };
+      this.structuralParameters = { schema: [], values: {} };
+      this.advancedParameters = {scheme:[], values: {}};
     
     // Action management
     this._actions = new Map(); // Store actions by ID
@@ -250,7 +251,30 @@ addParametersVisual(parameters) {
   }
 }
 
-  /**
+ /**
+ * Adds advanced parameters to the application
+ * @param {Array<Object>} parameters - Array of parameter definitions
+ */
+addParametersAdvanced(parameters) {
+  if (!Array.isArray(parameters)) {
+    console.error("Advanced parameters must be an array");
+    return;
+  }
+  
+  this._processParameters(parameters, 'advanced');
+  
+  // Update UI 
+  if (this.uiManager) {
+    this.uiManager.updateParameterGroups({
+      structural: { 
+        schema: this.advancedParameters.schema, 
+        values: this.advancedParameters.values 
+      }
+    });
+  }
+}
+
+      /**
  * Adds structural parameters to the application
  * @param {Array<Object>} parameters - Array of parameter definitions
  */
@@ -272,6 +296,8 @@ addParametersStructural(parameters) {
     });
   }
 }
+
+
 
   /**
    * Processes and stores parameter definitions
