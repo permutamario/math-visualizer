@@ -1,13 +1,13 @@
 // src/core/Plugin3D.js
 
-import { Plugin } from './Plugin.js';
+import { BasePlugin } from './BasePlugin.js';
 
 /**
  * Specialized plugin class for 3D visualizations using THREE.js
  * Provides resource management, object creation, and scene control
  * with automatic cleanup and best practices enforcement
  */
-export class Plugin3D extends Plugin {
+export class Plugin3D extends BasePlugin {
   /**
    * Create a Plugin3D instance
    * @param {AppCore} core - Reference to the application core
