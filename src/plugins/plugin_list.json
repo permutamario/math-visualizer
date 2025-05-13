@@ -1,5 +1,6 @@
 [
   "testplugin",
   "3dtestplugin",
-  "dynamictest"
+  "dynamictest",
+  "knots-plugin"
 ]
