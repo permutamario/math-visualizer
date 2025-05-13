@@ -5,7 +5,7 @@ export default class FrameworkTestPlugin extends Plugin {
   // Required static properties
   static id = 'framework-test-plugin';
   static name = 'Framework Test Plugin';
-  static description = 'A comprehensive test of Math Visualization Framework features';
+  static description = 'A comprehensive test with auto-rendering framework features';
   static renderingType = '2d'; // Using 2D with Konva (could be '3d' for Three.js)
   
   constructor(core) {
@@ -24,8 +24,6 @@ export default class FrameworkTestPlugin extends Plugin {
     console.log("Starting Framework Test Plugin");
     
     // ========== PARAMETER MANAGEMENT TESTS ==========
-    // Test different parameter types across all parameter groups
-    
     // Visual parameters (appear in visualization parameters panel)
     this.addSlider('mainSize', 'Main Shape Size', 100, { min: 20, max: 300, step: 5 }, 'visual');
     this.addColor('mainColor', 'Main Color', '#3498db', 'visual');
@@ -42,8 +40,6 @@ export default class FrameworkTestPlugin extends Plugin {
     this.addSlider('textSize', 'Text Size', 18, { min: 8, max: 48, step: 1 }, 'advanced');
     
     // ========== ACTION MANAGEMENT TESTS ==========
-    // Test action registration with different behaviors
-    
     this.addAction('reset', 'Reset View', () => this.resetView());
     this.addAction('randomColors', 'Randomize Colors', () => this.randomizeColors());
     this.addAction('toggleAnimation', 'Toggle Animation', () => this.toggleAnimation());
@@ -136,8 +132,7 @@ export default class FrameworkTestPlugin extends Plugin {
     // Set up event tracking for testing interaction events
     this.setupEventTracking(stage);
     
-    // Refresh the layer
-    layer.batchDraw();
+    // No need for explicit layer.batchDraw() here - the framework will handle it
   }
   
   createShapes() {
@@ -171,6 +166,8 @@ export default class FrameworkTestPlugin extends Plugin {
       this.shapesGroup.add(shape);
       this.state.shapes.push(shape);
     }
+    
+    // No need for explicit layer.batchDraw() here - the framework will handle it
   }
   
   createShape(konva, type, x, y, size, color) {
@@ -241,18 +238,23 @@ export default class FrameworkTestPlugin extends Plugin {
     shape.on('mouseover', function() {
       document.body.style.cursor = 'pointer';
       this.strokeWidth(4);
+      
+      // We still need this explicit draw here since the event came from Konva, not the framework
       this.getLayer().batchDraw();
     });
     
     shape.on('mouseout', function() {
       document.body.style.cursor = 'default';
       this.strokeWidth(2);
+      
+      // We still need this explicit draw here since the event came from Konva, not the framework
       this.getLayer().batchDraw();
     });
     
     // Add click handler
     shape.on('click', () => {
       this.logEvent(`Clicked on ${type} shape`);
+      // The updateEventDisplay method at the end will trigger a draw
     });
     
     return shape;
@@ -289,6 +291,10 @@ export default class FrameworkTestPlugin extends Plugin {
             this.tooltip.opacity(1);
             
             this.state.mousePosition = { x: relativeX, y: relativeY };
+            
+            // We need this specific draw since mousemove is very frequent
+            // and we're updating visual elements directly
+            this.tooltip.getLayer().batchDraw();
           }
         }
         
@@ -323,7 +329,7 @@ export default class FrameworkTestPlugin extends Plugin {
   updateEventDisplay() {
     if (this.eventDisplay) {
       this.eventDisplay.text(this.state.eventLog.join('\n'));
-      this.renderEnv.layer.batchDraw();
+      // The auto-rendering system should handle the update without explicit calls
     }
   }
   
@@ -353,6 +359,8 @@ export default class FrameworkTestPlugin extends Plugin {
   toggleAnimation() {
     const currentState = this.getParameter('animate');
     this.setParameter('animate', !currentState);
+    // The parameter change will automatically trigger onParameterChanged,
+    // which will start/stop the animation as needed
   }
   
   animate(deltaTime) {
@@ -418,7 +426,9 @@ export default class FrameworkTestPlugin extends Plugin {
       this.textNode.y(150 + textBounce * 20);
     }
     
-    // Update the layer
+    // For animation frames, we still need an explicit draw
+    // This is the one place where auto-rendering wouldn't help
+    // since we're making continuous updates
     if (this.renderEnv && this.renderEnv.layer) {
       this.renderEnv.layer.batchDraw();
     }
@@ -475,10 +485,7 @@ export default class FrameworkTestPlugin extends Plugin {
         break;
     }
     
-    // Redraw layer to show changes
-    if (this.renderEnv && this.renderEnv.layer) {
-      this.renderEnv.layer.batchDraw();
-    }
+    // No need for explicit layer.batchDraw() here with auto-rendering
   }
   
   // ========== INTERACTION HANDLING TESTS ==========
@@ -514,6 +521,8 @@ export default class FrameworkTestPlugin extends Plugin {
         this.resetView();
         break;
     }
+    
+    // No need for explicit layer.batchDraw() here with auto-rendering
   }
   
   // ========== ACTION IMPLEMENTATION TESTS ==========
@@ -534,6 +543,8 @@ export default class FrameworkTestPlugin extends Plugin {
         x: this.renderEnv.stage.width() / 2,
         y: this.renderEnv.stage.height() / 2
       });
+      
+      // We need this explicit draw call since we're not going through a parameter change
       this.renderEnv.layer.batchDraw();
     }
     
@@ -551,6 +562,8 @@ export default class FrameworkTestPlugin extends Plugin {
         this.state.shapes[i].fill(this.getRandomColor());
       }
       
+      // We need this explicit draw call since we're not going through a parameter change
+      // for the satellite colors
       if (this.renderEnv && this.renderEnv.layer) {
         this.renderEnv.layer.batchDraw();
       }

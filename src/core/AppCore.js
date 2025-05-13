@@ -336,9 +336,23 @@ addParametersStructural(parameters) {
       
       return true;
     }
-    
+    this._triggerRender();
     return false;
   }
+
+  _triggerRender() {
+  // Get current environment and request render
+  const env = this.environmentManager.getCurrentEnvironment();
+  if (env) {
+    if (env === this.environmentManager.environments['2d']) {
+      // For 2D/Konva environment
+      if (env.layer) env.layer.batchDraw();
+    } else if (env === this.environmentManager.environments['3d']) {
+      // For 3D/Three.js environment
+      env.render(this.getAllParameters());
+    }
+  }
+}
 
   /**
  * Removes a parameter from the application
