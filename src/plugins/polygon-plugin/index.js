@@ -9,11 +9,11 @@ export default class PolygonVisualization extends Plugin {
   
   constructor(core) {
     super(core);
-    this.animationHandler = null;
+    this.phase = 0;
   }
   
   async start() {
-    // Add visual parameters using helper methods
+    // Add visual parameters
     this.addSlider('sides', 'Number of Sides', 5, { min: 3, max: 20, step: 1 });
     this.addSlider('radius', 'Radius', 100, { min: 20, max: 200, step: 10 });
     this.addSlider('rotation', 'Rotation', 0, { min: 0, max: 360, step: 1 });
@@ -29,142 +29,140 @@ export default class PolygonVisualization extends Plugin {
     this.addAction('reset', 'Reset View', () => this.resetView());
     this.addAction('randomColors', 'Random Colors', () => this.randomizeColors());
     
-    // DIRECT RENDERING in start() to demonstrate freedom in rendering
-    // This is before animation setup to emphasize we can render whenever we want
-    const ctx = this.renderEnv.context;
-    const canvas = ctx.canvas;
+    // Setup Konva objects
+    this.setupKonvaObjects();
     
-    // Draw a simple initial render
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Start animation if enabled
+    if (this.getParameter('animate')) {
+      this.animationHandler = this.requestAnimation(this.animate.bind(this));
+    }
+  }
+  
+  setupKonvaObjects() {
+    // Get Konva stage and layer
+    const { stage, layer, konva } = this.renderEnv;
     
-    // Draw background
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Create a group for all polygon elements
+    this.polygonGroup = new konva.Group({
+      x: stage.width() / 2,
+      y: stage.height() / 2
+    });
     
-    // Draw a message
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#333';
-    ctx.textAlign = 'center';
-    ctx.fillText('Direct rendering in start() method', canvas.width/2, 30);
+    // Create the polygon shape
+    this.polygon = new konva.RegularPolygon({
+      sides: this.getParameter('sides'),
+      radius: this.getParameter('radius'),
+      fill: this.getParameter('fillColor'),
+      stroke: this.getParameter('strokeColor'),
+      strokeWidth: this.getParameter('strokeWidth'),
+      rotation: this.getParameter('rotation')
+    });
     
-    // Draw initial polygon without camera transformations
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+    // Add to group
+    this.polygonGroup.add(this.polygon);
+    
+    // Create vertices if enabled
+    this.verticesGroup = new konva.Group();
+    this.polygonGroup.add(this.verticesGroup);
+    
+    if (this.getParameter('showVertices')) {
+      this.updateVertices();
+    }
+    
+    // Add group to layer
+    layer.add(this.polygonGroup);
+    layer.batchDraw();
+    
+    // Center the polygon (Konva's RegularPolygon is centered by default)
+  }
+  
+  updateVertices() {
+    const { konva } = this.renderEnv;
     const sides = this.getParameter('sides');
     const radius = this.getParameter('radius');
+    const rotation = this.getParameter('rotation') * Math.PI / 180;
     
-    ctx.save();
-    ctx.translate(centerX, centerY);
+    // Clear existing vertices
+    this.verticesGroup.destroyChildren();
     
-    // Draw polygon
-    ctx.beginPath();
+    // Only create vertices if enabled
+    if (!this.getParameter('showVertices')) {
+      return;
+    }
+    
+    // Create circles for each vertex
     for (let i = 0; i < sides; i++) {
-      const angle = i * 2 * Math.PI / sides;
+      const angle = (i * 2 * Math.PI / sides) + rotation;
       const x = radius * Math.cos(angle);
       const y = radius * Math.sin(angle);
       
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    
-    // Apply styles
-    ctx.fillStyle = this.getParameter('fillColor');
-    ctx.strokeStyle = this.getParameter('strokeColor');
-    ctx.lineWidth = this.getParameter('strokeWidth');
-    
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-    
-    // Start proper rendering and animation after a brief delay
-    setTimeout(() => {
-      // Start animation if enabled
-      if (this.getParameter('animate')) {
-        this.animationHandler = this.requestAnimation(this.animate.bind(this));
-      }
+      const vertex = new konva.Circle({
+        x: x,
+        y: y,
+        radius: 5,
+        fill: this.getParameter('strokeColor')
+      });
       
-      // Render properly with camera transformations
-      this.renderPolygon();
-    }, 1000);
+      this.verticesGroup.add(vertex);
+    }
   }
   
-  // Animation method
   animate(deltaTime) {
-    if (this.getParameter('animate')) {
-      // Update rotation parameter
-      const currentRotation = this.getParameter('rotation');
-      const newRotation = (currentRotation + 45 * deltaTime) % 360;
-      this.setParameter('rotation', newRotation);
-    }
+    if (!this.getParameter('animate')) return true;
+    
+    // Update rotation parameter
+    const currentRotation = this.getParameter('rotation');
+    const newRotation = (currentRotation + 45 * deltaTime) % 360;
+    this.setParameter('rotation', newRotation);
     
     return true; // Continue animation
   }
   
-  // Handle parameter changes
   onParameterChanged(parameterId, value, group) {
-    // Special handling for the animate parameter
-    if (parameterId === 'animate') {
-      if (value && !this.animationHandler) {
-        this.animationHandler = this.requestAnimation(this.animate.bind(this));
-      } else if (!value && this.animationHandler) {
-        this.cancelAnimation(this.animationHandler);
-        this.animationHandler = null;
-      }
+    if (!this.polygon) return;
+    
+    // Update polygon properties based on parameter changes
+    switch (parameterId) {
+      case 'sides':
+        this.polygon.sides(value);
+        this.updateVertices();
+        break;
+      case 'radius':
+        this.polygon.radius(value);
+        this.updateVertices();
+        break;
+      case 'rotation':
+        this.polygon.rotation(value);
+        this.updateVertices();
+        break;
+      case 'fillColor':
+        this.polygon.fill(value);
+        break;
+      case 'strokeColor':
+        this.polygon.stroke(value);
+        // Also update vertices color
+        this.verticesGroup.children.forEach(vertex => {
+          vertex.fill(value);
+        });
+        break;
+      case 'strokeWidth':
+        this.polygon.strokeWidth(value);
+        break;
+      case 'animate':
+        if (value && !this.animationHandler) {
+          this.animationHandler = this.requestAnimation(this.animate.bind(this));
+        } else if (!value && this.animationHandler) {
+          this.cancelAnimation(this.animationHandler);
+          this.animationHandler = null;
+        }
+        break;
+      case 'showVertices':
+        this.updateVertices();
+        break;
     }
     
-    // Render with updated parameters
-    this.renderPolygon();
-  }
-  
-  // Main rendering method
-  renderPolygon() {
-    // Get rendering context and parameters
-    const ctx = this.renderEnv.context;
-    const canvas = ctx.canvas;
-    const params = this.getAllParameters();
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Apply camera transformations provided by environment
-    const transformedCtx = this.renderEnv.prepareRender(ctx);
-    
-    // Draw polygon at origin (camera handles position)
-    transformedCtx.beginPath();
-    for (let i = 0; i < params.sides; i++) {
-      const angle = (i * 2 * Math.PI / params.sides) + (params.rotation * Math.PI / 180);
-      const x = params.radius * Math.cos(angle);
-      const y = params.radius * Math.sin(angle);
-      
-      if (i === 0) transformedCtx.moveTo(x, y);
-      else transformedCtx.lineTo(x, y);
-    }
-    transformedCtx.closePath();
-    
-    // Fill and stroke
-    transformedCtx.fillStyle = params.fillColor;
-    transformedCtx.fill();
-    transformedCtx.strokeStyle = params.strokeColor;
-    transformedCtx.lineWidth = params.strokeWidth;
-    transformedCtx.stroke();
-    
-    // Draw vertices if enabled
-    if (params.showVertices) {
-      for (let i = 0; i < params.sides; i++) {
-        const angle = (i * 2 * Math.PI / params.sides) + (params.rotation * Math.PI / 180);
-        const x = params.radius * Math.cos(angle);
-        const y = params.radius * Math.sin(angle);
-        
-        transformedCtx.beginPath();
-        transformedCtx.arc(x, y, 5, 0, 2 * Math.PI);
-        transformedCtx.fillStyle = params.strokeColor;
-        transformedCtx.fill();
-      }
-    }
-    
-    // Restore context state
-    this.renderEnv.completeRender(transformedCtx);
+    // Redraw the layer
+    this.renderEnv.layer.batchDraw();
   }
   
   // Reset to default values
@@ -198,9 +196,12 @@ export default class PolygonVisualization extends Plugin {
       // Click/tap to increment sides
       const sides = this.getParameter('sides');
       this.setParameter('sides', ((sides) % 20) + 1);
-    } else if (type === 'keydown' && data.key === 'r') {
+    } else if (type === 'keydown' && data.evt && data.evt.key === 'r') {
       // 'r' key to reset
       this.resetView();
+    } else if (type === 'dragstart' && data.target === this.polygon) {
+      // Allow dragging the polygon
+      // Konva handles this automatically
     }
   }
   
@@ -209,7 +210,13 @@ export default class PolygonVisualization extends Plugin {
     // Let base class handle animation cleanup and other resources
     await super.unload();
     
-    // Plugin-specific cleanup
-    this.animationHandler = null;
+    // Clean up Konva objects
+    if (this.polygonGroup) {
+      this.polygonGroup.destroy();
+      this.polygonGroup = null;
+    }
+    
+    this.polygon = null;
+    this.verticesGroup = null;
   }
 }
