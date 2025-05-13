@@ -90,30 +90,30 @@ async initialize() {
   /**
    * Update UI with parameter groups
    * @param {Object} parameterData - Parameter group data
-   * @param {Object} parameterData.visualParameters - visual parameters
-   * @param {Object} parameterData.structrualParameters - Structural parameters 
-   * @param {Object} parameterData.advancedParameters - Advanced parameters
+   * @param {Object} parameterData.visual - Visual parameters
+   * @param {Object} parameterData.structural - Structural parameters 
+   * @param {Object} parameterData.advanced - Advanced parameters
    * @param {boolean} rebuild - Whether to rebuild the entire UI
    */
-  updateVisualParameterGroups(parameterData, rebuild = false) {
+  updateParameterGroups(parameterData, rebuild = false) {
     try {
       // Validate parameter data
       if (!parameterData) {
-        console.warn("Invalid parameter data provided to updateVisualParameterGroups");
+        console.warn("Invalid parameter data provided to updateParameterGroups");
         return;
       }
       
       // Store parameter groups
-      if (parameterData.visualParameters) {
-        this.parameterGroups.visual = parameterData.visualParameters;
+      if (parameterData.visual) {
+        this.parameterGroups.visual = parameterData.visual;
       }
       
-      if (parameterData.structrualParameters) {
-        this.parameterGroups.structural = parameterData.structrualParameters;
+      if (parameterData.structural) {
+        this.parameterGroups.structural = parameterData.structural;
       }
       
-      if (parameterData.advancedParameters) {
-        this.parameterGroups.advanced = parameterData.advancedParameters;
+      if (parameterData.advanced) {
+        this.parameterGroups.advanced = parameterData.advanced;
       }
       
       // Update the layout with parameter groups
@@ -129,7 +129,7 @@ async initialize() {
    * Update a single parameter value without rebuilding UI
    * @param {string} parameterId - Parameter ID
    * @param {any} value - Parameter value
-   * @param {string} group - Parameter group ('visual', 'structrual', or 'advanced')
+   * @param {string} group - Parameter group ('visual', 'structural', or 'advanced')
    */
   updateParameterValue(parameterId, value, group) {
     try {
