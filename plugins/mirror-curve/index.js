@@ -69,7 +69,6 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addCheckbox('showGridPoints', 'Show Grid Points', true);
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
         this.addCheckbox('showCenterDots', 'Show Center Dots', false);
-        this.addCheckbox('showHelperPoints', 'Show Helper Points', false);
 
         
         // Add structural parameters
@@ -88,6 +87,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addCheckbox('smooth', 'Smooth Curves', true, 'advanced');
         this.addSlider('tension', 'Curve Smoothness', 0, { min: 0, max: 1, step: 0.1 },'advanced');
         this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'advanced');
+	this.addCheckbox('showHelperPoints', 'Show Helper Points', false,'advanced');
         
         // Add actions
         this.addAction('randomize', 'Randomize Mirrors', () => this.randomizeMirrors());
