@@ -1,9 +1,8 @@
 // File: polytopes/Polytope.js
 
-// Import ConvexGeometry from THREE examples
-// Note: In your actual implementation, you'll need to adjust this import path
-// to match your project structure
+// Import ConvexGeometry and ConvexHull from THREE examples
 import { ConvexGeometry } from '../../../../vendors/examples/jsm/geometries/ConvexGeometry.js';
+import { ConvexHull } from '../../../../vendors/examples/jsm/math/ConvexHull.js';
 import * as THREE from '../../../../vendors/three.module.js';
 
 export class Polytope {
@@ -13,6 +12,7 @@ export class Polytope {
     this.faces = [];
     this.edges = [];
     this.center = [0, 0, 0];
+    this.triangulatedFaces = []; // Store triangulated faces grouped by original face
 
     // Ensure parameter metadata is always attached
     this.parameters = options.parameters ?? {};
@@ -23,135 +23,87 @@ export class Polytope {
   }
 
   /**
-   * Compute the convex hull of the vertices using THREE.ConvexGeometry
+   * Compute the convex hull and extract polygonal faces
    */
   computeHull() {
-    // Convert vertices to Vector3 objects for ConvexGeometry
+    // Convert vertices to Vector3 objects for ConvexHull
     const vector3Vertices = this.vertices.map(v => new THREE.Vector3(v[0], v[1], v[2]));
     
-    // Create the ConvexGeometry
-    const geometry = new ConvexGeometry(vector3Vertices);
-    
-    // Extract faces from the geometry
-    // ConvexGeometry produces triangles, so we need to identify the original faces
-    this._extractFacesFromGeometry(geometry);
-    
-    // Extract edges from faces
-    this._extractEdgesFromFaces();
+    try {
+      // Create a ConvexHull instance
+      const hull = new ConvexHull();
+      hull.setFromPoints(vector3Vertices);
+      
+      // Extract faces directly from the hull
+      this._extractFacesFromHull(hull);
+      
+      // Extract edges from faces
+      this._extractEdgesFromFaces();
+      
+      // Compute triangulation
+      this._triangulateHull(hull);
+    } catch (error) {
+      console.error("Error computing convex hull:", error);
+      // Fallback to simple tetrahedron if convex hull fails
+      this.faces = [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]];
+      this.edges = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+      this.triangulatedFaces = this.faces.map(face => [face]); // Each face is a single triangle
+    }
   }
 
   /**
-   * Extract faces from a THREE.js geometry
-   * @param {THREE.BufferGeometry} geometry - ConvexGeometry to extract faces from
+   * Extract polygonal faces from the ConvexHull
+   * @param {ConvexHull} hull - THREE.js ConvexHull instance
    * @private
    */
-  _extractFacesFromGeometry(geometry) {
-    // Get the face indices from the geometry
-    const positionAttribute = geometry.getAttribute('position');
-    const indices = geometry.getIndex() ? 
-      Array.from(geometry.getIndex().array) : 
-      Array.from({ length: positionAttribute.count }, (_, i) => i);
+  _extractFacesFromHull(hull) {
+    this.faces = [];
     
-    // Get all positions as vectors
-    const positions = [];
-    for (let i = 0; i < positionAttribute.count; i++) {
-      positions.push(new THREE.Vector3(
-        positionAttribute.getX(i),
-        positionAttribute.getY(i),
-        positionAttribute.getZ(i)
-      ));
-    }
+    // Map hull vertex indices to our original vertex indices
+    const hullToOriginalMap = new Map();
     
-    // Map positions back to original vertex indices
-    const positionToVertexMap = positions.map(pos => {
-      return this.vertices.findIndex(v => 
-        Math.abs(pos.x - v[0]) < 1e-6 && 
-        Math.abs(pos.y - v[1]) < 1e-6 && 
-        Math.abs(pos.z - v[2]) < 1e-6
+    // For each vertex in the hull
+    const hullVertices = hull.vertices;
+    for (let i = 0; i < hullVertices.length; i++) {
+      const { x, y, z } = hullVertices[i].point;
+      
+      // Find the matching vertex in our original vertices array
+      const originalIndex = this.vertices.findIndex(v => 
+        Math.abs(v[0] - x) < 1e-6 && 
+        Math.abs(v[1] - y) < 1e-6 && 
+        Math.abs(v[2] - z) < 1e-6
       );
-    });
-    
-    // Group triangles into faces
-    this._extractFacesFromTriangles(indices, positionToVertexMap);
-  }
-
-  /**
-   * Extract faces by merging coplanar triangles
-   * @param {number[]} triangleIndices - Triangle indices from geometry
-   * @param {number[]} vertexMap - Map from position indices to original vertex indices
-   * @private
-   */
-  _extractFacesFromTriangles(triangleIndices, vertexMap) {
-    const faces = [];
-    const faceNormals = [];
-    const triangleCount = triangleIndices.length / 3;
-    
-    // Helper function to compute face normal
-    const computeNormal = (v1, v2, v3) => {
-      const a = this.vertices[v1];
-      const b = this.vertices[v2];
-      const c = this.vertices[v3];
       
-      const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-      const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
-      
-      // Cross product
-      const normal = [
-        ab[1] * ac[2] - ab[2] * ac[1],
-        ab[2] * ac[0] - ab[0] * ac[2],
-        ab[0] * ac[1] - ab[1] * ac[0]
-      ];
-      
-      // Normalize
-      const length = Math.sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2);
-      return [normal[0] / length, normal[1] / length, normal[2] / length];
-    };
-    
-    // Helper function to check if normals are similar (same face)
-    const normalsSimilar = (n1, n2) => {
-      const dot = n1[0] * n2[0] + n1[1] * n2[1] + n1[2] * n2[2];
-      return Math.abs(dot) > 0.99; // Allow for small numerical errors
-    };
-    
-    // Process each triangle and assign to a face
-    for (let i = 0; i < triangleCount; i++) {
-      const idx1 = vertexMap[triangleIndices[i * 3]];
-      const idx2 = vertexMap[triangleIndices[i * 3 + 1]];
-      const idx3 = vertexMap[triangleIndices[i * 3 + 2]];
-      
-      // Skip degenerate triangles
-      if (idx1 === -1 || idx2 === -1 || idx3 === -1) continue;
-      
-      const normal = computeNormal(idx1, idx2, idx3);
-      
-      // Find a matching face with similar normal
-      let matchingFaceIndex = -1;
-      for (let j = 0; j < faceNormals.length; j++) {
-        if (normalsSimilar(normal, faceNormals[j])) {
-          matchingFaceIndex = j;
-          break;
-        }
-      }
-      
-      if (matchingFaceIndex === -1) {
-        // Create a new face
-        faces.push([idx1, idx2, idx3]);
-        faceNormals.push(normal);
+      if (originalIndex !== -1) {
+        hullToOriginalMap.set(i, originalIndex);
       } else {
-        // Try to add vertices to existing face
-        const face = faces[matchingFaceIndex];
-        
-        // Add unique vertices to face
-        [idx1, idx2, idx3].forEach(idx => {
-          if (!face.includes(idx)) {
-            face.push(idx);
-          }
-        });
+        console.warn(`Could not find matching vertex for hull vertex (${x}, ${y}, ${z})`);
+        // This should not happen but fall back to using hull indices
+        hullToOriginalMap.set(i, i);
       }
     }
     
-    // Store the computed faces
-    this.faces = faces;
+    // Extract faces from hull faces
+    for (let i = 0; i < hull.faces.length; i++) {
+      const hullFace = hull.faces[i];
+      const face = [];
+      
+      // Get the face edges in order
+      let edge = hullFace.edge;
+      do {
+        const hullVertexIndex = edge.vertex;
+        const originalVertexIndex = hullToOriginalMap.get(hullVertexIndex);
+        if (originalVertexIndex !== undefined) {
+          face.push(originalVertexIndex);
+        }
+        edge = edge.next;
+      } while (edge !== hullFace.edge);
+      
+      // Add the face if it has at least 3 vertices
+      if (face.length >= 3) {
+        this.faces.push(face);
+      }
+    }
   }
 
   /**
@@ -164,13 +116,42 @@ export class Polytope {
     this.faces.forEach(face => {
       const n = face.length;
       for (let i = 0; i < n; i++) {
-        const a = face[i], b = face[(i + 1) % n];
-        const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-        edgeSet.add(key);
+        const a = face[i];
+        const b = face[(i + 1) % n];
+        // Ensure consistent ordering (smaller index first)
+        const edge = a < b ? `${a}-${b}` : `${b}-${a}`;
+        edgeSet.add(edge);
       }
     });
     
-    this.edges = Array.from(edgeSet, key => key.split('-').map(Number));
+    this.edges = Array.from(edgeSet).map(edge => {
+      const [a, b] = edge.split('-').map(Number);
+      return [a, b];
+    });
+  }
+
+  /**
+   * Triangulate the hull and organize triangles by face
+   * @param {ConvexHull} hull - THREE.js ConvexHull instance
+   * @private
+   */
+  _triangulateHull(hull) {
+    this.triangulatedFaces = [];
+    
+    // For each face, compute a triangulation
+    for (let i = 0; i < this.faces.length; i++) {
+      const face = this.faces[i];
+      const triangles = [];
+      
+      // Simple fan triangulation for convex faces
+      if (face.length >= 3) {
+        for (let j = 1; j < face.length - 1; j++) {
+          triangles.push([face[0], face[j], face[j + 1]]);
+        }
+      }
+      
+      this.triangulatedFaces.push(triangles);
+    }
   }
 
   /**
@@ -178,6 +159,8 @@ export class Polytope {
    */
   computeCenter() {
     const n = this.vertices.length;
+    if (n === 0) return;
+    
     const sum = this.vertices.reduce(
       (acc, v) => [acc[0] + v[0], acc[1] + v[1], acc[2] + v[2]],
       [0, 0, 0]
@@ -186,28 +169,10 @@ export class Polytope {
   }
 
   /**
-   * Triangulate the polytope faces
-   * @returns {number[][]} Array of triangle indices
+   * Get the triangulated faces grouped by original face
+   * @returns {number[][][]} Array of arrays of triangles (one array per face)
    */
   triangulate() {
-    // Convert vertices to Vector3 objects for ConvexGeometry
-    const vector3Vertices = this.vertices.map(v => new THREE.Vector3(v[0], v[1], v[2]));
-    
-    // Create the ConvexGeometry which will automatically triangulate the polytope
-    const geometry = new ConvexGeometry(vector3Vertices);
-    
-    // Get the triangle indices from the geometry
-    const indices = geometry.getIndex() ? Array.from(geometry.getIndex().array) : [];
-    
-    // Convert to our format: array of triangle arrays
-    const triangles = [];
-    for (let i = 0; i < indices.length; i += 3) {
-      triangles.push([indices[i], indices[i+1], indices[i+2]]);
-    }
-    
-    // Clean up 
-    geometry.dispose();
-    
-    return triangles;
+    return this.triangulatedFaces;
   }
 }

@@ -17,12 +17,12 @@ export function buildMesh(polytope, settings, renderEnv) {
   const { THREE } = renderEnv;
   const group = new THREE.Group();
 
-  // WIREFRAME MODE: one independent Line per edge
+  // WIREFRAME MODE: create edges using Line objects
   if (renderMode === 'wireframe') {
-    polytope.edges.forEach(([i, j], idx) => {
+    polytope.edges.forEach((edge, idx) => {
       // Get endpoints
-      const vA = new THREE.Vector3(...polytope.vertices[i]);
-      const vB = new THREE.Vector3(...polytope.vertices[j]);
+      const vA = new THREE.Vector3(...polytope.vertices[edge[0]]);
+      const vB = new THREE.Vector3(...polytope.vertices[edge[1]]);
       
       // Create geometry from two points
       const geometry = new THREE.BufferGeometry().setFromPoints([vA, vB]);
@@ -34,7 +34,8 @@ export function buildMesh(polytope, settings, renderEnv) {
       const material = new THREE.LineBasicMaterial({
         color,
         transparent: faceOpacity < 1,
-        opacity: faceOpacity
+        opacity: faceOpacity,
+        linewidth: 2
       });
       
       // Create the line and add to group
@@ -45,43 +46,62 @@ export function buildMesh(polytope, settings, renderEnv) {
     return group;
   }
   
-  // SOLID MESH MODE: one Mesh per face
+  // SOLID MESH MODE: create one mesh per face
   polytope.faces.forEach((faceIndices, faceIndex) => {
-    // Extract face vertices
-    const faceVertices = faceIndices.map(idx => polytope.vertices[idx]);
-    
-    // Create geometry for this face
-    let geometry;
-    
-    if (faceVertices.length === 3) {
-      // Triangle face - simple case
-      geometry = new THREE.BufferGeometry();
-      const vertices = new Float32Array(faceVertices.flat());
-      geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    } else {
-      // N-gon face - triangulate
-      geometry = new THREE.BufferGeometry();
-      
-      // Convert to flat array of coordinates
-      const coords = new Float32Array(faceVertices.flat());
-      geometry.setAttribute('position', new THREE.BufferAttribute(coords, 3));
-      
-      // Create triangle indices (fan triangulation)
-      const indices = [];
-      for (let i = 1; i < faceVertices.length - 1; i++) {
-        indices.push(0, i, i + 1);
-      }
-      
-      geometry.setIndex(indices);
-    }
-    
-    // Compute normals for proper lighting
-    geometry.computeVertexNormals();
-    
     // Get color for this face
     const color = new THREE.Color(colorPalette[faceIndex % colorPalette.length]);
     
-    // Create a basic material with color - render system will handle specifics
+    // Create a Shape from the face vertices
+    const shape = new THREE.Shape();
+    
+    // Project face vertices onto a 2D plane for ShapeGeometry
+    // First, compute face normal by taking cross product of two edges
+    const v0 = new THREE.Vector3(...polytope.vertices[faceIndices[0]]);
+    const v1 = new THREE.Vector3(...polytope.vertices[faceIndices[1]]);
+    const v2 = new THREE.Vector3(...polytope.vertices[faceIndices[2]]);
+    
+    const edge1 = new THREE.Vector3().subVectors(v1, v0);
+    const edge2 = new THREE.Vector3().subVectors(v2, v0);
+    const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+    
+    // Create a rotation matrix to project onto the XY plane
+    const rotationMatrix = new THREE.Matrix4();
+    const up = new THREE.Vector3(0, 0, 1);
+    
+    if (Math.abs(normal.dot(up)) < 0.9) {
+      // If not already facing up/down, compute rotation
+      const axis = new THREE.Vector3().crossVectors(normal, up).normalize();
+      const angle = Math.acos(normal.dot(up));
+      rotationMatrix.makeRotationAxis(axis, angle);
+    } else if (normal.dot(up) < 0) {
+      // If facing down, rotate 180 degrees around X
+      rotationMatrix.makeRotationX(Math.PI);
+    }
+    
+    // Project and add vertices to shape
+    const faceVertices = faceIndices.map(idx => 
+      new THREE.Vector3(...polytope.vertices[idx]).applyMatrix4(rotationMatrix)
+    );
+    
+    // Move to first vertex
+    shape.moveTo(faceVertices[0].x, faceVertices[0].y);
+    
+    // Add remaining vertices
+    for (let i = 1; i < faceVertices.length; i++) {
+      shape.lineTo(faceVertices[i].x, faceVertices[i].y);
+    }
+    
+    // Close the shape
+    shape.closePath();
+    
+    // Create geometry
+    const geometry = new THREE.ShapeGeometry(shape);
+    
+    // Apply inverse rotation to get back to original orientation
+    const inverseRotation = new THREE.Matrix4().copy(rotationMatrix).invert();
+    geometry.applyMatrix4(inverseRotation);
+    
+    // Create material
     const material = new THREE.MeshBasicMaterial({
       color,
       transparent: faceOpacity < 1,
