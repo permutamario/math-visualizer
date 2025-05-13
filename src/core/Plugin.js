@@ -427,6 +427,32 @@ export class Plugin {
     }
     return false;
   }
+
+
+  
+  /**
+   * Refreshes the visualization without changing any state
+   * Triggers a redraw for Konva or re-render for Three.js
+   * @private - Internal use only, but available to subclasses
+   */
+  refresh() {
+    if (!this.renderEnv) return;
+    
+    if (this.renderEnv.type === '2d') {
+      // For Konva, use batchDraw on the layer
+      if (this.renderEnv.layer) {
+        this.renderEnv.layer.batchDraw();
+      }
+    } else if (this.renderEnv.type === '3d') {
+      // For Three.js, render via the environment
+      if (this.core && this.core.environmentManager) {
+        const env = this.core.environmentManager.getCurrentEnvironment();
+        if (env && typeof env.render === 'function') {
+          env.render(this.core.getAllParameters());
+        }
+      }
+    }
+  }
   
 
   // ======== ANIMATION HELPER METHODS ========
@@ -542,5 +568,59 @@ export class Plugin {
     });
     
     this._eventHandlers = [];
+  }
+
+    /**
+   * Internal method to handle parameter changes from AppCore
+   * This is called by AppCore but not directly exposed to plugin developers
+   * @param {string} parameterId - Parameter ID
+   * @param {any} value - New parameter value
+   * @param {string} group - Parameter group
+   */
+  _handleParameterChanged(parameterId, value, group) {
+    try {
+      // Call the user-defined onParameterChanged method
+      if (typeof this.onParameterChanged === 'function') {
+        this.onParameterChanged(parameterId, value, group);
+      }
+      
+      // Refresh visualization after parameter handling
+      this.refresh();
+    } catch (error) {
+      console.error(`Error handling parameter change in plugin ${this.id}:`, error);
+    }
+  }
+  
+  /**
+   * Internal method to handle action execution
+   * This is called by AppCore when an action button is pressed
+   * @param {string} actionId - ID of the action
+   * @param {Array} args - Arguments for the action
+   * @returns {any} Result of the action
+   */
+  _handleActionExecution(actionId, ...args) {
+    try {
+      // Find the action in the core
+      const action = this.core._actions.get(actionId);
+      
+      if (action && typeof action.callback === 'function') {
+        // Execute the action callback
+        const result = action.callback(...args);
+        
+        // Refresh visualization after action execution
+        this.refresh();
+        
+        return result;
+      }
+    } catch (error) {
+      console.error(`Error executing action ${actionId} in plugin ${this.id}:`, error);
+      
+      // Propagate error to UI if available
+      if (this.core && this.core.uiManager) {
+        this.core.uiManager.showError(`Action failed: ${error.message}`);
+      }
+    }
+    
+    return false;
   }
 }

@@ -94,50 +94,38 @@ export class AppCore {
    * Starts the application
    * @returns {Promise<boolean>} Whether startup was successful
    */
-  
-/**
- * Starts the application
- * @returns {Promise<boolean>} Whether startup was successful
- */
-async start() {
-  try {
-    if (!this.isInitialStartup) {
-      console.warn("Application already started");
+  async start() {
+    try {
+      if (!this.isInitialStartup) {
+        console.warn("Application already started");
+        return true;
+      }
+      
+      // Show the "Select a Plugin" message only
+      this.animationManager.requestFrame(() => {
+        this._renderWelcomeMessage();
+      });
+      
+      this.isInitialStartup = false;
       return true;
+    } catch (error) {
+      console.error("Failed to start application:", error);
+      if (this.uiManager) {
+        this.uiManager.showError(`Failed to start application: ${error.message}`);
+      }
+      return false;
     }
-    
-    // Show the "Select a Plugin" message only
-    this.animationManager.requestFrame(() => {
-      this._renderWelcomeMessage();
-    });
-    
-    this.isInitialStartup = false;
-    return true;
-  } catch (error) {
-    console.error("Failed to start application:", error);
-    if (this.uiManager) {
-      this.uiManager.showError(`Failed to start application: ${error.message}`);
-    }
-    return false;
   }
-}
 
-
-  // Add this method to AppCore.js
-
-/**
- * Request a refresh of the current rendering
- * Called when parameters change or other events that require re-rendering
- */
-/**
- * Make welcome message
- * 
- */
-
-_renderWelcomeMessage() {
-  if (!this.environmentManager) return;
-  this.environmentManager.renderWithCurrentEnvironment(null, {});
-}
+  /**
+   * Make welcome message
+   * @private
+   */
+  _renderWelcomeMessage() {
+    if (!this.environmentManager) return;
+    this.environmentManager.renderWithCurrentEnvironment(null, {});
+  }
+  
   /**
    * Cleans up resources when the application is shutting down
    */
@@ -153,7 +141,7 @@ _renderWelcomeMessage() {
       this.environmentManager = null;
     }
 
-        // Clean up animation
+    // Clean up animation
     if (this.animationManager) {
       this.animationManager.cleanup();
       this.animationManager = null;
@@ -207,7 +195,6 @@ _renderWelcomeMessage() {
         // Update UI with currently active plugin
         const activePlugin = this.getActivePlugin();
         this.uiManager.updatePlugins(this.availablePlugins, activePlugin?.id || null);
-
       } else {
         this.uiManager.showError(`Failed to load plugin "${pluginId}"`);
       }
@@ -234,50 +221,50 @@ _renderWelcomeMessage() {
   }
 
   /**
- * Adds visual parameters to the application
- * @param {Array<Object>} parameters - Array of parameter definitions
- */
-addParametersVisual(parameters) {
-  if (!Array.isArray(parameters)) {
-    console.error("Visual parameters must be an array");
-    return;
+   * Adds visual parameters to the application
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   */
+  addParametersVisual(parameters) {
+    if (!Array.isArray(parameters)) {
+      console.error("Visual parameters must be an array");
+      return;
+    }
+    
+    this._processParameters(parameters, 'visual');
+    
+    // Update UI 
+    if (this.uiManager) {
+      this.uiManager.updatePluginParameterGroups({
+        visualizationParameters: { 
+          schema: this.visualParameters.schema, 
+          values: this.visualParameters.values 
+        }
+      });
+    }
   }
-  
-  this._processParameters(parameters, 'visual');
-  
-  // Update UI 
-  if (this.uiManager) {
-    this.uiManager.updatePluginParameterGroups({
-      visualizationParameters: { 
-        schema: this.visualParameters.schema, 
-        values: this.visualParameters.values 
-      }
-    });
-  }
-}
 
-/**
- * Adds structural parameters to the application
- * @param {Array<Object>} parameters - Array of parameter definitions
- */
-addParametersStructural(parameters) {
-  if (!Array.isArray(parameters)) {
-    console.error("Structural parameters must be an array");
-    return;
+  /**
+   * Adds structural parameters to the application
+   * @param {Array<Object>} parameters - Array of parameter definitions
+   */
+  addParametersStructural(parameters) {
+    if (!Array.isArray(parameters)) {
+      console.error("Structural parameters must be an array");
+      return;
+    }
+    
+    this._processParameters(parameters, 'structural');
+    
+    // Update UI 
+    if (this.uiManager) {
+      this.uiManager.updatePluginParameterGroups({
+        pluginParameters: { 
+          schema: this.structuralParameters.schema, 
+          values: this.structuralParameters.values 
+        }
+      });
+    }
   }
-  
-  this._processParameters(parameters, 'structural');
-  
-  // Update UI 
-  if (this.uiManager) {
-    this.uiManager.updatePluginParameterGroups({
-      pluginParameters: { 
-        schema: this.structuralParameters.schema, 
-        values: this.structuralParameters.values 
-      }
-    });
-  }
-}
 
   /**
    * Processes and stores parameter definitions
@@ -309,162 +296,130 @@ addParametersStructural(parameters) {
    * @param {string|null} group - Parameter group ('visual' or 'structural')
    * @returns {boolean} Whether the parameter was found and updated
    */
-/**
- * Changes a parameter value and notifies listeners
- * @param {string} id - Parameter ID
- * @param {any} value - New parameter value
- * @param {string|null} group - Parameter group ('visual' or 'structural')
- * @returns {boolean} Whether the parameter was found and updated
- */
-/**
- * Changes a parameter value and notifies listeners
- * @param {string} id - Parameter ID
- * @param {any} value - New parameter value
- * @param {string|null} group - Parameter group ('visual' or 'structural')
- * @returns {boolean} Whether the parameter was found and updated
- */
-changeParameter(id, value, group = null) {
-  // Find parameter group if not specified
-  if (!group) {
-    if (this.visualParameters?.values.hasOwnProperty(id)) {
-      group = 'visual';
-    } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
-      group = 'structural';
-    } else {
-      console.warn(`Parameter ${id} not found in any group`);
-      return false;
-    }
-  }
-  
-  // Update parameter value
-  if (group && this[`${group}Parameters`]?.values) {
-    this[`${group}Parameters`].values[id] = value;
-    
-    // Update UI
-    if (this.uiManager) {
-      this.uiManager.updateParameterValue(id, value, group);
+  changeParameter(id, value, group = null) {
+    // Find parameter group if not specified
+    if (!group) {
+      if (this.visualParameters?.values.hasOwnProperty(id)) {
+        group = 'visual';
+      } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
+        group = 'structural';
+      } else {
+        console.warn(`Parameter ${id} not found in any group`);
+        return false;
+      }
     }
     
-    // Notify listeners
-    this._triggerParameterChanged(id, value, group);
-    
-    // Trigger a render after parameter change and all notifications
-    this._triggerRender();
-    
-    return true;
-  }
-  
-  return false;
-}
-  
-
-  _triggerRender() {
-  // Get current environment and request render
-  const env = this.environmentManager.getCurrentEnvironment();
-  if (env) {
-    if (env === this.environmentManager.environments['2d']) {
-      // For 2D/Konva environment
-      if (env.layer) env.layer.batchDraw();
-    } else if (env === this.environmentManager.environments['3d']) {
-      // For 3D/Three.js environment
-      env.render(this.getAllParameters());
+    // Update parameter value
+    if (group && this[`${group}Parameters`]?.values) {
+      this[`${group}Parameters`].values[id] = value;
+      
+      // Update UI
+      if (this.uiManager) {
+        this.uiManager.updateParameterValue(id, value, group);
+      }
+      
+      // Notify listeners
+      this._triggerParameterChanged(id, value, group);
+      
+      return true;
     }
-  }
-}
-
-  /**
- * Removes a parameter from the application
- * @param {string} id - Parameter ID to remove
- * @param {string|null} group - Parameter group ('visual' or 'structural')
- * @returns {boolean} Whether the parameter was found and removed
- */
-removeParameter(id, group = null) {
-  // Find parameter group if not specified
-  if (!group) {
-    if (this.visualParameters?.values.hasOwnProperty(id)) {
-      group = 'visual';
-    } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
-      group = 'structural';
-    } else {
-      console.warn(`Parameter ${id} not found in any group`);
-      return false;
-    }
-  }
-  
-  const groupKey = `${group}Parameters`;
-  
-  // Check if parameter exists
-  if (!this[groupKey]?.values.hasOwnProperty(id)) {
-    console.warn(`Parameter ${id} not found in ${group} group`);
+    
     return false;
   }
-  
-  // Remove from schema
-  this[groupKey].schema = this[groupKey].schema.filter(param => param.id !== id);
-  
-  // Remove from values
-  delete this[groupKey].values[id];
-  
-  // Update UI
-  if (this.uiManager) {
-    const parameterGroups = {};
-    parameterGroups[group] = {
-      schema: this[groupKey].schema,
-      values: this[groupKey].values
-    };
-    
-    this.uiManager.updatePluginParameterGroups({
-      [`${group}Parameters`]: this[groupKey] 
-    });
-  }
-  
-  return true;
-}
 
-/**
- * Resets parameters to their default values
- * @param {string|null} group - Parameter group to reset ('visual', 'structural', or null for all)
- * @returns {boolean} Whether the reset was successful
- */
-resetParameters(group = null) {
-  const groups = group ? [group] : ['visual', 'structural'];
-  let success = true;
-  
-  groups.forEach(grp => {
-    const groupKey = `${grp}Parameters`;
-    
-    // Skip if group doesn't exist
-    if (!this[groupKey]) {
-      success = false;
-      return;
+  /**
+   * Removes a parameter from the application
+   * @param {string} id - Parameter ID to remove
+   * @param {string|null} group - Parameter group ('visual' or 'structural')
+   * @returns {boolean} Whether the parameter was found and removed
+   */
+  removeParameter(id, group = null) {
+    // Find parameter group if not specified
+    if (!group) {
+      if (this.visualParameters?.values.hasOwnProperty(id)) {
+        group = 'visual';
+      } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
+        group = 'structural';
+      } else {
+        console.warn(`Parameter ${id} not found in any group`);
+        return false;
+      }
     }
     
-    // Reset each parameter to its default value
-    this[groupKey].schema.forEach(param => {
-      if (param.id && param.default !== undefined) {
-        this[groupKey].values[param.id] = param.default;
-        
-        // Trigger parameter change notification
-        this._triggerParameterChanged(param.id, param.default, grp);
-      }
-    });
+    const groupKey = `${group}Parameters`;
+    
+    // Check if parameter exists
+    if (!this[groupKey]?.values.hasOwnProperty(id)) {
+      console.warn(`Parameter ${id} not found in ${group} group`);
+      return false;
+    }
+    
+    // Remove from schema
+    this[groupKey].schema = this[groupKey].schema.filter(param => param.id !== id);
+    
+    // Remove from values
+    delete this[groupKey].values[id];
     
     // Update UI
     if (this.uiManager) {
       const parameterGroups = {};
-      parameterGroups[grp] = {
+      parameterGroups[group] = {
         schema: this[groupKey].schema,
         values: this[groupKey].values
       };
       
       this.uiManager.updatePluginParameterGroups({
-        [`${grp}Parameters`]: this[groupKey]
+        [`${group}Parameters`]: this[groupKey] 
       });
     }
-  });
-  
-  return success;
-}
+    
+    return true;
+  }
+
+  /**
+   * Resets parameters to their default values
+   * @param {string|null} group - Parameter group to reset ('visual', 'structural', or null for all)
+   * @returns {boolean} Whether the reset was successful
+   */
+  resetParameters(group = null) {
+    const groups = group ? [group] : ['visual', 'structural'];
+    let success = true;
+    
+    groups.forEach(grp => {
+      const groupKey = `${grp}Parameters`;
+      
+      // Skip if group doesn't exist
+      if (!this[groupKey]) {
+        success = false;
+        return;
+      }
+      
+      // Reset each parameter to its default value
+      this[groupKey].schema.forEach(param => {
+        if (param.id && param.default !== undefined) {
+          this[groupKey].values[param.id] = param.default;
+          
+          // Trigger parameter change notification
+          this._triggerParameterChanged(param.id, param.default, grp);
+        }
+      });
+      
+      // Update UI
+      if (this.uiManager) {
+        const parameterGroups = {};
+        parameterGroups[grp] = {
+          schema: this[groupKey].schema,
+          values: this[groupKey].values
+        };
+        
+        this.uiManager.updatePluginParameterGroups({
+          [`${grp}Parameters`]: this[groupKey]
+        });
+      }
+    });
+    
+    return success;
+  }
 
   /**
    * Registers a callback for parameter changes
@@ -512,9 +467,12 @@ resetParameters(group = null) {
       }
     });
     
-    // Notify active plugin
+    // Notify active plugin via internal method
     const activePlugin = this.getActivePlugin();
-    if (activePlugin && typeof activePlugin.onParameterChanged === 'function') {
+    if (activePlugin && typeof activePlugin._handleParameterChanged === 'function') {
+      activePlugin._handleParameterChanged(id, value, group);
+    } else if (activePlugin && typeof activePlugin.onParameterChanged === 'function') {
+      // Fallback to direct call if internal method not available
       try {
         activePlugin.onParameterChanged(id, value, group);
       } catch (error) {
@@ -632,39 +590,37 @@ resetParameters(group = null) {
    * @param {...any} args - Arguments to pass to the action callback
    * @returns {any} Result of the action execution
    */
-  /**
- * Executes an action by ID
- * @param {string} actionId - ID of the action to execute
- * @param {...any} args - Arguments to pass to the action callback
- * @returns {any} Result of the action execution
- */
-executeAction(actionId, ...args) {
-  const action = this._actions.get(actionId);
-  
-  if (action && typeof action.callback === 'function') {
-    try {
-      // Execute the action
-      const result = action.callback(...args);
-      
-      // Trigger a render after any action execution
-      this._triggerRender();
-      
-      return result;
-    } catch (error) {
-      console.error(`Error executing action ${actionId}:`, error);
-      
-      // Notify user of error
-      if (this.uiManager) {
-        this.uiManager.showError(`Action failed: ${error.message}`);
-      }
-      
-      return false;
+  executeAction(actionId, ...args) {
+    // Get the active plugin
+    const activePlugin = this.getActivePlugin();
+    
+    // Use the plugin's internal action handler if available
+    if (activePlugin && typeof activePlugin._handleActionExecution === 'function') {
+      return activePlugin._handleActionExecution(actionId, ...args);
     }
+    
+    // Otherwise, execute the action directly
+    const action = this._actions.get(actionId);
+    
+    if (action && typeof action.callback === 'function') {
+      try {
+        // Execute the action
+        return action.callback(...args);
+      } catch (error) {
+        console.error(`Error executing action ${actionId}:`, error);
+        
+        // Notify user of error
+        if (this.uiManager) {
+          this.uiManager.showError(`Action failed: ${error.message}`);
+        }
+        
+        return false;
+      }
+    }
+    
+    console.warn(`Action not found: ${actionId}`);
+    return false;
   }
-  
-  console.warn(`Action not found: ${actionId}`);
-  return false;
-}
 
   /**
    * Gets access to the current rendering environment
