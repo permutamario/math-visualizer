@@ -27,7 +27,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         
         // Animation state
         this.isAnimating = false;
-        this.distanceTraveled = 0; // Track distance instead of progress
+        this.distanceTraveled = 0; // Track distance for animation
         this.animationCurve = null;
         this.animationQueue = []; // Queue of curves to be animated
         this.lastFrameTime = 0;
@@ -63,8 +63,8 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     async start() {
         // Add visual parameters
-        this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 50, step: 1 });
-        this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 50, step: 1 });
+        this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 60, step: 1 });
+        this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 60, step: 1 });
         this.addCheckbox('showGridLines', 'Show Grid Lines', true);
         this.addCheckbox('showGridPoints', 'Show Grid Points', true);
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
@@ -197,6 +197,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.isAnimating = false;
         this.animationCurve = null;
         this.animationQueue = []; // Clear animation queue
+        this.distanceTraveled = 0; // Reset distance traveled
         
         // Clear renderer cache
         if (this.curveRenderer) {
@@ -229,7 +230,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         // Get the next curve from the queue
         this.animationCurve = this.animationQueue.shift();
         
-        // Reset animation state to track distance rather than progress
+        // Reset animation state
         this.distanceTraveled = 0;
         
         this.isAnimating = true;
@@ -289,7 +290,9 @@ export default class MirrorCurvesPlugin extends Plugin {
                 this.distanceTraveled,
                 {
                     tension: this.getParameter('tension'),
-                    curveStyle: this.getParameter('curveStyle')
+                    curveStyle: this.getParameter('curveStyle'),
+                    gridRows: this.getParameter('rows'),
+                    gridCols: this.getParameter('cols')
                 }
             );
 
@@ -458,7 +461,9 @@ export default class MirrorCurvesPlugin extends Plugin {
             smooth: this.getParameter('smooth'),
             showHelperPoints: this.getParameter('showHelperPoints'),
             helperPointColor: helperPointColor,
-            helperPoints: this.helperPoints
+            helperPoints: this.helperPoints,
+            gridRows: this.getParameter('rows'), // Pass grid dimensions for dynamic subdivisions
+            gridCols: this.getParameter('cols')
         });
         
         // Draw the static curve layer
@@ -484,7 +489,9 @@ export default class MirrorCurvesPlugin extends Plugin {
                 curveStyle: this.getParameter('curveStyle'),
                 tension: this.getParameter('tension'),
                 smooth: this.getParameter('smooth'),
-                animationPath: this.animationPath
+                animationPath: this.animationPath,
+                gridRows: this.getParameter('rows'), // Pass grid dimensions for dynamic subdivisions
+                gridCols: this.getParameter('cols')
             });
         }
         

@@ -19,3 +19,5 @@
 9.) Force dev to only use Konvas operations
 
 10.) Fix standard controllers
+
+11.) Standard export functions

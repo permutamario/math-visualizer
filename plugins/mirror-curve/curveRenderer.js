@@ -2,6 +2,39 @@
 import { getSplinePoints } from './spline.js';
 import { findHelperPoint } from './helperPointCalculator.js';
 
+/**
+ * Calculate appropriate number of subdivisions based on grid size
+ * @param {number} rows - Number of grid rows
+ * @param {number} cols - Number of grid columns
+ * @param {boolean} isAnimation - Whether this is for animation (needs fewer points)
+ * @returns {number} Number of subdivisions to use
+ */
+function calculateSubdivisions(rows, cols, isAnimation = false) {
+    // Calculate grid complexity
+    const cellCount = rows * cols;
+    
+    // Base values
+    const baseSubdivisions = 8;
+    
+    // For small grids (less than 25 cells), use more subdivisions
+    if (cellCount <= 25) {
+        return baseSubdivisions + 4;
+    }
+    
+    // For medium grids (26-100 cells), use standard subdivisions
+    if (cellCount <= 100) {
+        return baseSubdivisions + 2;
+    }
+    
+    // For large grids (101-400 cells), reduce subdivisions
+    if (cellCount <= 400) {
+        return Math.max(3, baseSubdivisions - 2);
+    }
+    
+    // For very large grids (over 400 cells), use minimum subdivisions
+    return Math.max(2, baseSubdivisions - 4);
+}
+
 export class CurveRenderer {
     constructor(konva) {
         this.konva = konva;
@@ -22,20 +55,26 @@ export class CurveRenderer {
         
         const {
             cellSize = 1,
-            colorScheme = ['#3498db'], // Default color replaced with colorScheme array
+            colorScheme = ['#3498db'], 
             curveStyle = 'curved',
             tension = 0,
             smooth = true,
             showHelperPoints = false,
             helperPointColor = '#ff0000',
             animationPath = null,
-            helperPoints = []
+            helperPoints = [],
+            gridRows = 5,  // Add grid dimensions for dynamic subdivision
+            gridCols = 5
         } = options;
         
         // Draw completed curves
         curves.forEach((curve, idx) => {
             const konvaCurve = this.createKonvaCurve(curve, idx, cellSize, colorScheme, {
-                curveStyle, tension, smooth
+                curveStyle, 
+                tension, 
+                smooth,
+                gridRows,
+                gridCols
             });
             
             if (konvaCurve) {
@@ -50,7 +89,13 @@ export class CurveRenderer {
                 curves.length, 
                 cellSize, 
                 colorScheme,
-                { curveStyle, tension, smooth }
+                { 
+                    curveStyle, 
+                    tension, 
+                    smooth,
+                    gridRows,
+                    gridCols
+                }
             );
             
             if (animCurve) {
@@ -84,7 +129,9 @@ export class CurveRenderer {
         const { 
             curveStyle = 'curved', 
             tension = 0, 
-            smooth = true 
+            smooth = true,
+            gridRows = 5,
+            gridCols = 5
         } = options;
         
         // Extract points from the curve
@@ -107,9 +154,11 @@ export class CurveRenderer {
                     return findHelperPoint(line, direction, cellSize);
                 });
                 
-                // Apply spline for smooth curves - use fewer subdivisions (8 instead of 10)
-                // for better performance while still looking good
-                points = getSplinePoints(helperPointsForCurve, tension, 8);
+                // Calculate dynamic subdivision based on grid size
+                const subdivisions = calculateSubdivisions(gridRows, gridCols, false);
+                
+                // Apply spline for smooth curves with dynamic subdivisions
+                points = getSplinePoints(helperPointsForCurve, tension, subdivisions);
             } else {
                 // Use regular midpoints for jagged style
                 points = curve.gridLines.map(line => {
@@ -161,7 +210,9 @@ export class CurveRenderer {
         const { 
             tension = 0.5,
             curveStyle = 'curved',
-            smooth = true
+            smooth = true,
+            gridRows = 5,  // Add grid dimensions for dynamic subdivision
+            gridCols = 5
         } = options;
         
         // Create a unique key for this curve and settings combination
@@ -181,9 +232,8 @@ export class CurveRenderer {
         } else {
             // First time - calculate all points for the full curve
             
-            // Use fewer subdivisions for animation (5 for animation instead of 10)
-            // This significantly improves performance while still looking smooth
-            const animSubdivisions = 5;
+            // Calculate dynamic subdivision based on grid size
+            const animSubdivisions = calculateSubdivisions(gridRows, gridCols, true);
             
             // Get all helper points for the full curve
             const allHelperPoints = curve.gridLines.map((line, index) => {
@@ -191,7 +241,7 @@ export class CurveRenderer {
                 return findHelperPoint(line, direction, cellSize);
             });
             
-            // Generate the complete spline path with fewer subdivisions for better performance
+            // Generate the complete spline path with dynamic subdivisions
             allSplinePoints = getSplinePoints(allHelperPoints, tension, animSubdivisions);
             
             // Calculate total length and segment lengths
@@ -285,86 +335,5 @@ export class CurveRenderer {
                 this.animationCache.delete(key);
             }
         }
-    }
-    
-    // Legacy method kept for compatibility
-    createAnimationPath(curve, cellSize, progress, maxProgress = 1.0, options = {}) {
-        if (!curve || !curve.gridLines || curve.gridLines.length === 0) {
-            return null;
-        }
-        
-        const { 
-            tension = 0.5,
-            curveStyle = 'curved',
-            smooth = true
-        } = options;
-        
-        // Create a unique key for this curve
-        const curveKey = `${curve.gridLines[0].id}-${tension}-${curveStyle}`;
-        
-        // Get or calculate all spline points
-        let allSplinePoints = null;
-        
-        if (this.animationCache.has(curveKey)) {
-            allSplinePoints = this.animationCache.get(curveKey).points;
-        } else {
-            // Use fewer subdivisions for animation (5 instead of 10)
-            const animSubdivisions = 5;
-            
-            // Get all helper points for the full curve
-            const allHelperPoints = curve.gridLines.map((line, index) => {
-                const direction = curve.directions[index];
-                return findHelperPoint(line, direction, cellSize);
-            });
-            
-            // Generate the complete spline path with fewer subdivisions
-            allSplinePoints = getSplinePoints(allHelperPoints, tension, animSubdivisions);
-            
-            // Cache the results
-            this.animationCache.set(curveKey, {
-                points: allSplinePoints,
-                // We don't calculate lengths since they're not needed for this method
-            });
-        }
-        
-        // Calculate how many points to show based on animation progress
-        const totalPoints = allSplinePoints.length;
-        
-        // Normalize the progress value
-        const normalizedProgress = Math.min(1.0, progress / maxProgress);
-        
-        // Calculate the exact number of points to show, including partial points
-        const exactPointCount = totalPoints * normalizedProgress;
-        const wholePoints = Math.floor(exactPointCount);
-        const fraction = exactPointCount - wholePoints;
-        
-        // Get the whole points to show
-        let visiblePoints = allSplinePoints.slice(0, wholePoints);
-        
-        // Add the interpolated last point if we're not at the end
-        if (fraction > 0 && wholePoints < totalPoints - 1) {
-            const lastPoint = allSplinePoints[wholePoints];
-            const nextPoint = allSplinePoints[wholePoints + 1];
-            
-            // Linear interpolation between the last whole point and the next point
-            const interpPoint = {
-                x: lastPoint.x + (nextPoint.x - lastPoint.x) * fraction,
-                y: lastPoint.y + (nextPoint.y - lastPoint.y) * fraction
-            };
-            
-            visiblePoints.push(interpPoint);
-        }
-        
-        // Check if animation is complete
-        if (normalizedProgress >= 1.0) {
-            return { completed: true };
-        }
-        
-        return {
-            type: 'animationPath',
-            points: visiblePoints,
-            isClosed: false,
-            completed: false
-        };
     }
 }
