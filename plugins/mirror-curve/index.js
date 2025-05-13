@@ -29,6 +29,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.isAnimating = false;
         this.animationFrame = 0;
         this.animationCurve = null;
+	this.animationQueue = []; // Queue of curves to be animated
         
         // Rendering objects
         this.gridRenderer = null;
@@ -51,7 +52,6 @@ export default class MirrorCurvesPlugin extends Plugin {
         // Add visual parameters
         this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 20, step: 1 });
         this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 20, step: 1 });
-        this.addSlider('tension', 'Curve Smoothness', 0.5, { min: 0, max: 1, step: 0.1 });
         this.addCheckbox('showGridLines', 'Show Grid Lines', true);
         this.addCheckbox('showGridPoints', 'Show Grid Points', true);
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
@@ -60,9 +60,10 @@ export default class MirrorCurvesPlugin extends Plugin {
 
         
         // Add structural parameters
-        this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0, max: 1, step: 0.1 }, 'structural');
+        this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0.1, max: 1, step: 0.1 }, 'structural');
         this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'structural');
-        this.addCheckbox('smooth', 'Smooth Curves', true, 'structural');
+	
+	this.addCheckbox('animateCurves', 'Animate Curves', true, 'structural');
 
 
         // Add advanced parameters
@@ -71,6 +72,8 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addColor('gridLineColor', 'Grid Line Color', '#cccccc','advanced');
         this.addColor('mirrorColor', 'Mirror Color', '#333333','advanced');
         this.addColor('helperPointColor', 'Helper Point Color', '#ff0000','advanced');
+	this.addCheckbox('smooth', 'Smooth Curves', true, 'advanced');
+        this.addSlider('tension', 'Curve Smoothness', 0, { min: 0, max: 1, step: 0.1 },'advanced');
         
         // Add actions
         this.addAction('randomize', 'Randomize Mirrors', () => this.randomizeMirrors());
@@ -110,73 +113,134 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     randomizeMirrors() {
-        if (!this.grid) return;
-        
-        const probability = this.getParameter('mirrorProbability');
-        this.grid.randomizeMirrors(probability);
-        
-        // Reset curves when mirrors change
-        this.clearCurves();
-	this.updateVisualization()
+	if (!this.grid) return;
+	
+	const probability = this.getParameter('mirrorProbability');
+	this.grid.randomizeMirrors(probability);
+	
+	// Reset curves and animations when mirrors change
+	this.clearCurves();
+	this.updateVisualization();
     }
     
     discoverAllCurves() {
-        if (!this.grid) return;
-        
-        // Reset used directions
-        this.grid.resetUsedDirections();
+	if (!this.grid) return;
+	
+	// Reset used directions
+	this.grid.resetUsedDirections();
 
-        // Find all curves
-        this.curves = findAllCurves(this.grid);
-        
-        // Mark all curves as completed
-        this.curves.forEach(curve => {
-            curve.isCompleted = true;
-        });
-        
-        // Calculate helper points for all curves
-        this.updateHelperPoints();
+	// Find all curves
+	const allCurves = findAllCurves(this.grid);
+	
+	if (this.getParameter('animateCurves')) {
+            // Queue all curves for animation
+            this.animationQueue = [...this.animationQueue, ...allCurves];
+            
+            // Start animation if not already running
+            if (!this.isAnimating) {
+		this.startNextAnimation();
+            }
+	} else {
+            // Add all curves at once without animation
+            allCurves.forEach(curve => {
+		curve.isCompleted = true;
+            });
+            this.curves = [...this.curves, ...allCurves];
+            this.updateHelperPoints();
+            this.updateVisualization();
+	}
     }
+
     
     clearCurves() {
-        this.curves = [];
-        this.animationPath = null;
-        this.helperPoints = [];
-        this.isAnimating = false;
-        
-        // Reset used directions in the grid
-        if (this.grid) {
+	this.curves = [];
+	this.animationPath = null;
+	this.helperPoints = [];
+	this.isAnimating = false;
+	this.animationCurve = null;
+	this.animationQueue = []; // Clear animation queue
+	
+	// Reset used directions in the grid
+	if (this.grid) {
             this.grid.resetUsedDirections();
-        }
-	this.updateVisualization()
+	}
+	this.updateVisualization();
     }
     
     updateHelperPoints() {
         this.helperPoints = calculateAllHelperPoints(this.curves, this.gridLayout.cellSize);
     }
-    
-    animateNextCurve() {
-        if (!this.grid) return;
-        
-        // Stop current animation if running
-        this.isAnimating = false;
-        this.animationPath = null;
-        
-        // Find the next available curve
-        const curve = findNextCurve(this.grid);
-        
-        if (curve) {
-            // Start animation
-            this.animationCurve = curve;
-            this.animationFrame = 0;
-            this.isAnimating = true;
-        } else {
-            // Show notification if no more curves
-            if (this.core && this.core.uiManager) {
-                this.core.uiManager.showNotification('No more curves available');
-            }
-        }
+
+    startNextAnimation() {
+	if (this.animationQueue.length === 0) {
+            this.isAnimating = false;
+            this.animationPath = null;
+            return;
+	}
+	
+	// Get the next curve from the queue
+	this.animationCurve = this.animationQueue.shift();
+	this.animationFrame = 0;
+	this.isAnimating = true;
     }
+    
+    animate(deltaTime) {
+	// Apply background color from parameter
+	this.renderEnv.stage.container().style.backgroundColor = 
+            this.getParameter('backgroundColor');
+	
+	// Check if stage size has changed
+	const stage = this.renderEnv.stage;
+	const currentWidth = stage.width();
+	const currentHeight = stage.height();
+	
+	if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
+            this.updateLayout();
+	}
+	
+	// Handle animation if active
+	if (this.isAnimating && this.animationCurve) {
+            // Increment animation frame
+            this.animationFrame++;
+            
+            // Create animation path with current progress
+            const totalSegments = this.animationCurve.gridLines.length;
+            const frameCount = 60; // Animation frames per curve (increased for smoother animation)
+            
+            // Update animation path
+            const animResult = this.curveRenderer.createAnimationPath(
+		this.animationCurve,
+		this.gridLayout.cellSize,
+		this.animationFrame,
+		frameCount
+            );
+            
+            if (animResult && animResult.completed) {
+		// Animation is complete, add curve to list
+		this.animationCurve.isCompleted = true;
+		this.curves.push(this.animationCurve);
+		
+		// Reset animation state
+		this.animationPath = null;
+		this.animationCurve = null;
+		
+		// Update helper points
+		this.updateHelperPoints();
+		
+		// Start next animation in queue
+		this.startNextAnimation();
+            } else if (animResult) {
+		// Update animation path
+		this.animationPath = animResult;
+            }
+            
+            // Update visualization
+            this.updateVisualization();
+	}
+	
+	return true;
+    }
+
     
     setupKonvaObjects() {
         const { stage, konva } = this.renderEnv;
@@ -288,23 +352,21 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     animate(deltaTime) {
-        // Update background color from parameter
-        if (this.backgroundRect) {
-            this.backgroundRect.fill(this.getParameter('backgroundColor'));
-            this.backgroundLayer.batchDraw();
-        }
-        
-        // Check if stage size has changed
-        const stage = this.renderEnv.stage;
-        const currentWidth = stage.width();
-        const currentHeight = stage.height();
-        
-        if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
+	// Apply background color from parameter
+	this.renderEnv.stage.container().style.backgroundColor = 
+            this.getParameter('backgroundColor');
+	
+	// Check if stage size has changed
+	const stage = this.renderEnv.stage;
+	const currentWidth = stage.width();
+	const currentHeight = stage.height();
+	
+	if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
             this.updateLayout();
-        }
-        
-        // Handle animation if active
-        if (this.isAnimating && this.animationCurve) {
+	}
+	
+	// Handle animation if active
+	if (this.isAnimating && this.animationCurve) {
             // Increment animation frame
             this.animationFrame++;
             
@@ -313,34 +375,36 @@ export default class MirrorCurvesPlugin extends Plugin {
             
             // Update animation path
             const animResult = this.curveRenderer.createAnimationPath(
-                this.animationCurve,
-                this.gridLayout.cellSize,
-                this.animationFrame,
-                frameCount
+		this.animationCurve,
+		this.gridLayout.cellSize,
+		this.animationFrame,
+		frameCount
             );
             
-            if (animResult.completed) {
-                // Animation is complete, add curve to list
-                this.animationCurve.isCompleted = true;
-                this.curves.push(this.animationCurve);
-                
-                // Reset animation state
-                this.animationPath = null;
-                this.isAnimating = false;
-                this.animationCurve = null;
-                
-                // Update helper points
-                this.updateHelperPoints();
-            } else {
-                // Update animation path
-                this.animationPath = animResult;
+            if (animResult && animResult.completed) {
+		// Animation is complete, add curve to list
+		this.animationCurve.isCompleted = true;
+		this.curves.push(this.animationCurve);
+		
+		// Reset animation state
+		this.animationPath = null;
+		this.animationCurve = null;
+		
+		// Update helper points
+		this.updateHelperPoints();
+		
+		// Start next animation in queue
+		this.startNextAnimation();
+            } else if (animResult) {
+		// Update animation path
+		this.animationPath = animResult;
             }
             
             // Update visualization
             this.updateVisualization();
-        }
-        
-        return true;
+	}
+	
+	return true;
     }
     
     onParameterChanged(parameterId, value) {

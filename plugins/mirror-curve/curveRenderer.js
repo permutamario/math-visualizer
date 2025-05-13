@@ -1,5 +1,4 @@
 // plugins/mirror-curve/curveRenderer.js
-
 import { getSplinePoints } from './spline.js';
 import { findHelperPoint } from './helperPointCalculator.js';
 
@@ -22,7 +21,7 @@ export class CurveRenderer {
       cellSize = 1,
       curveColor = '#3498db',
       curveStyle = 'curved',
-      tension = 0.5,
+      tension = 0,
       smooth = true,
       showHelperPoints = false,
       helperPointColor = '#ff0000',
@@ -84,7 +83,7 @@ export class CurveRenderer {
     
     const { 
       curveStyle = 'curved', 
-      tension = 0.5, 
+      tension = 0, 
       smooth = true 
     } = options;
     
@@ -101,7 +100,7 @@ export class CurveRenderer {
       isClosed = curve.isClosed || false;
       
       // Generate points based on curve style
-      if (curve.isCompleted && curveStyle === 'curved') {
+      if (curveStyle === 'curved') {
         // Calculate helper points with offsets for smooth curves
         const helperPointsForCurve = curve.gridLines.map((line, index) => {
           const direction = curve.directions[index];
@@ -131,20 +130,9 @@ export class CurveRenderer {
     // Skip if no points
     if (points.length === 0) return null;
     
-    // For non-animation paths, apply spline if needed
-    const useSpline = !curve.isCompleted && 
-                     smooth && 
-                     isClosed &&
-                     curve.type !== 'animationPath' && 
-                     curveStyle === 'curved';
-    
-    const drawPoints = useSpline 
-        ? getSplinePoints(points, tension)
-        : points;
-    
     // Convert points to flat array for Konva
     const flatPoints = [];
-    drawPoints.forEach(point => {
+    points.forEach(point => {
       flatPoints.push(point.x, point.y);
     });
     
@@ -165,62 +153,39 @@ export class CurveRenderer {
   }
 
   createAnimationPath(curve, cellSize, animationFrame, frameCount) {
-    if (!curve || !curve.gridLines) {
+    if (!curve || !curve.gridLines || curve.gridLines.length === 0) {
       return null;
     }
     
-    // Calculate current segment and progress
-    const currentSegment = Math.floor(animationFrame / frameCount);
-    const progress = (animationFrame % frameCount) / frameCount;
+    // First, create the complete curve path
+    const useCurvedStyle = true; // Always use curved style for animation
     
-    // Stop animation if we've reached the end of the curve
-    if (currentSegment >= curve.gridLines.length) {
+    // Get all helper points for the full curve
+    const allHelperPoints = curve.gridLines.map((line, index) => {
+      const direction = curve.directions[index];
+      return findHelperPoint(line, direction, cellSize);
+    });
+    
+    // Generate the complete spline path
+    const allSplinePoints = getSplinePoints(allHelperPoints, 0, 10);
+    
+    // Calculate how many points to show based on animation progress
+    const totalPoints = allSplinePoints.length;
+    const totalFrames = frameCount * curve.gridLines.length;
+    const progress = Math.min(1.0, animationFrame / totalFrames);
+    const pointsToShow = Math.max(2, Math.ceil(totalPoints * progress));
+    
+    // Check if animation is complete
+    if (progress >= 1.0) {
       return { completed: true };
     }
     
-    // Create partial animation path
-    const segmentCount = Math.min(currentSegment + 1, curve.gridLines.length);
-    
-    // Create animation path with current segments
-    const points = [];
-    for (let i = 0; i < segmentCount; i++) {
-      const line = curve.gridLines[i];
-      let x, y;
-      
-      if (line.type === 'horizontal') {
-        x = (line.col + 0.5) * cellSize;
-        y = line.row * cellSize;
-      } else { // vertical
-        x = line.col * cellSize;
-        y = (line.row + 0.5) * cellSize;
-      }
-      
-      points.push({ x, y });
-    }
-    
-    // For the last segment, interpolate based on progress
-    if (segmentCount < curve.gridLines.length) {
-      const nextLine = curve.gridLines[segmentCount];
-      let nextX, nextY;
-      
-      if (nextLine.type === 'horizontal') {
-        nextX = (nextLine.col + 0.5) * cellSize;
-        nextY = nextLine.row * cellSize;
-      } else { // vertical
-        nextX = nextLine.col * cellSize;
-        nextY = (nextLine.row + 0.5) * cellSize;
-      }
-      
-      const lastPoint = points[points.length - 1];
-      const interpX = lastPoint.x + (nextX - lastPoint.x) * progress;
-      const interpY = lastPoint.y + (nextY - lastPoint.y) * progress;
-      
-      points.push({ x: interpX, y: interpY });
-    }
+    // Get the visible portion of the points
+    const visiblePoints = allSplinePoints.slice(0, pointsToShow);
     
     return {
       type: 'animationPath',
-      points: points,
+      points: visiblePoints,
       isClosed: false,
       completed: false
     };
