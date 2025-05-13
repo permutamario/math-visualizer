@@ -132,7 +132,7 @@ export default class FrameworkTestPlugin extends Plugin {
     // Set up event tracking for testing interaction events
     this.setupEventTracking(stage);
     
-    // No need for explicit layer.batchDraw() here - the framework will handle it
+    // No need for explicit layer.batchDraw() - framework will handle it
   }
   
   createShapes() {
@@ -167,7 +167,7 @@ export default class FrameworkTestPlugin extends Plugin {
       this.state.shapes.push(shape);
     }
     
-    // No need for explicit layer.batchDraw() here - the framework will handle it
+    // No need for explicit layer.batchDraw() - the framework will handle it
   }
   
   createShape(konva, type, x, y, size, color) {
@@ -238,23 +238,19 @@ export default class FrameworkTestPlugin extends Plugin {
     shape.on('mouseover', function() {
       document.body.style.cursor = 'pointer';
       this.strokeWidth(4);
-      
-      // We still need this explicit draw here since the event came from Konva, not the framework
-      this.getLayer().batchDraw();
+      this.getLayer().batchDraw(); // Need this because event is from Konva directly
     });
     
     shape.on('mouseout', function() {
       document.body.style.cursor = 'default';
       this.strokeWidth(2);
-      
-      // We still need this explicit draw here since the event came from Konva, not the framework
-      this.getLayer().batchDraw();
+      this.getLayer().batchDraw(); // Need this because event is from Konva directly
     });
     
     // Add click handler
     shape.on('click', () => {
       this.logEvent(`Clicked on ${type} shape`);
-      // The updateEventDisplay method at the end will trigger a draw
+      // No explicit draw needed - will happen via the framework
     });
     
     return shape;
@@ -292,8 +288,8 @@ export default class FrameworkTestPlugin extends Plugin {
             
             this.state.mousePosition = { x: relativeX, y: relativeY };
             
-            // We need this specific draw since mousemove is very frequent
-            // and we're updating visual elements directly
+            // Need to keep this batch draw since mousemove is very frequent
+            // and happens directly from Konva
             this.tooltip.getLayer().batchDraw();
           }
         }
@@ -329,7 +325,7 @@ export default class FrameworkTestPlugin extends Plugin {
   updateEventDisplay() {
     if (this.eventDisplay) {
       this.eventDisplay.text(this.state.eventLog.join('\n'));
-      // The auto-rendering system should handle the update without explicit calls
+      // No explicit draw needed - will happen via framework
     }
   }
   
@@ -426,9 +422,9 @@ export default class FrameworkTestPlugin extends Plugin {
       this.textNode.y(150 + textBounce * 20);
     }
     
-    // For animation frames, we still need an explicit draw
-    // This is the one place where auto-rendering wouldn't help
-    // since we're making continuous updates
+    // We need to keep this batch draw call for animation frames
+    // since we're making continuous updates that need to be rendered
+    // immediately and the AnimationManager handles this special case
     if (this.renderEnv && this.renderEnv.layer) {
       this.renderEnv.layer.batchDraw();
     }
@@ -485,7 +481,7 @@ export default class FrameworkTestPlugin extends Plugin {
         break;
     }
     
-    // No need for explicit layer.batchDraw() here with auto-rendering
+    // No explicit batchDraw needed - framework handles it after onParameterChanged
   }
   
   // ========== INTERACTION HANDLING TESTS ==========
@@ -522,7 +518,7 @@ export default class FrameworkTestPlugin extends Plugin {
         break;
     }
     
-    // No need for explicit layer.batchDraw() here with auto-rendering
+    // No explicit batchDraw needed - framework handles it after handleInteraction
   }
   
   // ========== ACTION IMPLEMENTATION TESTS ==========
@@ -543,12 +539,10 @@ export default class FrameworkTestPlugin extends Plugin {
         x: this.renderEnv.stage.width() / 2,
         y: this.renderEnv.stage.height() / 2
       });
-      
-      // We need this explicit draw call since we're not going through a parameter change
-      this.renderEnv.layer.batchDraw();
     }
     
     this.logEvent('View reset to defaults');
+    // No explicit draw needed - framework will handle it via action execution
   }
   
   randomizeColors() {
@@ -561,15 +555,10 @@ export default class FrameworkTestPlugin extends Plugin {
       for (let i = 1; i < this.state.shapes.length; i++) {
         this.state.shapes[i].fill(this.getRandomColor());
       }
-      
-      // We need this explicit draw call since we're not going through a parameter change
-      // for the satellite colors
-      if (this.renderEnv && this.renderEnv.layer) {
-        this.renderEnv.layer.batchDraw();
-      }
     }
     
     this.logEvent('Colors randomized');
+    // No explicit draw needed - framework will handle it via action execution
   }
   
   // ========== CLEANUP TESTS ==========
