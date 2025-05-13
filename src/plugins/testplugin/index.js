@@ -166,6 +166,8 @@ export default class FrameworkTestPlugin extends Plugin {
       this.shapesGroup.add(shape);
       this.state.shapes.push(shape);
     }
+
+    console.log("Number of shapes", shapeCount);
     
     // No need for explicit layer.batchDraw() - the framework will handle it
   }
