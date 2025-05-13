@@ -89,16 +89,18 @@
     }
   </style>
   
-  <!-- Import map for module dependencies -->
+  <!-- Load Konva directly -->
+  <script src="https://cdn.jsdelivr.net/npm/konva@8/konva.min.js"></script>
+  
+  <!-- Import map for other module dependencies -->
   <script type="importmap">
   {
     "imports": {
       "three": "./vendors/three.module.js",
-      "camera-controls": "./vendors/camera-controls.module.js",
-      "konva": "https://cdn.jsdelivr.net/npm/konva@8/konva.min.js"
+      "camera-controls": "./vendors/camera-controls.module.js"
     }
   }
-</script>
+  </script>
 </head>
 <body>
   <!-- Main application container -->
@@ -122,15 +124,14 @@
   
   <!-- Core application script -->
   <script type="module">
-  // Import Konva first to ensure it's available before other components
-  import * as Konva from 'konva';
-  
-  // Then import THREE.js and camera-controls
+  // Import THREE.js and camera-controls
   import * as THREE from 'three';
   import CameraControls from 'camera-controls';
   
   // Make libraries globally available for plugins
-  window.Konva = Konva;
+  // Konva is already loaded directly and is available globally
+  console.log("Direct Konva:", Konva); // Verify Konva is available
+  
   window.THREE = THREE;
   window.CameraControls = CameraControls;
   
