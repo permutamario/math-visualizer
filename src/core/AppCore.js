@@ -316,6 +316,13 @@ addParametersStructural(parameters) {
  * @param {string|null} group - Parameter group ('visual' or 'structural')
  * @returns {boolean} Whether the parameter was found and updated
  */
+/**
+ * Changes a parameter value and notifies listeners
+ * @param {string} id - Parameter ID
+ * @param {any} value - New parameter value
+ * @param {string|null} group - Parameter group ('visual' or 'structural')
+ * @returns {boolean} Whether the parameter was found and updated
+ */
 changeParameter(id, value, group = null) {
   // Find parameter group if not specified
   if (!group) {
