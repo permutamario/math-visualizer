@@ -45,22 +45,32 @@ export default class DynamicParametersPlugin extends Plugin {
     // Clean up existing objects
     this.cleanupCurrentObjects();
     
-    // Clear all parameters except the visualization type selector
-    this.emptyParameters('visual');
-    this.emptyParameters('structural');
+    // Store the current selection before clearing parameters
+    const visualizationType = type;
     
-    // Re-add the visualization type parameter (it was cleared in the previous step)
-    this.addDropdown('visualizationType', 'Visualization Type', type, 
-      ['polygons', 'dots', 'waves'], 'structural');
+    // Clear all parameters from the core
+    if (this.core && typeof this.core.clearParameters === 'function') {
+      // If a dedicated clearParameters method exists, use it
+      this.core.clearParameters();
+    } else {
+      // Otherwise use the emptyParameters method
+      this.emptyParameters('visual');
+      this.emptyParameters('structural');
+      this.emptyParameters('advanced');
+    }
     
     // Save the new current type
-    this.state.currentType = type;
+    this.state.currentType = visualizationType;
+    
+    // Re-add the visualization type parameter (it was cleared in the previous step)
+    this.addDropdown('visualizationType', 'Visualization Type', visualizationType, 
+      ['polygons', 'dots', 'waves'], 'structural');
     
     // Add parameters for the new type
-    this.setupParametersForType(type);
+    this.setupParametersForType(visualizationType);
     
     // Create objects for the new type
-    this.setupObjectsForType(type);
+    this.setupObjectsForType(visualizationType);
   }
   
   /**
