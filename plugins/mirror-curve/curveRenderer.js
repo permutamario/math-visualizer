@@ -152,6 +152,97 @@ export class CurveRenderer {
 	return konvaLine;
     }
 
+    
+createAnimationPathByDistance(curve, cellSize, distance, options = {}) {
+    if (!curve || !curve.gridLines || curve.gridLines.length === 0) {
+        return null;
+    }
+    
+    const { 
+        tension = 0.5,
+        curveStyle = 'curved',
+        smooth = true
+    } = options;
+    
+    // Get all helper points for the full curve
+    const allHelperPoints = curve.gridLines.map((line, index) => {
+        const direction = curve.directions[index];
+        return findHelperPoint(line, direction, cellSize);
+    });
+    
+    // Generate the complete spline path
+    const allSplinePoints = getSplinePoints(allHelperPoints, tension, 10);
+    
+    if (allSplinePoints.length < 2) {
+        return { completed: true };
+    }
+    
+    // Calculate the total path length and segment lengths
+    let totalLength = 0;
+    const segmentLengths = [];
+    
+    for (let i = 1; i < allSplinePoints.length; i++) {
+        const dx = allSplinePoints[i].x - allSplinePoints[i-1].x;
+        const dy = allSplinePoints[i].y - allSplinePoints[i-1].y;
+        const segmentLength = Math.sqrt(dx*dx + dy*dy);
+        
+        segmentLengths.push(segmentLength);
+        totalLength += segmentLength;
+    }
+    
+    // If the curve has no real length, consider it completed
+    if (totalLength < 0.001) {
+        return { completed: true };
+    }
+    
+    // Cap the distance at the total length
+    const cappedDistance = Math.min(distance, totalLength);
+    
+    // Find up to which point we should draw
+    let currentLength = 0;
+    let segmentIndex = 0;
+    
+    // Find the segment where our current distance falls
+    while (segmentIndex < segmentLengths.length && currentLength + segmentLengths[segmentIndex] < cappedDistance) {
+        currentLength += segmentLengths[segmentIndex];
+        segmentIndex++;
+    }
+    
+    // Include all complete segments
+    const visiblePoints = allSplinePoints.slice(0, segmentIndex + 1);
+    
+    // If we're not at the end, add the partial segment point
+    if (segmentIndex < segmentLengths.length) {
+        const remainingDistance = cappedDistance - currentLength;
+        const segmentFraction = remainingDistance / segmentLengths[segmentIndex];
+        
+        const lastPoint = allSplinePoints[segmentIndex];
+        const nextPoint = allSplinePoints[segmentIndex + 1];
+        
+        // Linear interpolation for the partial segment
+        const interpPoint = {
+            x: lastPoint.x + (nextPoint.x - lastPoint.x) * segmentFraction,
+            y: lastPoint.y + (nextPoint.y - lastPoint.y) * segmentFraction
+        };
+        
+        // Add the interpolated point
+        visiblePoints.push(interpPoint);
+    }
+    
+    // Check if animation is complete
+    if (cappedDistance >= totalLength) {
+        return { completed: true };
+    }
+    
+    return {
+        type: 'animationPath',
+        points: visiblePoints,
+        isClosed: false,
+        completed: false,
+        totalLength: totalLength // Store for reference
+    };
+}
+
     // Updated method for CurveRenderer class
     createAnimationPath(curve, cellSize, progress, maxProgress = 1.0, options = {}) {
 	if (!curve || !curve.gridLines || curve.gridLines.length === 0) {

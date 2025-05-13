@@ -410,6 +410,8 @@ export class Grid {
 	    throw new Error("Probability must be between 0 and 1");
 	}
 
+	console.log("Put Mirror with probability", p);
+
 	for (const [id, gridLine] of this.gridLines.entries()) {
 	    // skip boundary lines
 	    const { type, row, col } = this.parseGridLineId(id);
@@ -420,7 +422,10 @@ export class Grid {
 
 	    // with probability p, flip its mirror status
 	    if (Math.random() < p) {
-		this.setMirror(id, !gridLine.isMirror);
+		this.setMirror(id, true);
+	    }
+	    else {
+		this.setMirror(id,false);
 	    }
 	}
     }

@@ -27,7 +27,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         
         // Animation state
         this.isAnimating = false;
-        this.animationFrame = 0;
+        this.distanceTraveled = 0; // Track distance instead of progress
         this.animationCurve = null;
 	this.animationQueue = []; // Queue of curves to be animated
         
@@ -50,8 +50,8 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     async start() {
         // Add visual parameters
-        this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 20, step: 1 });
-        this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 20, step: 1 });
+        this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 50, step: 1 });
+        this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 50, step: 1 });
         this.addCheckbox('showGridLines', 'Show Grid Lines', true);
         this.addCheckbox('showGridPoints', 'Show Grid Points', true);
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
@@ -61,11 +61,11 @@ export default class MirrorCurvesPlugin extends Plugin {
         
         // Add structural parameters
         this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0.1, max: 1, step: 0.1 }, 'structural');
-        this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'structural');
+        
 	
 	this.addCheckbox('animateCurves', 'Animate Curves', true, 'structural');
-	this.addSlider('animationSpeed', 'Animation Speed', 1.0, 
-		       { min: 0.1, max: 5.0, step: 0.1 }, 'structural');
+	this.addSlider('animationSpeed', 'Animation Speed', 5.0, 
+		       { min: 1, max: 50, step: 1 }, 'structural');
 
 
 
@@ -77,6 +77,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addColor('helperPointColor', 'Helper Point Color', '#ff0000','advanced');
 	this.addCheckbox('smooth', 'Smooth Curves', true, 'advanced');
         this.addSlider('tension', 'Curve Smoothness', 0, { min: 0, max: 1, step: 0.1 },'advanced');
+	this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'advanced');
         
         // Add actions
         this.addAction('randomize', 'Randomize Mirrors', () => this.randomizeMirrors());
@@ -126,33 +127,47 @@ export default class MirrorCurvesPlugin extends Plugin {
 	this.updateVisualization();
     }
     
-    discoverAllCurves() {
-	if (!this.grid) return;
-	
-	// Reset used directions
-	this.grid.resetUsedDirections();
-
-	// Find all curves
-	const allCurves = findAllCurves(this.grid);
-	
-	if (this.getParameter('animateCurves')) {
-            // Queue all curves for animation
-            this.animationQueue = [...this.animationQueue, ...allCurves];
-            
-            // Start animation if not already running
-            if (!this.isAnimating) {
-		this.startNextAnimation();
-            }
-	} else {
-            // Add all curves at once without animation
-            allCurves.forEach(curve => {
-		curve.isCompleted = true;
-            });
-            this.curves = [...this.curves, ...allCurves];
-            this.updateHelperPoints();
-            this.updateVisualization();
-	}
+   discoverAllCurves() {
+    if (!this.grid) return;
+    
+    // Don't reset used directions - we want to keep the existing markings
+    // for curves that have already been discovered
+    
+    // Find all remaining curves by repeatedly calling findNextCurve
+    // until no more curves are available
+    const newCurves = [];
+    let nextCurve;
+    
+    // Keep finding curves until there are no more
+    while ((nextCurve = findNextCurve(this.grid)) !== null) {
+        newCurves.push(nextCurve);
     }
+    
+    if (newCurves.length === 0) {
+        console.log('No new curves found');
+        return;
+    }
+    
+    console.log(`Found ${newCurves.length} new curves`);
+    
+    if (this.getParameter('animateCurves')) {
+        // Queue new curves for animation
+        this.animationQueue = [...this.animationQueue, ...newCurves];
+        
+        // Start animation if not already running
+        if (!this.isAnimating) {
+            this.startNextAnimation();
+        }
+    } else {
+        // Add all new curves at once without animation
+        newCurves.forEach(curve => {
+            curve.isCompleted = true;
+        });
+        this.curves = [...this.curves, ...newCurves];
+        this.updateHelperPoints();
+        this.updateVisualization();
+    }
+}
 
     
     clearCurves() {
@@ -173,6 +188,9 @@ export default class MirrorCurvesPlugin extends Plugin {
     updateHelperPoints() {
         this.helperPoints = calculateAllHelperPoints(this.curves, this.gridLayout.cellSize);
     }
+
+
+    
 startNextAnimation() {
     if (this.animationQueue.length === 0) {
         this.isAnimating = false;
@@ -183,13 +201,14 @@ startNextAnimation() {
     // Get the next curve from the queue
     this.animationCurve = this.animationQueue.shift();
     
-    // Reset animation progress
-    this.animationProgress = 0;
+    // Reset animation state to track distance rather than progress
+    this.distanceTraveled = 0;
     
     this.isAnimating = true;
 }
 
     
+
 animate(deltaTime) {
     // Apply background color from parameter
     this.renderEnv.stage.container().style.backgroundColor = 
@@ -206,26 +225,25 @@ animate(deltaTime) {
     
     // Handle animation if active
     if (this.isAnimating && this.animationCurve) {
-        // Get animation speed parameter - this controls how much progress we make per frame
-        const speedMultiplier = this.getParameter('animationSpeed');
+        // Get animation speed parameter - defines pixels per second
+        const speed = this.getParameter('animationSpeed') * 200; // Scale to make the parameter more intuitive
         
-        // Increment animation progress based on speed
-        this.animationProgress += (deltaTime * speedMultiplier);
+        // Calculate distance to travel this frame
+        const distanceThisFrame = speed * deltaTime;
         
-        // Cap the progress at 1.0 (100%)
-        if (this.animationProgress > 1.0) {
-            this.animationProgress = 1.0;
-        }
+        // Update distance traveled
+        this.distanceTraveled += distanceThisFrame;
         
-        // Use a constant frame count
-        const frameCount = 1.0; // Now we're using normalized progress (0-1)
-        
-        // Update animation path using the progress value
-        const animResult = this.curveRenderer.createAnimationPath(
+        // Update animation path using the distance traveled
+        const animResult = this.curveRenderer.createAnimationPathByDistance(
             this.animationCurve,
             this.gridLayout.cellSize,
-            this.animationProgress,
-            frameCount
+            this.distanceTraveled,
+            {
+                tension: this.getParameter('tension'),
+                curveStyle: this.getParameter('curveStyle'),
+                smooth: this.getParameter('smooth')
+            }
         );
         
         if (animResult && animResult.completed) {
@@ -253,6 +271,7 @@ animate(deltaTime) {
     
     return true; // Continue animation
 }
+
     
     setupKonvaObjects() {
         const { stage, konva } = this.renderEnv;
