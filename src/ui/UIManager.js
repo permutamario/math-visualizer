@@ -109,8 +109,8 @@ async initialize() {
         this.parameterGroups.visual = parameterData.visual;
       }
       
-      if (parameterData.structrualParameters) {
-        this.parameterGroups.structural = parameterData.structrualParameters;
+      if (parameterData.structuralParameters) {
+        this.parameterGroups.structural = parameterData.structuralParameters;
       }
       
       if (parameterData.advanced) {
