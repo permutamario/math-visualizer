@@ -1,0 +1,16 @@
+{
+  "polytopes": [
+    {
+      "id": "permutahedron",
+      "name": "Permutahedron",
+      "description": "Permutahedron based on different Coxeter types",
+      "path": "build_permutahedron.js"
+    },
+    {
+      "id": "orbit",
+      "name": "Orbit Polytope",
+      "description": "Polytope generated from the orbit of a point under the symmetric group",
+      "path": "build_orbit_polytope.js"
+    }
+  ]
+}
