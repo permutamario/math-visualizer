@@ -151,6 +151,8 @@ export class Plugin {
   }
   
   /**
+     * DEPRECATED
+     * THIS VIOLATES THE PRINCIPLE OF NO CUSTOM COLORS
    * Add a color picker parameter
    * @param {string} id - Parameter ID
    * @param {string} label - Display label
@@ -169,6 +171,32 @@ export class Plugin {
     this._addParameter(param, group);
     return this;
   }
+
+    /**
+     * Add a color palette selector parameter
+     * @param {string} id - Parameter ID
+     * @param {string} label - Display label
+     * @param {string} group - Parameter group ('visual', 'structural', 'advanced')
+     * @returns {Plugin} This plugin for chaining
+     */
+    addColorPalette(id = 'colorPalette', label = 'Color Palette', group = 'visual') {
+	// Get palette information with both id and name
+	const paletteInfo = this.getPaletteInfo();
+	
+	// Get current palette name for default value
+	const currentPalette = this.getCurrentPaletteName();
+	
+	// Map palette info to dropdown options format
+	const options = paletteInfo.map(palette => ({
+	    value: palette.id,
+	    label: palette.name
+	}));
+	
+	// Add as a dropdown parameter
+	this.addDropdown(id, label, currentPalette, options, group);
+	
+	return this;
+    }
   
   /**
    * Add a dropdown parameter

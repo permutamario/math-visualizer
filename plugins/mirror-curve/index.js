@@ -69,12 +69,10 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addCheckbox('showGridPoints', 'Show Grid Points', true);
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
         this.addCheckbox('showCenterDots', 'Show Center Dots', false);
+	this.addColorPalette();
 
         // Get available palette names from the color scheme manager
         const paletteNames = this.core.colorSchemeManager.getPaletteNames();
-
-        // Add color palette selector
-        this.addDropdown('colorPalette', 'Color Palette', 'default', paletteNames);
         
         // Add structural parameters
         this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0.1, max: 1, step: 0.1 }, 'structural');

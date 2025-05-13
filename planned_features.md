@@ -1,6 +1,5 @@
 
 
-1.) Color palettes controlled by the core
 
 2.) Fixed theme selector
 

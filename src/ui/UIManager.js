@@ -397,66 +397,70 @@ export class UIManager extends EventEmitter {
 	document.body.setAttribute('data-theme', colorScheme.id);
     }
 
-    /**
-     * Create theme toggle buttons
-     */
-    createThemeToggleButtons() {
-	// Only create if we have a ColorSchemeManager
-	if (!this.core || !this.core.colorSchemeManager) {
-	    return;
-	}
-	
-	// Clean up existing buttons first
-	if (this.themeToggleButton && this.themeToggleButton.parentNode) {
-	    this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
-	    this.themeToggleButton = null;
-	}
-	
-	if (this.mobileThemeToggleButton && this.mobileThemeToggleButton.parentNode) {
-	    this.mobileThemeToggleButton.parentNode.removeChild(this.mobileThemeToggleButton);
-	    this.mobileThemeToggleButton = null;
-	}
-	
-	// Ensure no stray buttons exist
-	this._cleanupThemeButtons();
-	
-	// Get the current scheme
-	const currentScheme = this.core.colorSchemeManager.getActiveScheme();
-	if (!currentScheme) return;
-	
-	// Create appropriate button based on layout type
-	if (this.isMobile) {
-	    // Create mobile theme toggle only
-	    const mobileToggle = document.createElement('button');
-	    mobileToggle.className = 'mobile-theme-toggle';
-	    mobileToggle.setAttribute('aria-label', 'Toggle color scheme');
-	    mobileToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
-	    
-	    // Add click handler
-	    mobileToggle.addEventListener('click', () => {
-		this.emit('action', 'toggle-theme');
-	    });
-	    
-	    // Add to document
-	    document.body.appendChild(mobileToggle);
-	    this.mobileThemeToggleButton = mobileToggle;
-	} else {
-	    // Create desktop theme toggle only
-	    const desktopToggle = document.createElement('button');
-	    desktopToggle.className = 'theme-toggle';
-	    desktopToggle.setAttribute('aria-label', 'Toggle color scheme');
-	    desktopToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
-	    
-	    // Add click handler
-	    desktopToggle.addEventListener('click', () => {
-		this.emit('action', 'toggle-theme');
-	    });
-	    
-	    // Add to document
-	    document.body.appendChild(desktopToggle);
-	    this.themeToggleButton = desktopToggle;
-	}
+   /**
+ * Create theme toggle buttons
+ */
+createThemeToggleButtons() {
+    // Only create if we have a ColorSchemeManager
+    if (!this.core || !this.core.colorSchemeManager) {
+        return;
     }
+    
+    // Clean up existing buttons first
+    if (this.themeToggleButton && this.themeToggleButton.parentNode) {
+        this.themeToggleButton.parentNode.removeChild(this.themeToggleButton);
+        this.themeToggleButton = null;
+    }
+    
+    if (this.mobileThemeToggleButton && this.mobileThemeToggleButton.parentNode) {
+        this.mobileThemeToggleButton.parentNode.removeChild(this.mobileThemeToggleButton);
+        this.mobileThemeToggleButton = null;
+    }
+    
+    // Ensure no stray buttons exist
+    this._cleanupThemeButtons();
+    
+    // Get the current scheme
+    const currentScheme = this.core.colorSchemeManager.getActiveScheme();
+    if (!currentScheme) return;
+    
+    // Create appropriate button based on layout type
+    if (this.isMobile) {
+        // Create mobile theme toggle only
+        const mobileToggle = document.createElement('button');
+        mobileToggle.className = 'mobile-theme-toggle';
+        mobileToggle.setAttribute('aria-label', 'Toggle color scheme');
+        mobileToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
+        
+        // Add direct click handler that uses ColorSchemeManager
+        mobileToggle.addEventListener('click', () => {
+            const scheme = this.core.colorSchemeManager.getActiveScheme();
+            const newScheme = scheme.id === 'light' ? 'dark' : 'light';
+            this.core.colorSchemeManager.setActiveScheme(newScheme);
+        });
+        
+        // Add to document
+        document.body.appendChild(mobileToggle);
+        this.mobileThemeToggleButton = mobileToggle;
+    } else {
+        // Create desktop theme toggle only
+        const desktopToggle = document.createElement('button');
+        desktopToggle.className = 'theme-toggle';
+        desktopToggle.setAttribute('aria-label', 'Toggle color scheme');
+        desktopToggle.textContent = currentScheme.id === 'light' ? '🌙' : '☀️';
+        
+        // Add direct click handler that uses ColorSchemeManager
+        desktopToggle.addEventListener('click', () => {
+            const scheme = this.core.colorSchemeManager.getActiveScheme();
+            const newScheme = scheme.id === 'light' ? 'dark' : 'light';
+            this.core.colorSchemeManager.setActiveScheme(newScheme);
+        });
+        
+        // Add to document
+        document.body.appendChild(desktopToggle);
+        this.themeToggleButton = desktopToggle;
+    }
+}
 
     /**
      * Clean up existing theme buttons
