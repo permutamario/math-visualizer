@@ -17,7 +17,7 @@ export function buildMesh(polytope, settings, renderEnv) {
   const { THREE } = renderEnv;
   const group = new THREE.Group();
 
-  // WIREFRAME MODE: create edges using Line objects
+  // WIREFRAME MODE: one distinct Line per edge
   if (renderMode === 'wireframe') {
     polytope.edges.forEach((edge, idx) => {
       // Get endpoints
@@ -30,12 +30,12 @@ export function buildMesh(polytope, settings, renderEnv) {
       // Each edge gets its own color from the palette
       const color = new THREE.Color(colorPalette[idx % colorPalette.length]);
       
-      // Create a simple material - render system will handle specifics
+      // Create a line material
       const material = new THREE.LineBasicMaterial({
         color,
         transparent: faceOpacity < 1,
         opacity: faceOpacity,
-        linewidth: 2
+        linewidth: 1
       });
       
       // Create the line and add to group
@@ -46,63 +46,29 @@ export function buildMesh(polytope, settings, renderEnv) {
     return group;
   }
   
-  // SOLID MESH MODE: create one mesh per face
+  // SOLID MESH MODE: one mesh per face with triangulation
   polytope.faces.forEach((faceIndices, faceIndex) => {
     // Get color for this face
     const color = new THREE.Color(colorPalette[faceIndex % colorPalette.length]);
     
-    // Create a Shape from the face vertices
-    const shape = new THREE.Shape();
-    
-    // Project face vertices onto a 2D plane for ShapeGeometry
-    // First, compute face normal by taking cross product of two edges
-    const v0 = new THREE.Vector3(...polytope.vertices[faceIndices[0]]);
-    const v1 = new THREE.Vector3(...polytope.vertices[faceIndices[1]]);
-    const v2 = new THREE.Vector3(...polytope.vertices[faceIndices[2]]);
-    
-    const edge1 = new THREE.Vector3().subVectors(v1, v0);
-    const edge2 = new THREE.Vector3().subVectors(v2, v0);
-    const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
-    
-    // Create a rotation matrix to project onto the XY plane
-    const rotationMatrix = new THREE.Matrix4();
-    const up = new THREE.Vector3(0, 0, 1);
-    
-    if (Math.abs(normal.dot(up)) < 0.9) {
-      // If not already facing up/down, compute rotation
-      const axis = new THREE.Vector3().crossVectors(normal, up).normalize();
-      const angle = Math.acos(normal.dot(up));
-      rotationMatrix.makeRotationAxis(axis, angle);
-    } else if (normal.dot(up) < 0) {
-      // If facing down, rotate 180 degrees around X
-      rotationMatrix.makeRotationX(Math.PI);
-    }
-    
-    // Project and add vertices to shape
-    const faceVertices = faceIndices.map(idx => 
-      new THREE.Vector3(...polytope.vertices[idx]).applyMatrix4(rotationMatrix)
+    // Create a triangulated geometry from the face vertices
+    const coords = new Float32Array(
+      faceIndices.flatMap(i => polytope.vertices[i])
     );
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(coords, 3));
     
-    // Move to first vertex
-    shape.moveTo(faceVertices[0].x, faceVertices[0].y);
-    
-    // Add remaining vertices
-    for (let i = 1; i < faceVertices.length; i++) {
-      shape.lineTo(faceVertices[i].x, faceVertices[i].y);
+    // Fan triangulation of the face
+    const indices = [];
+    for (let j = 1; j + 1 < faceIndices.length; j++) {
+      indices.push(0, j, j + 1);
     }
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
     
-    // Close the shape
-    shape.closePath();
-    
-    // Create geometry
-    const geometry = new THREE.ShapeGeometry(shape);
-    
-    // Apply inverse rotation to get back to original orientation
-    const inverseRotation = new THREE.Matrix4().copy(rotationMatrix).invert();
-    geometry.applyMatrix4(inverseRotation);
-    
-    // Create material
-    const material = new THREE.MeshBasicMaterial({
+    // Create material based on render mode
+    const material = new THREE.MeshStandardMaterial({
       color,
       transparent: faceOpacity < 1,
       opacity: faceOpacity,

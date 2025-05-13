@@ -314,44 +314,46 @@ export default class PolytopeVisualization extends Plugin {
   /**
    * Create the 3D mesh from the current polytope
    */
-createMesh() {
+
+  createMesh() {
   if (!this.state.polytope || !this.renderEnv) return;
   
   // Remove existing mesh if any
   if (this.state.meshGroup && this.renderEnv.scene) {
     this.renderEnv.scene.remove(this.state.meshGroup);
+    
+    // Properly dispose resources
+    this.disposeMeshGroup(this.state.meshGroup);
+    this.state.meshGroup = null;
   }
   
-  // Get color palette from the ColorSchemeManager
+  // Get color palette
   let colorPalette = [];
   if (this.core && this.core.colorSchemeManager) {
     const paletteName = this.getParameter('colorPalette') || 'default';
     colorPalette = this.core.colorSchemeManager.getPalette(paletteName);
   } else {
-    // Fallback if no ColorSchemeManager is available
-    const baseColor = this.getParameter('faceColor') || '#3498db';
-    colorPalette = this.generateFallbackPalette(baseColor, 10);
+    // Fallback color palette
+    colorPalette = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6'];
   }
   
-  // Get render mode
-  const renderMode = this.getParameter('renderMode') || 'standard';
-  
-  // Create mesh settings
+  // Create settings object
   const settings = {
     colorPalette,
     faceOpacity: this.getParameter('opacity') || 0.85,
-    renderMode
+    renderMode: this.getParameter('renderMode') || 'standard',
+    showEdges: this.getParameter('showEdges') || false
   };
   
-  // Build the mesh with our renderEnv
+  // Build the mesh
   this.state.meshGroup = buildMesh(this.state.polytope, settings, this.renderEnv);
   
-  // Apply render mode (except for wireframe which handles its own rendering)
-  if (renderMode !== 'wireframe' && this.core && this.core.renderModeManager) {
+  // Apply render mode for non-wireframe modes
+  if (settings.renderMode !== 'wireframe' && this.core && this.core.renderModeManager) {
     this.core.renderModeManager.applyRenderMode(
       this.renderEnv.scene,
       this.state.meshGroup,
-      renderMode,
+      settings.renderMode,
       {
         opacity: settings.faceOpacity,
         colorPalette
@@ -359,13 +361,31 @@ createMesh() {
     );
   }
   
-
+  // Add edge overlays if needed
+  if (settings.showEdges && settings.renderMode !== 'wireframe') {
+    this.addEdgeOverlays(this.state.meshGroup);
+  }
+  
   // Add to scene
   if (this.renderEnv.scene) {
     this.renderEnv.scene.add(this.state.meshGroup);
   }
 }
+
+addEdgeOverlays(group) {
+  if (!group || !this.renderEnv || !this.renderEnv.THREE) return;
   
+  group.children.forEach(face => {
+    if (face.geometry) {
+      const edgeGeometry = new this.renderEnv.THREE.EdgesGeometry(face.geometry);
+      const lineMaterial = new this.renderEnv.THREE.LineBasicMaterial({ color: 0x000000 });
+      const edges = new this.renderEnv.THREE.LineSegments(edgeGeometry, lineMaterial);
+      face.add(edges);
+    }
+  });
+}
+
+
   /**
    * Generate a color scheme based on a base color
    * @param {string} baseColor - Base color in hex format
@@ -491,4 +511,22 @@ createMesh() {
     // Reset state
     this.state = null;
   }
+
+
+disposeMeshGroup(group) {
+  if (!group) return;
+  
+  group.traverse(obj => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) {
+        obj.material.forEach(m => m.dispose());
+      } else {
+        obj.material.dispose();
+      }
+    }
+  });
+}
+
+
 }
