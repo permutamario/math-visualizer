@@ -431,19 +431,6 @@ export class Plugin {
     return false;
   }
   
-  // ======== RENDERING HELPER METHODS ========
-  
-
-  /**
- * Handle canvas resize events (optional override)
- * @param {number} width - New canvas width
- * @param {number} height - New canvas height
- */
-onCanvasResize(width, height) {
-  // Default implementation: do nothing
-  // Plugins can override this to handle resizing if needed
-}
-  
 
   // ======== ANIMATION HELPER METHODS ========
   
