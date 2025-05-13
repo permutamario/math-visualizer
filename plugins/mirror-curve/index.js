@@ -64,6 +64,9 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'structural');
 	
 	this.addCheckbox('animateCurves', 'Animate Curves', true, 'structural');
+	this.addSlider('animationSpeed', 'Animation Speed', 1.0, 
+		       { min: 0.2, max: 3.0, step: 0.1 }, 'structural');
+
 
 
         // Add advanced parameters
@@ -173,21 +176,25 @@ export default class MirrorCurvesPlugin extends Plugin {
 
     startNextAnimation() {
 	if (this.animationQueue.length === 0) {
-            this.isAnimating = false;
-            this.animationPath = null;
-            return;
+	    this.isAnimating = false;
+	    this.animationPath = null;
+	    return;
 	}
 	
 	// Get the next curve from the queue
 	this.animationCurve = this.animationQueue.shift();
-	this.animationFrame = 0;
+	
+	// Reset animation progress (using progress instead of frame)
+	this.animationProgress = 0;
+	
 	this.isAnimating = true;
     }
     
+    // Modified animate method to use animation speed parameter
     animate(deltaTime) {
 	// Apply background color from parameter
 	this.renderEnv.stage.container().style.backgroundColor = 
-            this.getParameter('backgroundColor');
+	    this.getParameter('backgroundColor');
 	
 	// Check if stage size has changed
 	const stage = this.renderEnv.stage;
@@ -195,27 +202,38 @@ export default class MirrorCurvesPlugin extends Plugin {
 	const currentHeight = stage.height();
 	
 	if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
-            this.updateLayout();
+	    this.updateLayout();
 	}
 	
 	// Handle animation if active
 	if (this.isAnimating && this.animationCurve) {
-            // Increment animation frame
-            this.animationFrame++;
-            
-            // Create animation path with current progress
-            const totalSegments = this.animationCurve.gridLines.length;
-            const frameCount = 60; // Animation frames per curve (increased for smoother animation)
-            
-            // Update animation path
-            const animResult = this.curveRenderer.createAnimationPath(
+	    // Get animation speed from parameter (from single source of truth)
+	    const animationSpeed = this.getParameter('animationSpeed');
+	    
+	    // Calculate progress increment based on time delta and animation speed
+	    // This ensures smooth and consistent speed regardless of frame rate
+	    // and allows the speed parameter to take effect immediately
+	    const progressIncrement = deltaTime * animationSpeed * 2.0; // Scale factor for appropriate speed range
+	    
+	    // Add to animation progress instead of frame counter
+	    // This creates a more continuous animation that responds immediately to speed changes
+	    this.animationProgress = (this.animationProgress || 0) + progressIncrement;
+	    
+	    // Create animation path with current progress
+	    const animResult = this.curveRenderer.createAnimationPath(
 		this.animationCurve,
 		this.gridLayout.cellSize,
-		this.animationFrame,
-		frameCount
-            );
-            
-            if (animResult && animResult.completed) {
+		this.animationProgress,
+		1.0, // Using unit value since we're now passing progress directly
+		{
+		    // Pass parameters from the central source of truth
+		    tension: this.getParameter('tension'),
+		    curveStyle: this.getParameter('curveStyle'),
+		    smooth: this.getParameter('smooth')
+		}
+	    );
+	    
+	    if (animResult && animResult.completed) {
 		// Animation is complete, add curve to list
 		this.animationCurve.isCompleted = true;
 		this.curves.push(this.animationCurve);
@@ -223,24 +241,24 @@ export default class MirrorCurvesPlugin extends Plugin {
 		// Reset animation state
 		this.animationPath = null;
 		this.animationCurve = null;
+		this.animationProgress = 0;
 		
 		// Update helper points
 		this.updateHelperPoints();
 		
 		// Start next animation in queue
 		this.startNextAnimation();
-            } else if (animResult) {
+	    } else if (animResult) {
 		// Update animation path
 		this.animationPath = animResult;
-            }
-            
-            // Update visualization
-            this.updateVisualization();
+	    }
+	    
+	    // Update visualization
+	    this.updateVisualization();
 	}
 	
-	return true;
+	return true; // Continue animation
     }
-
     
     setupKonvaObjects() {
         const { stage, konva } = this.renderEnv;
@@ -351,10 +369,11 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.curveLayer.batchDraw();
     }
     
+    // Updated animate method for MirrorCurvesPlugin class
     animate(deltaTime) {
 	// Apply background color from parameter
 	this.renderEnv.stage.container().style.backgroundColor = 
-            this.getParameter('backgroundColor');
+	    this.getParameter('backgroundColor');
 	
 	// Check if stage size has changed
 	const stage = this.renderEnv.stage;
@@ -362,26 +381,32 @@ export default class MirrorCurvesPlugin extends Plugin {
 	const currentHeight = stage.height();
 	
 	if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
-            this.updateLayout();
+	    this.updateLayout();
 	}
 	
 	// Handle animation if active
 	if (this.isAnimating && this.animationCurve) {
-            // Increment animation frame
-            this.animationFrame++;
-            
-            // Create animation path with current progress
-            const frameCount = 30; // Animation frames per segment
-            
-            // Update animation path
-            const animResult = this.curveRenderer.createAnimationPath(
+	    // Increment animation frame
+	    this.animationFrame++;
+	    
+	    // Create animation path with current progress
+	    const frameCount = 60; // Animation frames per curve (increased for smoother animation)
+	    
+	    // Update animation path - now passing user parameters
+	    const animResult = this.curveRenderer.createAnimationPath(
 		this.animationCurve,
 		this.gridLayout.cellSize,
 		this.animationFrame,
-		frameCount
-            );
-            
-            if (animResult && animResult.completed) {
+		frameCount,
+		{
+		    // Pass parameters from the central source of truth
+		    tension: this.getParameter('tension'),
+		    curveStyle: this.getParameter('curveStyle'),
+		    smooth: this.getParameter('smooth')
+		}
+	    );
+	    
+	    if (animResult && animResult.completed) {
 		// Animation is complete, add curve to list
 		this.animationCurve.isCompleted = true;
 		this.curves.push(this.animationCurve);
@@ -395,29 +420,63 @@ export default class MirrorCurvesPlugin extends Plugin {
 		
 		// Start next animation in queue
 		this.startNextAnimation();
-            } else if (animResult) {
+	    } else if (animResult) {
 		// Update animation path
 		this.animationPath = animResult;
-            }
-            
-            // Update visualization
-            this.updateVisualization();
+	    }
+	    
+	    // Update visualization
+	    this.updateVisualization();
 	}
 	
-	return true;
+	return true; // Continue animation
+    }
+
+    animateNextCurve() {
+	if (this.isAnimating) {
+	    console.log('Animation already in progress');
+	    return;
+	}
+	
+	if (!this.grid) {
+	    console.warn('Grid not initialized');
+	    return;
+	}
+	
+	// Find the next available curve
+	const nextCurve = findNextCurve(this.grid);
+	
+	if (nextCurve) {
+	    // Add curve to animation queue
+	    this.animationQueue.push(nextCurve);
+	    
+	    // Start animation
+	    this.startNextAnimation();
+	} else {
+	    console.log('No more curves available');
+	}
     }
     
     onParameterChanged(parameterId, value) {
-        // Rebuild grid if rows or columns change
-        if (parameterId === 'rows' || parameterId === 'cols') {
-            this.initializeGrid();
-            this.updateLayout();
-        }
-        
-        // Update visualization if any style parameter changes
-        this.updateVisualization();
-    }
-    
+	// Rebuild grid if rows or columns change
+	if (parameterId === 'rows' || parameterId === 'cols') {
+	    this.initializeGrid();
+	    this.updateLayout();
+	}
+	
+	// If animation style parameters change during animation, ensure they take effect
+	if (parameterId === 'tension' || parameterId === 'curveStyle' || parameterId === 'smooth') {
+	    // These will be picked up on the next animation frame
+	    if (this.isAnimating) {
+		// Force an update of the current animation path on next frame
+		// This ensures style parameters apply immediately to ongoing animations
+		this.animationPath = null; 
+	    }
+	}
+	
+	// Update visualization if any style parameter changes
+	this.updateVisualization();
+    }    
     handleInteraction(type, data) {
         // Handle clicks on grid lines to toggle mirrors
         if (type === 'click' && this.grid) {
