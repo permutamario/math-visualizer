@@ -122,18 +122,20 @@
   
   <!-- Core application script -->
   <script type="module">
-  // Import THREE.js and camera-controls
+  // Import Konva first to ensure it's available before other components
+  import * as Konva from 'konva';
+  
+  // Then import THREE.js and camera-controls
   import * as THREE from 'three';
   import CameraControls from 'camera-controls';
-  import * as Konva from 'konva';
+  
+  // Make libraries globally available for plugins
+  window.Konva = Konva;
+  window.THREE = THREE;
+  window.CameraControls = CameraControls;
   
   // Initialize camera-controls with THREE.js
   CameraControls.install({ THREE });
-  
-  // Make libraries globally available for plugins
-  window.THREE = THREE;
-  window.CameraControls = CameraControls;
-  window.Konva = Konva;
   
   // Import application entry point
   import { main } from './src/index.js';

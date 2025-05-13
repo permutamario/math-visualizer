@@ -1,6 +1,5 @@
 // src/rendering/Canvas2DEnvironment.js
 
-
 /**
  * 2D rendering environment using Konva
  * Provides both Konva-based and legacy canvas-based rendering
@@ -22,6 +21,7 @@ export class Canvas2DEnvironment {
     // Konva specific
     this.stage = null;
     this.layer = null;
+    this.konva = null; // Store reference to Konva library
     this.backgroundColor = '#f5f5f5';
     
     // Store original canvas for legacy support
@@ -49,56 +49,74 @@ export class Canvas2DEnvironment {
    * Initialize the 2D environment
    * @returns {Promise<boolean>} Whether initialization was successful
    */
-  /**
- * Initialize the 2D environment
- * @returns {Promise<boolean>} Whether initialization was successful
- */
-async initialize() {
-  if (this.initialized) return true;
-  
-  try {
-    console.log("Initializing Canvas2DEnvironment...");
+  async initialize() {
+    if (this.initialized) return true;
     
-    // Get container element (parent of canvas)
-    const container = this.originalCanvas.parentElement;
-    if (!container) {
-      throw new Error("Canvas parent element not found");
+    try {
+      console.log("Initializing Canvas2DEnvironment...");
+      
+      // Try to get Konva from window first
+      if (window.Konva && typeof window.Konva.Stage === 'function') {
+        this.konva = window.Konva;
+        console.log("Using Konva from window object");
+      } else {
+        console.warn("Konva not found on window object, trying direct import");
+        try {
+          const KonvaModule = await import('konva');
+          this.konva = KonvaModule.default || KonvaModule;
+          console.log("Konva imported directly:", this.konva);
+        } catch (importError) {
+          console.error("Failed to import Konva:", importError);
+          throw new Error("Konva library not available. Ensure it's properly loaded.");
+        }
+      }
+      
+      // Final check to ensure Konva is usable
+      if (!this.konva || typeof this.konva.Stage !== 'function') {
+        console.error("Konva structure:", this.konva);
+        throw new Error("Konva Stage constructor not found. Incompatible Konva version?");
+      }
+      
+      // Get container element (parent of canvas)
+      const container = this.originalCanvas.parentElement;
+      if (!container) {
+        throw new Error("Canvas parent element not found");
+      }
+      
+      // Hide original canvas (Konva will create its own)
+      this.originalCanvas.style.display = 'none';
+      
+      // Create Konva stage
+      this.stage = new this.konva.Stage({
+        container: container,
+        width: container.clientWidth,
+        height: container.clientHeight
+      });
+      
+      // Create main layer
+      this.layer = new this.konva.Layer();
+      this.stage.add(this.layer);
+      
+      // Set background color
+      this.stage.container().style.backgroundColor = this.backgroundColor;
+      
+      // Keep original canvas context for legacy support
+      this.ctx = this.originalCanvas.getContext('2d');
+      
+      // Setup event forwarding
+      this._setupEventForwarding();
+      
+      // Setup automatic camera controls
+      this._setupAutomaticCameraControls();
+      
+      this.initialized = true;
+      console.log("Canvas2DEnvironment initialized successfully");
+      return true;
+    } catch (error) {
+      console.error("Failed to initialize Canvas2DEnvironment:", error);
+      return false;
     }
-    
-    // Hide original canvas (Konva will create its own)
-    this.originalCanvas.style.display = 'none';
-    
-    // Create Konva stage
-    this.stage = new Konva.Stage({
-      container: container,
-      width: container.clientWidth,
-      height: container.clientHeight
-    });
-    
-    // Create main layer
-    this.layer = new Konva.Layer();
-    this.stage.add(this.layer);
-    
-    // Set background color
-    this.stage.container().style.backgroundColor = this.backgroundColor;
-    
-    // Keep original canvas context for legacy support
-    this.ctx = this.originalCanvas.getContext('2d');
-    
-    // Setup event forwarding
-    this._setupEventForwarding();
-    
-    // Setup automatic camera controls
-    this._setupAutomaticCameraControls();
-    
-    this.initialized = true;
-    console.log("Canvas2DEnvironment initialized successfully");
-    return true;
-  } catch (error) {
-    console.error("Failed to initialize Canvas2DEnvironment:", error);
-    return false;
   }
-}
   
   /**
    * Activate the 2D environment
@@ -360,72 +378,75 @@ async initialize() {
     }
   }
 
-  // Add this method to Canvas2DEnvironment.js
-_setupAutomaticCameraControls() {
-  if (!this.stage) return;
+  /**
+   * Setup automatic camera controls
+   * @private
+   */
+  _setupAutomaticCameraControls() {
+    if (!this.stage) return;
+    
+    // Flag to control whether automatic camera controls are enabled
+    this.automaticCameraControls = true;
+    
+    // Variables for tracking drag state
+    let isDragging = false;
+    let lastPos = { x: 0, y: 0 };
+    
+    // Handle middle mouse button or touch drag for panning
+    this.stage.on('mousedown touchstart', (evt) => {
+      if (!this.automaticCameraControls) return;
+      
+      // Only handle middle mouse button (1) or touch
+      if (evt.evt.type === 'mousedown' && evt.evt.button !== 1) return;
+      
+      isDragging = true;
+      lastPos = {
+        x: evt.evt.offsetX || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientX : 0),
+        y: evt.evt.offsetY || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientY : 0)
+      };
+    });
+    
+    this.stage.on('mousemove touchmove', (evt) => {
+      if (!this.automaticCameraControls || !isDragging) return;
+      
+      const currentPos = {
+        x: evt.evt.offsetX || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientX : lastPos.x),
+        y: evt.evt.offsetY || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientY : lastPos.y)
+      };
+      
+      const dx = currentPos.x - lastPos.x;
+      const dy = currentPos.y - lastPos.y;
+      
+      this.panCamera(dx, dy);
+      
+      lastPos = currentPos;
+    });
+    
+    this.stage.on('mouseup touchend', () => {
+      isDragging = false;
+    });
+    
+    // Handle mouse wheel for zoom
+    this.stage.on('wheel', (evt) => {
+      if (!this.automaticCameraControls) return;
+      
+      // Prevent wheel event from propagating if we're handling it
+      evt.evt.preventDefault();
+      
+      const delta = evt.evt.deltaY;
+      const factor = delta > 0 ? 0.9 : 1.1; // Zoom in or out
+      
+      this.zoomCamera(factor, evt.evt.offsetX, evt.evt.offsetY);
+    });
+  }
   
-  // Flag to control whether automatic camera controls are enabled
-  this.automaticCameraControls = true;
-  
-  // Variables for tracking drag state
-  let isDragging = false;
-  let lastPos = { x: 0, y: 0 };
-  
-  // Handle middle mouse button or touch drag for panning
-  this.stage.on('mousedown touchstart', (evt) => {
-    if (!this.automaticCameraControls) return;
-    
-    // Only handle middle mouse button (1) or touch
-    if (evt.evt.type === 'mousedown' && evt.evt.button !== 1) return;
-    
-    isDragging = true;
-    lastPos = {
-      x: evt.evt.offsetX || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientX : 0),
-      y: evt.evt.offsetY || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientY : 0)
-    };
-  });
-  
-  this.stage.on('mousemove touchmove', (evt) => {
-    if (!this.automaticCameraControls || !isDragging) return;
-    
-    const currentPos = {
-      x: evt.evt.offsetX || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientX : lastPos.x),
-      y: evt.evt.offsetY || (evt.evt.touches && evt.evt.touches[0] ? evt.evt.touches[0].clientY : lastPos.y)
-    };
-    
-    const dx = currentPos.x - lastPos.x;
-    const dy = currentPos.y - lastPos.y;
-    
-    this.panCamera(dx, dy);
-    
-    lastPos = currentPos;
-  });
-  
-  this.stage.on('mouseup touchend', () => {
-    isDragging = false;
-  });
-  
-  // Handle mouse wheel for zoom
-  this.stage.on('wheel', (evt) => {
-    if (!this.automaticCameraControls) return;
-    
-    // Prevent wheel event from propagating if we're handling it
-    evt.evt.preventDefault();
-    
-    const delta = evt.evt.deltaY;
-    const factor = delta > 0 ? 0.9 : 1.1; // Zoom in or out
-    
-    this.zoomCamera(factor, evt.evt.offsetX, evt.evt.offsetY);
-  });
-}
-
-/**
- * Enable or disable automatic camera controls
- * @param {boolean} enabled - Whether automatic camera controls are enabled
- */
-setAutomaticCameraControls(enabled) {
-  this.automaticCameraControls = !!enabled;
-}
+  /**
+   * Enable or disable automatic camera controls
+   * @param {boolean} enabled - Whether automatic camera controls are enabled
+   */
+  setAutomaticCameraControls(enabled) {
+    this.automaticCameraControls = !!enabled;
+  }
   
   /**
    * Legacy support: Prepare context for rendering with camera transformations
@@ -586,13 +607,13 @@ setAutomaticCameraControls(enabled) {
     // Clear any existing content
     this.clearLayer();
     
-    if (!this.stage) return;
+    if (!this.stage || !this.konva) return;
     
     const width = this.stage.width();
     const height = this.stage.height();
     
     // Create a text node with the welcome message
-    const welcomeText = new Konva.Text({
+    const welcomeText = new this.konva.Text({
       x: width / 2,
       y: height / 2 - 20,
       text: 'Select a Plugin',
@@ -607,7 +628,7 @@ setAutomaticCameraControls(enabled) {
     welcomeText.offsetX(welcomeText.width() / 2);
     
     // Create instruction text
-    const instructionText = new Konva.Text({
+    const instructionText = new this.konva.Text({
       x: width / 2,
       y: height / 2 + 20,
       text: 'Click the plugin button to choose a visualization',
