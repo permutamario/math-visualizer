@@ -513,48 +513,6 @@ onCanvasResize(width, height) {
     this._animationHandlers = [];
   }
   
-  // ======== Konva Helpers ===================
-    add2DObject(obj) {
-    if (this.renderEnv && this.renderEnv.type === '2d' && this.renderEnv.layer) {
-      this.renderEnv.layer.add(obj);
-      return obj;
-    }
-    return null;
-  }
-  
-  remove2DObject(obj) {
-    if (obj) {
-      obj.remove();
-    }
-  }
-  
-  /**
-   * Create and add a shape to the scene
-   * @param {string} type - Shape type ('circle', 'rect', etc)
-   * @param {Object} config - Konva configuration object
-   * @returns {Konva.Shape} The created shape
-   */
-  createShape(type, config) {
-    if (!this.renderEnv || this.renderEnv.type !== '2d' || !this.renderEnv.konva) 
-      return null;
-      
-    // Get Konva constructor for the shape type
-    const ShapeClass = this.renderEnv.konva[type.charAt(0).toUpperCase() + type.slice(1)];
-    
-    if (!ShapeClass) {
-      console.error(`Shape type '${type}' not found in Konva`);
-      return null;
-    }
-    
-    // Create the shape
-    const shape = new ShapeClass(config);
-    
-    // Add to layer
-    this.add2DObject(shape);
-    
-    return shape;
-  }
-}
   // ======== EVENT MANAGEMENT METHODS ========
   
   /**
