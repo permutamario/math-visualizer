@@ -309,36 +309,47 @@ addParametersStructural(parameters) {
    * @param {string|null} group - Parameter group ('visual' or 'structural')
    * @returns {boolean} Whether the parameter was found and updated
    */
-  changeParameter(id, value, group = null) {
-    // Find parameter group if not specified
-    if (!group) {
-      if (this.visualParameters?.values.hasOwnProperty(id)) {
-        group = 'visual';
-      } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
-        group = 'structural';
-      } else {
-        console.warn(`Parameter ${id} not found in any group`);
-        return false;
-      }
+/**
+ * Changes a parameter value and notifies listeners
+ * @param {string} id - Parameter ID
+ * @param {any} value - New parameter value
+ * @param {string|null} group - Parameter group ('visual' or 'structural')
+ * @returns {boolean} Whether the parameter was found and updated
+ */
+changeParameter(id, value, group = null) {
+  // Find parameter group if not specified
+  if (!group) {
+    if (this.visualParameters?.values.hasOwnProperty(id)) {
+      group = 'visual';
+    } else if (this.structuralParameters?.values.hasOwnProperty(id)) {
+      group = 'structural';
+    } else {
+      console.warn(`Parameter ${id} not found in any group`);
+      return false;
+    }
+  }
+  
+  // Update parameter value
+  if (group && this[`${group}Parameters`]?.values) {
+    this[`${group}Parameters`].values[id] = value;
+    
+    // Update UI
+    if (this.uiManager) {
+      this.uiManager.updateParameterValue(id, value, group);
     }
     
-    // Update parameter value
-    if (group && this[`${group}Parameters`]?.values) {
-      this[`${group}Parameters`].values[id] = value;
-      
-      // Update UI
-      if (this.uiManager) {
-        this.uiManager.updateParameterValue(id, value, group);
-      }
-      
-      // Notify listeners
-      this._triggerParameterChanged(id, value, group);
-      
-      return true;
-    }
+    // Notify listeners
+    this._triggerParameterChanged(id, value, group);
+    
+    // Trigger a render after parameter change and all notifications
     this._triggerRender();
-    return false;
+    
+    return true;
   }
+  
+  return false;
+}
+  
 
   _triggerRender() {
   // Get current environment and request render
@@ -614,27 +625,39 @@ resetParameters(group = null) {
    * @param {...any} args - Arguments to pass to the action callback
    * @returns {any} Result of the action execution
    */
-  executeAction(actionId, ...args) {
-    const action = this._actions.get(actionId);
-    
-    if (action && typeof action.callback === 'function') {
-      try {
-        return action.callback(...args);
-      } catch (error) {
-        console.error(`Error executing action ${actionId}:`, error);
-        
-        // Notify user of error
-        if (this.uiManager) {
-          this.uiManager.showError(`Action failed: ${error.message}`);
-        }
-        
-        return false;
+  /**
+ * Executes an action by ID
+ * @param {string} actionId - ID of the action to execute
+ * @param {...any} args - Arguments to pass to the action callback
+ * @returns {any} Result of the action execution
+ */
+executeAction(actionId, ...args) {
+  const action = this._actions.get(actionId);
+  
+  if (action && typeof action.callback === 'function') {
+    try {
+      // Execute the action
+      const result = action.callback(...args);
+      
+      // Trigger a render after any action execution
+      this._triggerRender();
+      
+      return result;
+    } catch (error) {
+      console.error(`Error executing action ${actionId}:`, error);
+      
+      // Notify user of error
+      if (this.uiManager) {
+        this.uiManager.showError(`Action failed: ${error.message}`);
       }
+      
+      return false;
     }
-    
-    console.warn(`Action not found: ${actionId}`);
-    return false;
   }
+  
+  console.warn(`Action not found: ${actionId}`);
+  return false;
+}
 
   /**
    * Gets access to the current rendering environment
