@@ -22,7 +22,7 @@ export class CurveRenderer {
         
         const {
             cellSize = 1,
-            curveColor = '#3498db',
+            colorScheme = ['#3498db'], // Default color replaced with colorScheme array
             curveStyle = 'curved',
             tension = 0,
             smooth = true,
@@ -31,9 +31,6 @@ export class CurveRenderer {
             animationPath = null,
             helperPoints = []
         } = options;
-        
-        // Color scheme
-        const colorScheme = [curveColor];
         
         // Draw completed curves
         curves.forEach((curve, idx) => {

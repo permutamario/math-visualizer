@@ -70,24 +70,24 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.addCheckbox('showMirrors', 'Show Mirrors', true);
         this.addCheckbox('showCenterDots', 'Show Center Dots', false);
 
+        // Get available palette names from the color scheme manager
+        const paletteNames = this.core.colorSchemeManager.getPaletteNames();
+
+        // Add color palette selector
+        this.addDropdown('colorPalette', 'Color Palette', 'default', paletteNames);
         
         // Add structural parameters
         this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0.1, max: 1, step: 0.1 }, 'structural');
         
         this.addCheckbox('animateCurves', 'Animate Curves', true, 'structural');
-        this.addSlider('animationSpeed', 'Animation Speed', 5.0, 
+        this.addSlider('animationSpeed', 'Animation Speed', 15.0, 
                        { min: 1, max: 50, step: 1 }, 'structural');
 
         // Add advanced parameters
-        this.addColor('backgroundColor', 'Background Color', 'transparent','advanced');
-        this.addColor('curveColor', 'Curve Color', '#3498db','advanced');
-        this.addColor('gridLineColor', 'Grid Line Color', '#cccccc','advanced');
-        this.addColor('mirrorColor', 'Mirror Color', '#333333','advanced');
-        this.addColor('helperPointColor', 'Helper Point Color', '#ff0000','advanced');
         this.addCheckbox('smooth', 'Smooth Curves', true, 'advanced');
-        this.addSlider('tension', 'Curve Smoothness', 0, { min: 0, max: 1, step: 0.1 },'advanced');
+        this.addSlider('tension', 'Curve Smoothness', 0.01, { min: 0, max: 1, step: 0.1 }, 'advanced');
         this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'advanced');
-	this.addCheckbox('showHelperPoints', 'Show Helper Points', false,'advanced');
+        this.addCheckbox('showHelperPoints', 'Show Helper Points', false, 'advanced');
         
         // Add actions
         this.addAction('randomize', 'Randomize Mirrors', () => this.randomizeMirrors());
@@ -253,30 +253,30 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     animate(deltaTime) {
-	// Apply background color from parameter if background is dirty
-	if (this.isDirtyBackground && this.renderEnv.stage) {
-            this.renderEnv.stage.container().style.backgroundColor = 
-		this.getParameter('backgroundColor');
+        // Apply background color from color scheme if background is dirty
+        if (this.isDirtyBackground && this.renderEnv.stage) {
+            const backgroundColor = this.core.colorSchemeManager.getBackgroundColor();
+            this.renderEnv.stage.container().style.backgroundColor = backgroundColor;
             
             if (this.backgroundRect) {
-		this.backgroundRect.fill(this.getParameter('backgroundColor'));
-		this.backgroundLayer.batchDraw();
+                this.backgroundRect.fill(backgroundColor);
+                this.backgroundLayer.batchDraw();
             }
             
             this.isDirtyBackground = false;
-	}
-	
-	// Check if stage size has changed
-	const stage = this.renderEnv.stage;
-	const currentWidth = stage.width();
-	const currentHeight = stage.height();
-	
-	if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
+        }
+        
+        // Check if stage size has changed
+        const stage = this.renderEnv.stage;
+        const currentWidth = stage.width();
+        const currentHeight = stage.height();
+        
+        if (currentWidth !== this.lastWidth || currentHeight !== this.lastHeight) {
             this.updateLayout();
-	}
-	
-	// Handle animation if active
-	if (this.isAnimating && this.animationCurve) {
+        }
+        
+        // Handle animation if active
+        if (this.isAnimating && this.animationCurve) {
             // Calculate how much distance to travel this frame
             const animationSpeed = this.getParameter('animationSpeed');
             const distance = deltaTime * animationSpeed * 100; // Scale speed appropriately
@@ -284,13 +284,13 @@ export default class MirrorCurvesPlugin extends Plugin {
 
             // Create animation path based on distance traveled
             this.animationPath = this.curveRenderer.createAnimationPathByDistance(
-		this.animationCurve, 
-		this.gridLayout.cellSize, 
-		this.distanceTraveled,
-		{
+                this.animationCurve, 
+                this.gridLayout.cellSize, 
+                this.distanceTraveled,
+                {
                     tension: this.getParameter('tension'),
                     curveStyle: this.getParameter('curveStyle')
-		}
+                }
             );
 
             // Mark animation layer as dirty to trigger redraw
@@ -298,41 +298,40 @@ export default class MirrorCurvesPlugin extends Plugin {
 
             // Check if animation is complete
             if (this.animationPath && this.animationPath.completed) {
-		// Add the completed curve to static curves
-		this.animationCurve.isCompleted = true;
-		this.curves.push(this.animationCurve);
-		
-		// Update helper points for all curves
-		this.updateHelperPoints();
-		
-		// Mark static curves as dirty to include the new curve
-		this.isDirtyStaticCurves = true;
-		
-		// Start the next animation if available
-		this.startNextAnimation();
+                // Add the completed curve to static curves
+                this.animationCurve.isCompleted = true;
+                this.curves.push(this.animationCurve);
+                
+                // Update helper points for all curves
+                this.updateHelperPoints();
+                
+                // Mark static curves as dirty to include the new curve
+                this.isDirtyStaticCurves = true;
+                
+                // Start the next animation if available
+                this.startNextAnimation();
             }
-	}
-	
-	// Update animation layer if dirty, regardless of animation state
-	// This is the key change - move this outside the if block above
-	if (this.isDirtyAnimation) {
+        }
+        
+        // Update animation layer if dirty, regardless of animation state
+        if (this.isDirtyAnimation) {
             this.updateAnimation();
             this.isDirtyAnimation = false;
-	}
-	
-	// Update static curves if needed (e.g., new curve completed or cleared)
-	if (this.isDirtyStaticCurves) {
+        }
+        
+        // Update static curves if needed (e.g., new curve completed or cleared)
+        if (this.isDirtyStaticCurves) {
             this.updateStaticCurves();
             this.isDirtyStaticCurves = false;
-	}
-	
-	// Update grid if needed
-	if (this.isDirtyGrid) {
+        }
+        
+        // Update grid if needed
+        if (this.isDirtyGrid) {
             this.updateGrid();
             this.isDirtyGrid = false;
-	}
-	
-	return true; // Continue animation
+        }
+        
+        return true; // Continue animation
     }
     
     setupKonvaObjects() {
@@ -350,7 +349,7 @@ export default class MirrorCurvesPlugin extends Plugin {
             y: 0,
             width: stage.width(),
             height: stage.height(),
-            fill: this.getParameter('backgroundColor')
+            fill: this.core.colorSchemeManager.getBackgroundColor()
         });
         
         // Add background to its layer
@@ -390,7 +389,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         if (this.backgroundRect) {
             this.backgroundRect.width(stageWidth);
             this.backgroundRect.height(stageHeight);
-            this.backgroundRect.fill(this.getParameter('backgroundColor'));
+            this.backgroundRect.fill(this.core.colorSchemeManager.getBackgroundColor());
             this.isDirtyBackground = true;
         }
         
@@ -425,6 +424,10 @@ export default class MirrorCurvesPlugin extends Plugin {
     // Update each component independently
     
     updateGrid() {
+        // Get colors from color scheme
+        const textColor = this.core.colorSchemeManager.getTextColor();
+        const mirrorColor = this.core.colorSchemeManager.getStructuralColor('strong');
+        
         // Update grid visualization
         this.gridRenderer.renderGrid(this.grid, this.gridGroup, {
             cellSize: this.gridLayout.cellSize,
@@ -432,8 +435,8 @@ export default class MirrorCurvesPlugin extends Plugin {
             showGridPoints: this.getParameter('showGridPoints'),
             showMirrors: this.getParameter('showMirrors'),
             showCenterDots: this.getParameter('showCenterDots'),
-            gridLineColor: this.getParameter('gridLineColor'),
-            mirrorColor: this.getParameter('mirrorColor')
+            gridLineColor: textColor + '44', // Add transparency to text color for grid lines
+            mirrorColor: mirrorColor // Use strong color for mirrors
         });
         
         // Draw the grid layer
@@ -441,15 +444,20 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     updateStaticCurves() {
+        // Get color palette from color scheme manager
+        const selectedPalette = this.getParameter('colorPalette');
+        const colorPalette = this.core.colorSchemeManager.getPalette(selectedPalette);
+        const helperPointColor = this.core.colorSchemeManager.getAccentColor();
+        
         // Render only completed curves to static curve group
         this.curveRenderer.renderCurves(this.curves, this.staticCurveGroup, {
             cellSize: this.gridLayout.cellSize,
-            curveColor: this.getParameter('curveColor'),
+            colorScheme: colorPalette, // Use color palette for curves
             curveStyle: this.getParameter('curveStyle'),
             tension: this.getParameter('tension'),
             smooth: this.getParameter('smooth'),
             showHelperPoints: this.getParameter('showHelperPoints'),
-            helperPointColor: this.getParameter('helperPointColor'),
+            helperPointColor: helperPointColor,
             helperPoints: this.helperPoints
         });
         
@@ -458,14 +466,21 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     updateAnimation() {
+        // Get color palette
+        const selectedPalette = this.getParameter('colorPalette');
+        const colorPalette = this.core.colorSchemeManager.getPalette(selectedPalette);
+        
         // Clear the animation group
         this.animationGroup.destroyChildren();
         
         // Only draw animation path if it exists
         if (this.animationPath) {
+            // Use the same color as the static curve would have
+            let animationColor = colorPalette[this.curves.length % colorPalette.length];
+            
             this.curveRenderer.renderCurves([], this.animationGroup, {
                 cellSize: this.gridLayout.cellSize,
-                curveColor: this.getParameter('curveColor'),
+                colorScheme: [animationColor], // Use a single color for the animation
                 curveStyle: this.getParameter('curveStyle'),
                 tension: this.getParameter('tension'),
                 smooth: this.getParameter('smooth'),
@@ -489,7 +504,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         this.updateAnimation();
         
         if (this.backgroundRect) {
-            this.backgroundRect.fill(this.getParameter('backgroundColor'));
+            this.backgroundRect.fill(this.core.colorSchemeManager.getBackgroundColor());
             this.backgroundLayer.batchDraw();
         }
     }
@@ -526,21 +541,22 @@ export default class MirrorCurvesPlugin extends Plugin {
             return;
         }
         
-        // Update background if color changes
-        if (parameterId === 'backgroundColor') {
+        // Update background if color scheme related parameters change
+        if (parameterId === 'colorPalette') {
             this.isDirtyBackground = true;
+            this.isDirtyGrid = true;
+            this.isDirtyStaticCurves = true;
+            this.isDirtyAnimation = true;
         }
         
         // Update grid if grid parameters change
         if (parameterId === 'showGridLines' || parameterId === 'showGridPoints' || 
-            parameterId === 'showMirrors' || parameterId === 'showCenterDots' ||
-            parameterId === 'gridLineColor' || parameterId === 'mirrorColor') {
+            parameterId === 'showMirrors' || parameterId === 'showCenterDots') {
             this.isDirtyGrid = true;
         }
         
         // Update static curves if curve style parameters change
-        if (parameterId === 'curveColor' || parameterId === 'showHelperPoints' ||
-            parameterId === 'helperPointColor' || parameterId === 'tension' ||
+        if (parameterId === 'showHelperPoints' || parameterId === 'tension' ||
             parameterId === 'curveStyle' || parameterId === 'smooth') {
             this.isDirtyStaticCurves = true;
             // Animation will pick up changes on next frame
