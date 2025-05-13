@@ -42,14 +42,19 @@ export default class DynamicParametersPlugin extends Plugin {
       return;
     }
     
-    // Save the new current type
-    this.state.currentType = type;
-    
     // Clean up existing objects
     this.cleanupCurrentObjects();
     
     // Clear all parameters except the visualization type selector
     this.emptyParameters('visual');
+    this.emptyParameters('structural');
+    
+    // Re-add the visualization type parameter (it was cleared in the previous step)
+    this.addDropdown('visualizationType', 'Visualization Type', type, 
+      ['polygons', 'dots', 'waves'], 'structural');
+    
+    // Save the new current type
+    this.state.currentType = type;
     
     // Add parameters for the new type
     this.setupParametersForType(type);
@@ -64,16 +69,35 @@ export default class DynamicParametersPlugin extends Plugin {
   cleanupCurrentObjects() {
     if (!this.renderEnv || !this.renderEnv.layer) return;
     
-    // Remove all Konva objects associated with the current visualization
-    if (this.state.objects[this.state.currentType]) {
+    // If we have a current type and objects associated with it, clean them up
+    if (this.state.currentType && this.state.objects[this.state.currentType]) {
       const currentObjects = this.state.objects[this.state.currentType];
       
-      if (currentObjects.group && currentObjects.group.parent) {
+      // Remove all Konva objects for the current type
+      if (currentObjects.group) {
+        console.log(`Destroying group for ${this.state.currentType}`);
         currentObjects.group.destroy();
       }
       
-      // Clear references
+      // Clear references to objects
       this.state.objects[this.state.currentType] = {};
+    } else {
+      // If there's no current type, clean up all objects from all types
+      Object.keys(this.state.objects).forEach(type => {
+        const typeObjects = this.state.objects[type];
+        if (typeObjects.group) {
+          console.log(`Destroying group for ${type}`);
+          typeObjects.group.destroy();
+        }
+      });
+      
+      // Reset objects state
+      this.state.objects = {};
+    }
+    
+    // Force layer redraw to ensure objects are removed
+    if (this.renderEnv.layer) {
+      this.renderEnv.layer.batchDraw();
     }
   }
   
@@ -104,15 +128,28 @@ export default class DynamicParametersPlugin extends Plugin {
    * Setup polygon-specific parameters
    */
   setupPolygonParameters() {
+    // Structural parameters - affect the number and fundamental arrangement
+    this.addSlider('polygonCount', 'Number of Polygons', 5, { min: 1, max: 10, step: 1 }, 'structural');
+    this.addSlider('polygonSides', 'Sides per Polygon', 6, { min: 3, max: 12, step: 1 }, 'structural');
+    this.addSlider('polygonSize', 'Polygon Size', 80, { min: 20, max: 150, step: 5 }, 'structural');
+    
+    // Visual parameters - affect appearance only
+    this.addSlider('polygonRotation', 'Rotation (degrees)', 0, { min: 0, max: 360, step: 15 });
+    this.addColor('polygonFillColor', 'Fill Color', '#3498db');
+    this.addColor('polygonStrokeColor', 'Stroke Color', '#2c3e50');
+    this.addSlider('polygonStrokeWidth', 'Stroke Width', 2, { min: 0, max: 10, step: 1 });
+    this.addCheckbox('polygonAnimate', 'Animate Rotation', true);
+    
+    // Track parameters for reference (not necessary for functionality but helpful for tracking)
     this.state.parameters.polygons = {
-      count: this.addSlider('polygonCount', 'Number of Polygons', 5, { min: 1, max: 10, step: 1 }),
-      sides: this.addSlider('polygonSides', 'Sides per Polygon', 6, { min: 3, max: 12, step: 1 }),
-      size: this.addSlider('polygonSize', 'Polygon Size', 80, { min: 20, max: 150, step: 5 }),
-      rotation: this.addSlider('polygonRotation', 'Rotation (degrees)', 0, { min: 0, max: 360, step: 15 }),
-      fillColor: this.addColor('polygonFillColor', 'Fill Color', '#3498db'),
-      strokeColor: this.addColor('polygonStrokeColor', 'Stroke Color', '#2c3e50'),
-      strokeWidth: this.addSlider('polygonStrokeWidth', 'Stroke Width', 2, { min: 0, max: 10, step: 1 }),
-      animate: this.addCheckbox('polygonAnimate', 'Animate Rotation', true)
+      count: 'polygonCount',
+      sides: 'polygonSides',
+      size: 'polygonSize',
+      rotation: 'polygonRotation',
+      fillColor: 'polygonFillColor',
+      strokeColor: 'polygonStrokeColor',
+      strokeWidth: 'polygonStrokeWidth',
+      animate: 'polygonAnimate'
     };
   }
   
@@ -120,16 +157,28 @@ export default class DynamicParametersPlugin extends Plugin {
    * Setup dot-specific parameters
    */
   setupDotParameters() {
+    // Structural parameters - affect the number and fundamental arrangement
+    this.addSlider('dotCount', 'Number of Dots', 50, { min: 10, max: 200, step: 10 }, 'structural');
+    this.addDropdown('dotPattern', 'Distribution Pattern', 'circle', 
+      ['circle', 'grid', 'random', 'spiral'], 'structural');
+    this.addSlider('dotSpread', 'Spread', 0.8, { min: 0.1, max: 1.0, step: 0.1 }, 'structural');
+    
+    // Visual parameters - affect appearance only
+    this.addSlider('dotSize', 'Dot Size', 10, { min: 2, max: 30, step: 1 });
+    this.addColor('dotFillColor', 'Dot Color', '#e74c3c');
+    this.addCheckbox('dotAnimate', 'Animate Dots', true);
+    this.addSlider('dotAnimationSpeed', 'Animation Speed', 1, 
+      { min: 0.1, max: 3.0, step: 0.1 });
+    
+    // Track parameters for reference
     this.state.parameters.dots = {
-      count: this.addSlider('dotCount', 'Number of Dots', 50, { min: 10, max: 200, step: 10 }),
-      size: this.addSlider('dotSize', 'Dot Size', 10, { min: 2, max: 30, step: 1 }),
-      spread: this.addSlider('dotSpread', 'Spread', 0.8, { min: 0.1, max: 1.0, step: 0.1 }),
-      pattern: this.addDropdown('dotPattern', 'Distribution Pattern', 'circle', 
-        ['circle', 'grid', 'random', 'spiral']),
-      fillColor: this.addColor('dotFillColor', 'Dot Color', '#e74c3c'),
-      animate: this.addCheckbox('dotAnimate', 'Animate Dots', true),
-      animationSpeed: this.addSlider('dotAnimationSpeed', 'Animation Speed', 1, 
-        { min: 0.1, max: 3.0, step: 0.1 })
+      count: 'dotCount',
+      pattern: 'dotPattern',
+      spread: 'dotSpread',
+      size: 'dotSize',
+      fillColor: 'dotFillColor',
+      animate: 'dotAnimate',
+      animationSpeed: 'dotAnimationSpeed'
     };
   }
   
@@ -137,16 +186,30 @@ export default class DynamicParametersPlugin extends Plugin {
    * Setup wave-specific parameters
    */
   setupWaveParameters() {
+    // Structural parameters - affect the fundamental shape
+    this.addDropdown('waveType', 'Wave Type', 'sine', 
+      ['sine', 'cosine', 'square', 'sawtooth'], 'structural');
+    this.addSlider('waveAmplitude', 'Amplitude', 100, { min: 10, max: 200, step: 10 }, 'structural');
+    this.addSlider('waveFrequency', 'Frequency', 0.02, { min: 0.005, max: 0.05, step: 0.005 }, 'structural');
+    
+    // Visual parameters - affect appearance
+    this.addSlider('wavePhase', 'Phase Offset', 0, { min: 0, max: 6.28, step: 0.1 });
+    this.addColor('waveLineColor', 'Line Color', '#9b59b6');
+    this.addSlider('waveLineWidth', 'Line Width', 3, { min: 1, max: 10, step: 1 });
+    this.addCheckbox('waveAnimate', 'Animate Wave', true);
+    this.addSlider('waveAnimationSpeed', 'Animation Speed', 1, 
+      { min: 0.1, max: 3.0, step: 0.1 });
+    
+    // Track parameters for reference
     this.state.parameters.waves = {
-      type: this.addDropdown('waveType', 'Wave Type', 'sine', ['sine', 'cosine', 'square', 'sawtooth']),
-      amplitude: this.addSlider('waveAmplitude', 'Amplitude', 100, { min: 10, max: 200, step: 10 }),
-      frequency: this.addSlider('waveFrequency', 'Frequency', 0.02, { min: 0.005, max: 0.05, step: 0.005 }),
-      phase: this.addSlider('wavePhase', 'Phase Offset', 0, { min: 0, max: 6.28, step: 0.1 }),
-      lineColor: this.addColor('waveLineColor', 'Line Color', '#9b59b6'),
-      lineWidth: this.addSlider('waveLineWidth', 'Line Width', 3, { min: 1, max: 10, step: 1 }),
-      animate: this.addCheckbox('waveAnimate', 'Animate Wave', true),
-      animationSpeed: this.addSlider('waveAnimationSpeed', 'Animation Speed', 1, 
-        { min: 0.1, max: 3.0, step: 0.1 })
+      type: 'waveType',
+      amplitude: 'waveAmplitude',
+      frequency: 'waveFrequency',
+      phase: 'wavePhase',
+      lineColor: 'waveLineColor',
+      lineWidth: 'waveLineWidth',
+      animate: 'waveAnimate',
+      animationSpeed: 'waveAnimationSpeed'
     };
   }
   
