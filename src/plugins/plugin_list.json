@@ -1,5 +1,3 @@
 [
-  "polygon-plugin",
-  "polygon-plugin-chatgpt",
-  "polygon-plugin-gemini"
+  "testplugin"
 ]
