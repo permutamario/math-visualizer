@@ -46,78 +46,106 @@ export class Canvas2DEnvironment {
   }
   
   /**
-   * Initialize the 2D environment
-   * @returns {Promise<boolean>} Whether initialization was successful
-   */
-  async initialize() {
-    if (this.initialized) return true;
-    
-    try {
-      console.log("Initializing Canvas2DEnvironment...");
-      
-      // Try to get Konva from window first
-      if (window.Konva && typeof window.Konva.Stage === 'function') {
-        this.konva = window.Konva;
-        console.log("Using Konva from window object");
-      } else {
-        console.warn("Konva not found on window object, trying direct import");
-        try {
-          const KonvaModule = await import('konva');
-          this.konva = KonvaModule.default || KonvaModule;
-          console.log("Konva imported directly:", this.konva);
-        } catch (importError) {
-          console.error("Failed to import Konva:", importError);
-          throw new Error("Konva library not available. Ensure it's properly loaded.");
-        }
-      }
-      
-      // Final check to ensure Konva is usable
-      if (!this.konva || typeof this.konva.Stage !== 'function') {
-        console.error("Konva structure:", this.konva);
-        throw new Error("Konva Stage constructor not found. Incompatible Konva version?");
-      }
-      
-      // Get container element (parent of canvas)
-      const container = this.originalCanvas.parentElement;
-      if (!container) {
-        throw new Error("Canvas parent element not found");
-      }
-      
-      // Hide original canvas (Konva will create its own)
-      this.originalCanvas.style.display = 'none';
-      
-      // Create Konva stage
-      this.stage = new this.konva.Stage({
-        container: container,
-        width: container.clientWidth,
-        height: container.clientHeight
-      });
-      
-      // Create main layer
-      this.layer = new this.konva.Layer();
-      this.stage.add(this.layer);
-      
-      // Set background color
-      this.stage.container().style.backgroundColor = this.backgroundColor;
-      
-      // Keep original canvas context for legacy support
-      this.ctx = this.originalCanvas.getContext('2d');
-      
-      // Setup event forwarding
-      this._setupEventForwarding();
-      
-      // Setup automatic camera controls
-      this._setupAutomaticCameraControls();
-      
-      this.initialized = true;
-      console.log("Canvas2DEnvironment initialized successfully");
-      return true;
-    } catch (error) {
-      console.error("Failed to initialize Canvas2DEnvironment:", error);
-      return false;
-    }
-  }
+ * Initialize the 2D environment
+ * @returns {Promise<boolean>} Whether initialization was successful
+ */
+async initialize() {
+  if (this.initialized) return true;
   
+  try {
+    console.log("Initializing Canvas2DEnvironment...");
+    
+    // Try to get Konva from window first
+    if (window.Konva && typeof window.Konva.Stage === 'function') {
+      this.konva = window.Konva;
+      console.log("Using Konva from window object");
+    } else {
+      console.warn("Konva not found on window object, trying direct import");
+      try {
+        const KonvaModule = await import('konva');
+        this.konva = KonvaModule.default || KonvaModule;
+        console.log("Konva imported directly:", this.konva);
+      } catch (importError) {
+        console.error("Failed to import Konva:", importError);
+        throw new Error("Konva library not available. Ensure it's properly loaded.");
+      }
+    }
+    
+    // Final check to ensure Konva is usable
+    if (!this.konva || typeof this.konva.Stage !== 'function') {
+      console.error("Konva structure:", this.konva);
+      throw new Error("Konva Stage constructor not found. Incompatible Konva version?");
+    }
+    
+    // Get container element (parent of canvas)
+    let container = this.originalCanvas.parentElement;
+    
+    // If container is not found, create one
+    if (!container) {
+      console.log("Canvas parent element not found, creating container");
+      container = document.createElement('div');
+      container.id = 'canvas-container';
+      // Apply styles to make the container fill the available space
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.position = 'absolute';
+      container.style.top = '0';
+      container.style.left = '0';
+      container.style.zIndex = '0';
+      
+      // Add the container to the document body
+      document.body.appendChild(container);
+      
+      // Move the canvas into the container
+      if (this.originalCanvas.parentNode) {
+        this.originalCanvas.parentNode.removeChild(this.originalCanvas);
+      }
+      container.appendChild(this.originalCanvas);
+      
+      console.log("Created container for canvas:", container);
+    }
+    
+    // Hide original canvas (Konva will create its own)
+    this.originalCanvas.style.display = 'none';
+    
+    // Create Konva stage
+    this.stage = new this.konva.Stage({
+      container: container,
+      width: container.clientWidth || window.innerWidth,
+      height: container.clientHeight || window.innerHeight
+    });
+    
+    // Add fallback size if container has zero dimensions
+    if (this.stage.width() === 0 || this.stage.height() === 0) {
+      console.warn("Container has zero dimensions, using window size instead");
+      this.stage.width(window.innerWidth);
+      this.stage.height(window.innerHeight);
+    }
+    
+    // Create main layer
+    this.layer = new this.konva.Layer();
+    this.stage.add(this.layer);
+    
+    // Set background color
+    this.stage.container().style.backgroundColor = this.backgroundColor;
+    
+    // Keep original canvas context for legacy support
+    this.ctx = this.originalCanvas.getContext('2d');
+    
+    // Setup event forwarding
+    this._setupEventForwarding();
+    
+    // Setup automatic camera controls
+    this._setupAutomaticCameraControls();
+    
+    this.initialized = true;
+    console.log("Canvas2DEnvironment initialized successfully");
+    return true;
+  } catch (error) {
+    console.error("Failed to initialize Canvas2DEnvironment:", error);
+    return false;
+  }
+}
   /**
    * Activate the 2D environment
    * @returns {boolean} Whether activation was successful
