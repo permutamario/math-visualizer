@@ -159,25 +159,6 @@ async initialize() {
   }
   
   
-  /**
-   * Backward compatibility method for updating values
-   * @param {Object} values - Updated parameter values
-   * @deprecated Use updateParameterValue instead
-   */
-  updateControls(values) {
-    try {
-      if (!values) return;
-      
-      console.warn("Using deprecated updateControls method, consider updating to use parameter groups");
-      
-      // Update each value in the appropriate group
-      Object.entries(values).forEach(([id, value]) => {
-        this.updateParameterValue(id, value);
-      });
-    } catch (error) {
-      console.error("Failed to update controls:", error);
-    }
-  }
   
   /**
    * Update available actions
