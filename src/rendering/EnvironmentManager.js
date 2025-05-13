@@ -201,18 +201,21 @@ export class EnvironmentManager {
   * @returns {Object} Environment access object
   */
  getEnvironmentForPlugin() {
-   if (!this.currentEnvironment) return null;
-   
-   if (this.currentEnvironment === this.environments['2d']) {
-     // 2D environment access
-     return {
-       type: '2d',
-       context: this.currentEnvironment.getContext(),
-       canvas: this.canvas,
-       resetCamera: () => this.currentEnvironment.resetCamera(),
-       prepareRender: (ctx) => this.currentEnvironment.prepareRender(ctx),
-       completeRender: (ctx) => this.currentEnvironment.completeRender(ctx)
-     };
+
+  if (this.currentEnvironment === this.environments['2d']) {
+    return {
+      type: '2d',
+      // Direct access to Konva objects
+      konva: Konva,                        // Konva library
+      stage: this.currentEnvironment.stage, // Konva stage
+      layer: this.currentEnvironment.layer, // Main Konva layer
+      
+      // Legacy support
+      context: this.currentEnvironment.ctx,
+      canvas: this.canvas,
+      prepareRender: (ctx) => this.currentEnvironment.prepareRender(ctx),
+      completeRender: (ctx) => this.currentEnvironment.completeRender(ctx)
+    };
    } else {
      // 3D environment access
      return {
