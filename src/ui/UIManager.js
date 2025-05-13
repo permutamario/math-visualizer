@@ -20,8 +20,8 @@ export class UIManager extends EventEmitter {
     this.uiBuilder = new UIBuilder();
     this.layout = null;
     this.parameterGroups = {
-      plugin: { schema: [], values: {} },
-      visualization: { schema: [], values: {} },
+      visual: { schema: [], values: {} },
+      structural: { schema: [], values: {} },
       advanced: { schema: [], values: {} }
     };
     this.initialized = false;
@@ -90,26 +90,26 @@ async initialize() {
   /**
    * Update UI with parameter groups
    * @param {Object} parameterData - Parameter group data
-   * @param {Object} parameterData.pluginParameters - Plugin parameters
-   * @param {Object} parameterData.visualizationParameters - Visualization parameters 
+   * @param {Object} parameterData.visualParameters - visual parameters
+   * @param {Object} parameterData.structrualParameters - Structural parameters 
    * @param {Object} parameterData.advancedParameters - Advanced parameters
    * @param {boolean} rebuild - Whether to rebuild the entire UI
    */
-  updatePluginParameterGroups(parameterData, rebuild = false) {
+  updateVisualParameterGroups(parameterData, rebuild = false) {
     try {
       // Validate parameter data
       if (!parameterData) {
-        console.warn("Invalid parameter data provided to updatePluginParameterGroups");
+        console.warn("Invalid parameter data provided to updateVisualParameterGroups");
         return;
       }
       
       // Store parameter groups
-      if (parameterData.pluginParameters) {
-        this.parameterGroups.plugin = parameterData.pluginParameters;
+      if (parameterData.visualParameters) {
+        this.parameterGroups.visual = parameterData.visualParameters;
       }
       
-      if (parameterData.visualizationParameters) {
-        this.parameterGroups.visualization = parameterData.visualizationParameters;
+      if (parameterData.structrualParameters) {
+        this.parameterGroups.structural = parameterData.structrualParameters;
       }
       
       if (parameterData.advancedParameters) {
@@ -129,16 +129,16 @@ async initialize() {
    * Update a single parameter value without rebuilding UI
    * @param {string} parameterId - Parameter ID
    * @param {any} value - Parameter value
-   * @param {string} group - Parameter group ('plugin', 'visualization', or 'advanced')
+   * @param {string} group - Parameter group ('visual', 'structrual', or 'advanced')
    */
   updateParameterValue(parameterId, value, group) {
     try {
       // Find which group this parameter belongs to if not specified
       if (!group) {
-        if (this.parameterGroups.plugin.values.hasOwnProperty(parameterId)) {
-          group = 'plugin';
-        } else if (this.parameterGroups.visualization.values.hasOwnProperty(parameterId)) {
-          group = 'visualization';
+        if (this.parameterGroups.visual.values.hasOwnProperty(parameterId)) {
+          group = 'visual';
+        } else if (this.parameterGroups.structural.values.hasOwnProperty(parameterId)) {
+          group = 'structural';
         } else if (this.parameterGroups.advanced.values.hasOwnProperty(parameterId)) {
           group = 'advanced';
         }
@@ -521,8 +521,8 @@ _registerLayoutEvents() {
     
     // Reset state
     this.parameterGroups = {
-      plugin: { schema: [], values: {} },
-      visualization: { schema: [], values: {} },
+      visual: { schema: [], values: {} },
+      structural: { schema: [], values: {} },
       advanced: { schema: [], values: {} }
     };
     this.initialized = false;
