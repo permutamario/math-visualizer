@@ -2,11 +2,45 @@ import { Plugin } from '../../src/core/Plugin.js';
 import { Grid } from './grid.js';
 import { MirrorCurve } from './mirrorCurve.js';
 import { findNextCurve, findAllCurves } from './curveStartFinder.js';
-import { 
-  createKonvaLine, 
-  getCurvePoints, 
-  getAnimationPath 
-} from './drawingUtils.js';
+import { getSplinePoints } from './spline.js';
+
+/**
+ * Calculate a helper point for a grid line with directional offset
+ * @param {Object} line - The grid line object 
+ * @param {number} direction - Direction value (0=NW, 1=NE, 2=SW, 3=SE)
+ * @param {number} cellSize - Size of a grid cell
+ * @returns {Object} - Point coordinates {x, y}
+ */
+function findHelperPoint(line, direction, cellSize) {
+    // Get the basic midpoint
+    let x, y;
+    if (line.type === 'horizontal') {
+        x = (line.col + 0.5) * cellSize;
+        y = line.row * cellSize;
+    } else { // vertical
+        x = line.col * cellSize;
+        y = (line.row + 0.5) * cellSize;
+    }
+    
+    // Offset based on direction (similar to calculateCurvedPoints in animationManager)
+    const d = cellSize / 4;
+    
+    if (line.type === 'vertical') {
+        if (direction === 1 || direction === 3) { // NE or SE
+            x += d;
+        } else if (direction === 0 || direction === 2) { // NW or SW
+            x -= d;
+        }
+    } else { // horizontal
+        if (direction === 0 || direction === 1) { // NW or NE
+            y -= d;
+        } else if (direction === 2 || direction === 3) { // SW or SE
+            y += d;
+        }
+    }
+    
+    return { x, y };
+}
 
 export default class MirrorCurvesPlugin extends Plugin {
   // Required static properties
@@ -18,41 +52,33 @@ export default class MirrorCurvesPlugin extends Plugin {
   constructor(core) {
     super(core);
     
-    // Internal state
-    this.state = {
-      grid: null,
-      curves: [],
-      animationPath: null,
-      gridLayout: {},
-      settings: {
-        showGridLines: true,
-        showGridPoints: true,
-        showMirrors: true,
-        showCenterDots: false,
-        smooth: true,
-        tension: 0.1,
-        backgroundColor: 'transparent',
-        animationStyle: 'curved', // 'jagged' or 'curved'
-        lineStyles: {
-          grid: { color: '#cccccc', width: 1 },
-          gridPoint: { color: '#999999', radius: 2 },
-          mirror: { color: '#333333', width: 2 },
-          centerDot: { color: '#555555', radius: 3 },
-          curve: { width: 3 }
-        }
+    // Internal state - only store what can't be parameters
+    this.grid = null;
+    this.curves = [];
+    this.animationPath = null;
+    this.gridLayout = {};
+    this.helperPoints = []; // Store helper points for visualization
+    
+    // Animation state
+    this.isAnimating = false;
+    this.animationFrame = 0;
+    this.animationCurve = null;
+    
+    // Style settings (not exposed as parameters)
+    this.styleSettings = {
+      lineStyles: {
+        grid: { width: 1 },
+        gridPoint: { radius: 2 },
+        mirror: { width: 2 },
+        centerDot: { radius: 3 },
+        curve: { width: 3 },
+        helperPoint: { radius: 4 } // Style for helper points
       }
     };
     
     // Konva objects
     this.gridLayer = null;
     this.curveLayer = null;
-    
-    // Animation state
-    this.isAnimating = false;
-    this.animationFrame = 0;
-    this.animationCurve = null;
-    this.animationDuration = 2000; // 2 seconds for full animation
-    this.animationLastUpdate = 0;
   }
   
   async start() {
@@ -60,18 +86,21 @@ export default class MirrorCurvesPlugin extends Plugin {
     this.addSlider('rows', 'Grid Rows', 5, { min: 2, max: 20, step: 1 });
     this.addSlider('cols', 'Grid Columns', 5, { min: 2, max: 20, step: 1 });
     this.addSlider('tension', 'Curve Smoothness', 0.5, { min: 0, max: 1, step: 0.1 });
-    this.addSlider('animationSpeed', 'Animation Speed', 1, { min: 0.1, max: 3, step: 0.1 });
-    this.addCheckbox('showGridLines', 'Show Grid Lines', this.state.settings.showGridLines);
-    this.addCheckbox('showMirrors', 'Show Mirrors', this.state.settings.showMirrors);
+    this.addCheckbox('showGridLines', 'Show Grid Lines', true);
+    this.addCheckbox('showGridPoints', 'Show Grid Points', true);
+    this.addCheckbox('showMirrors', 'Show Mirrors', true);
+    this.addCheckbox('showCenterDots', 'Show Center Dots', false);
+    this.addCheckbox('showHelperPoints', 'Show Helper Points', false); // New parameter
     this.addColor('backgroundColor', 'Background Color', '#f5f5f5');
     this.addColor('curveColor', 'Curve Color', '#3498db');
+    this.addColor('gridLineColor', 'Grid Line Color', '#cccccc');
+    this.addColor('mirrorColor', 'Mirror Color', '#333333');
+    this.addColor('helperPointColor', 'Helper Point Color', '#ff0000'); // New parameter
     
     // Add structural parameters
     this.addSlider('mirrorProbability', 'Mirror Probability', 0.5, { min: 0, max: 1, step: 0.1 }, 'structural');
     this.addDropdown('curveStyle', 'Curve Style', 'curved', ['curved', 'jagged'], 'structural');
-    
-    // Add advanced parameters
-    this.addCheckbox('showHelperPoints', 'Show Helper Points (Debug)', true, 'advanced');
+    this.addCheckbox('smooth', 'Smooth Curves', true, 'structural');
     
     // Add actions
     this.addAction('randomize', 'Randomize Mirrors', () => {
@@ -105,77 +134,101 @@ export default class MirrorCurvesPlugin extends Plugin {
     const cols = this.getParameter('cols');
     
     // Create a new grid
-    this.state.grid = new Grid(rows, cols);
+    this.grid = new Grid(rows, cols);
     
     // Randomize mirrors with current probability
     this.randomizeMirrors();
     
     // Reset curves
-    this.state.curves = [];
-    this.state.animationPath = null;
+    this.curves = [];
+    this.animationPath = null;
+    this.helperPoints = [];
   }
   
   randomizeMirrors() {
-    if (!this.state.grid) return;
+    if (!this.grid) return;
     
     const probability = this.getParameter('mirrorProbability');
-    this.state.grid.randomizeMirrors(probability);
+    this.grid.randomizeMirrors(probability);
     
     // Reset curves when mirrors change
-    this.state.curves = [];
-    this.state.animationPath = null;
+    this.curves = [];
+    this.animationPath = null;
+    this.helperPoints = [];
     
     // Update visualization
     this.updateGridVisualization();
   }
   
   findAllCurves() {
-    if (!this.state.grid) return;
+    if (!this.grid) return;
     
     // Reset used directions
-    this.state.grid.resetUsedDirections();
+    this.grid.resetUsedDirections();
     
     // Find all curves
-    this.state.curves = findAllCurves(this.state.grid);
+    this.curves = findAllCurves(this.grid);
     
     // Mark all curves as completed
-    this.state.curves.forEach(curve => {
+    this.curves.forEach(curve => {
       curve.isCompleted = true;
     });
+    
+    // Calculate helper points for all curves
+    this.calculateHelperPoints();
     
     // Update visualization
     this.updateCurveVisualization();
   }
   
   clearCurves() {
-    this.state.curves = [];
-    this.state.animationPath = null;
+    this.curves = [];
+    this.animationPath = null;
+    this.helperPoints = [];
     this.isAnimating = false;
     
     // Reset used directions in the grid
-    if (this.state.grid) {
-      this.state.grid.resetUsedDirections();
+    if (this.grid) {
+      this.grid.resetUsedDirections();
     }
     
     // Update visualization
     this.updateCurveVisualization();
   }
   
+  calculateHelperPoints() {
+    this.helperPoints = [];
+    const cellSize = this.gridLayout.cellSize;
+    
+    // Get curves and calculate helper points for each
+    this.curves.forEach(curve => {
+      if (curve.isCompleted && curve.gridLines && Array.isArray(curve.gridLines)) {
+        // Calculate helper points with offsets for smooth curves
+        const helperPointsForCurve = curve.gridLines.map((line, index) => {
+          const direction = curve.directions[index];
+          const point = findHelperPoint(line, direction, cellSize);
+          return { ...point, curveIndex: this.helperPoints.length };
+        });
+        
+        this.helperPoints.push(helperPointsForCurve);
+      }
+    });
+  }
+  
   animateNextCurve() {
-    if (!this.state.grid) return;
+    if (!this.grid) return;
     
     // Stop current animation if running
     this.isAnimating = false;
-    this.state.animationPath = null;
+    this.animationPath = null;
     
     // Find the next available curve
-    const curve = findNextCurve(this.state.grid);
+    const curve = findNextCurve(this.grid);
     
     if (curve) {
       // Start animation
       this.animationCurve = curve;
       this.animationFrame = 0;
-      this.animationLastUpdate = performance.now();
       this.isAnimating = true;
     } else {
       // Show notification if no more curves
@@ -186,7 +239,7 @@ export default class MirrorCurvesPlugin extends Plugin {
   }
   
   setupKonvaObjects() {
-    const { stage, konva } = this.renderEnv;
+    const { stage, layer, konva } = this.renderEnv;
     
     // Create layers for organizing content
     this.gridLayer = new konva.Layer();
@@ -201,12 +254,17 @@ export default class MirrorCurvesPlugin extends Plugin {
   }
   
   updateGridVisualization() {
-    if (!this.state.grid || !this.gridLayer) return;
+    if (!this.grid || !this.gridLayer) return;
     
     // Clear the grid layer
     this.gridLayer.destroyChildren();
     
-    const { showGridLines, showGridPoints, showMirrors, showCenterDots, lineStyles } = this.state.settings;
+    const showGridLines = this.getParameter('showGridLines');
+    const showGridPoints = this.getParameter('showGridPoints');
+    const showMirrors = this.getParameter('showMirrors');
+    const showCenterDots = this.getParameter('showCenterDots');
+    const gridLineColor = this.getParameter('gridLineColor');
+    const mirrorColor = this.getParameter('mirrorColor');
     
     // Get stage dimensions
     const stageWidth = this.renderEnv.stage.width();
@@ -219,21 +277,21 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     // Calculate cell dimensions to ensure cells are square
     const cellSize = Math.min(
-      drawableWidth / this.state.grid.cols, 
-      drawableHeight / this.state.grid.rows
+      drawableWidth / this.grid.cols, 
+      drawableHeight / this.grid.rows
     );
     
     // Calculate centering offsets
-    const offsetX = padding + (drawableWidth - (cellSize * this.state.grid.cols)) / 2;
-    const offsetY = padding + (drawableHeight - (cellSize * this.state.grid.rows)) / 2;
+    const offsetX = padding + (drawableWidth - (cellSize * this.grid.cols)) / 2;
+    const offsetY = padding + (drawableHeight - (cellSize * this.grid.rows)) / 2;
     
     // Store layout values for reuse
-    this.state.gridLayout = {
+    this.gridLayout = {
       cellSize,
       offsetX,
       offsetY,
-      gridRows: this.state.grid.rows,
-      gridCols: this.state.grid.cols
+      gridRows: this.grid.rows,
+      gridCols: this.grid.cols
     };
     
     // Create a group to hold grid elements with proper translation
@@ -244,7 +302,7 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     // Draw grid lines
     if (showGridLines) {
-      for (const line of this.state.grid.gridLines.values()) {
+      for (const line of this.grid.gridLines.values()) {
         const x1 = line.col * cellSize;
         const y1 = line.row * cellSize;
         const x2 = (line.type === 'horizontal' ? (line.col + 1) * cellSize : x1);
@@ -252,8 +310,8 @@ export default class MirrorCurvesPlugin extends Plugin {
         
         const lineObj = new this.renderEnv.konva.Line({
           points: [x1, y1, x2, y2],
-          stroke: lineStyles.grid.color,
-          strokeWidth: lineStyles.grid.width
+          stroke: gridLineColor,
+          strokeWidth: this.styleSettings.lineStyles.grid.width
         });
         
         gridGroup.add(lineObj);
@@ -262,13 +320,13 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     // Draw grid points
     if (showGridPoints) {
-      for (let r = 0; r <= this.state.grid.rows; r++) {
-        for (let c = 0; c <= this.state.grid.cols; c++) {
+      for (let r = 0; r <= this.grid.rows; r++) {
+        for (let c = 0; c <= this.grid.cols; c++) {
           const circle = new this.renderEnv.konva.Circle({
             x: c * cellSize,
             y: r * cellSize,
-            radius: lineStyles.gridPoint.radius,
-            fill: lineStyles.gridPoint.color
+            radius: this.styleSettings.lineStyles.gridPoint.radius,
+            fill: gridLineColor // Use same color as grid lines
           });
           
           gridGroup.add(circle);
@@ -278,7 +336,7 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     // Draw mirror lines
     if (showMirrors) {
-      for (const line of this.state.grid.gridLines.values()) {
+      for (const line of this.grid.gridLines.values()) {
         if (!line.isMirror) continue;
         
         const x1 = line.col * cellSize;
@@ -288,8 +346,8 @@ export default class MirrorCurvesPlugin extends Plugin {
         
         const mirrorLine = new this.renderEnv.konva.Line({
           points: [x1, y1, x2, y2],
-          stroke: lineStyles.mirror.color,
-          strokeWidth: lineStyles.mirror.width
+          stroke: mirrorColor,
+          strokeWidth: this.styleSettings.lineStyles.mirror.width
         });
         
         gridGroup.add(mirrorLine);
@@ -298,13 +356,13 @@ export default class MirrorCurvesPlugin extends Plugin {
     
     // Draw center dots
     if (showCenterDots) {
-      for (let r = 0; r < this.state.grid.rows; r++) {
-        for (let c = 0; c < this.state.grid.cols; c++) {
+      for (let r = 0; r < this.grid.rows; r++) {
+        for (let c = 0; c < this.grid.cols; c++) {
           const centerDot = new this.renderEnv.konva.Circle({
             x: (c + 0.5) * cellSize,
             y: (r + 0.5) * cellSize,
-            radius: lineStyles.centerDot.radius,
-            fill: lineStyles.centerDot.color
+            radius: this.styleSettings.lineStyles.centerDot.radius,
+            fill: mirrorColor // Use same color as mirrors
           });
           
           gridGroup.add(centerDot);
@@ -315,6 +373,9 @@ export default class MirrorCurvesPlugin extends Plugin {
     // Add the grid group to the layer
     this.gridLayer.add(gridGroup);
     this.gridLayer.batchDraw();
+    
+    // Calculate helper points for curves
+    this.calculateHelperPoints();
     
     // Update curve visualization with new layout
     this.updateCurveVisualization();
@@ -327,8 +388,7 @@ export default class MirrorCurvesPlugin extends Plugin {
     this.curveLayer.destroyChildren();
     
     // Get layout values
-    const { cellSize, offsetX, offsetY } = this.state.gridLayout;
-    if (!cellSize) return;
+    const { cellSize, offsetX, offsetY } = this.gridLayout;
     
     // Create a group for curves with the same offset as the grid
     const curveGroup = new this.renderEnv.konva.Group({
@@ -336,91 +396,50 @@ export default class MirrorCurvesPlugin extends Plugin {
       y: offsetY
     });
     
-    // Get curve style and color 
-    const useCurvedStyle = this.getParameter('curveStyle') === 'curved';
-    const curveColor = this.getParameter('curveColor');
-    const tension = this.getParameter('tension');
-    const showHelperPoints = this.getParameter('showHelperPoints');
-    
     // Draw completed curves
-    this.state.curves.forEach((curve, idx) => {
-      // Draw the main curve line
-      const konvaLine = createKonvaLine(
-        curve, 
-        cellSize, 
-        this.renderEnv.konva, 
-        {
-          color: curveColor,
-          strokeWidth: this.state.settings.lineStyles.curve.width,
-          useCurvedStyle,
-          tension
-        }
-      );
-      
-      if (konvaLine) {
-        curveGroup.add(konvaLine);
-      }
-      
-      // Draw helper points if debugging is enabled
-      if (showHelperPoints && useCurvedStyle && curve.gridLines) {
-        // Calculate helper points
-        const { calculateHelperPoints } = require('./drawingUtils.js');
-        const helperPoints = calculateHelperPoints(curve, cellSize);
-        
-        // Draw helper points
-        helperPoints.forEach(point => {
-          const helperDot = new this.renderEnv.konva.Circle({
-            x: point.x,
-            y: point.y,
-            radius: 4,
-            fill: '#ff0000',
-            stroke: '#ffffff',
-            strokeWidth: 1
-          });
-          
-          curveGroup.add(helperDot);
-        });
+    const curveColor = this.getParameter('curveColor');
+    const colorScheme = [curveColor];
+    
+    this.curves.forEach((curve, idx) => {
+      // Create a curve line
+      const konvaCurve = this.createKonvaCurve(curve, idx, cellSize, colorScheme);
+      if (konvaCurve) {
+        curveGroup.add(konvaCurve);
       }
     });
     
     // Draw animation path if it exists
-    if (this.state.animationPath) {
-      const animLine = createKonvaLine(
-        this.state.animationPath,
-        cellSize,
-        this.renderEnv.konva,
-        {
-          color: curveColor,
-          strokeWidth: this.state.settings.lineStyles.curve.width,
-          useCurvedStyle: true, // Always use curved style for animation
-          tension
-        }
+    if (this.animationPath) {
+      const animCurve = this.createKonvaCurve(
+        this.animationPath, 
+        this.curves.length, 
+        cellSize, 
+        colorScheme
       );
       
-      if (animLine) {
-        curveGroup.add(animLine);
+      if (animCurve) {
+        curveGroup.add(animCurve);
       }
+    }
+    
+    // Draw helper points if enabled
+    if (this.getParameter('showHelperPoints')) {
+      const helperPointColor = this.getParameter('helperPointColor');
+      const helperPointRadius = this.styleSettings.lineStyles.helperPoint.radius;
       
-      // Draw helper points for animation path if debugging is enabled
-      if (showHelperPoints && this.animationCurve && this.animationCurve.gridLines) {
-        // Calculate helper points
-        const { calculateHelperPoints } = require('./drawingUtils.js');
-        const helperPoints = calculateHelperPoints(this.animationCurve, cellSize);
-        
-        // Draw helper points
-        helperPoints.forEach(point => {
-          const helperDot = new this.renderEnv.konva.Circle({
+      // Add helper points for all curves
+      this.helperPoints.forEach(curvePoints => {
+        curvePoints.forEach(point => {
+          const helperPoint = new this.renderEnv.konva.Circle({
             x: point.x,
             y: point.y,
-            radius: 4,
-            fill: '#ff0000',
-            stroke: '#ffffff',
-            strokeWidth: 1
+            radius: helperPointRadius,
+            fill: helperPointColor
           });
           
-          curveGroup.add(helperDot);
+          curveGroup.add(helperPoint);
         });
-      }
+      });
     }
     
     // Add the curve group to the layer
@@ -428,64 +447,176 @@ export default class MirrorCurvesPlugin extends Plugin {
     this.curveLayer.batchDraw();
   }
   
+  createKonvaCurve(curve, idx, cellSize, colorScheme) {
+    if (!curve) return null;
+    
+    // Get the curve style parameter
+    const curveStyle = this.getParameter('curveStyle');
+    const tension = this.getParameter('tension');
+    const smooth = this.getParameter('smooth');
+    
+    // Extract points from the curve
+    let points = [];
+    let isClosed = false;
+    let helperPointsForCurve = [];
+    
+    // Parse the points based on curve type
+    if (curve.type === 'animationPath') {
+      points = curve.points || [];
+      isClosed = curve.isClosed || false;
+    }
+    else if (curve.gridLines && Array.isArray(curve.gridLines)) {
+      isClosed = curve.isClosed || false;
+      
+      // Generate points based on curve style
+      if (curve.isCompleted && curveStyle === 'curved') {
+        // Calculate helper points with offsets for smooth curves
+        helperPointsForCurve = curve.gridLines.map((line, index) => {
+          const direction = curve.directions[index];
+          return findHelperPoint(line, direction, cellSize);
+        });
+        
+        // Apply spline for smooth curves
+        points = getSplinePoints(helperPointsForCurve, tension, 10);
+      } else {
+        // Use regular midpoints for jagged style
+        points = curve.gridLines.map(line => {
+          if (line.type === 'horizontal') {
+            return {
+              x: (line.col + 0.5) * cellSize,
+              y: line.row * cellSize
+            };
+          } else { // vertical
+            return {
+              x: line.col * cellSize,
+              y: (line.row + 0.5) * cellSize
+            };
+          }
+        });
+      }
+    }
+    
+    // Skip if no points
+    if (points.length === 0) return null;
+    
+    // For non-animation paths, apply spline if needed
+    const useSpline = !curve.isCompleted && 
+                     smooth && 
+                     isClosed &&
+                     curve.type !== 'animationPath' && 
+                     curveStyle === 'curved';
+    
+    const drawPoints = useSpline 
+        ? getSplinePoints(points, tension)
+        : points;
+    
+    // Convert points to flat array for Konva
+    const flatPoints = [];
+    drawPoints.forEach(point => {
+      flatPoints.push(point.x, point.y);
+    });
+    
+    // Create Konva line
+    const curveWidth = this.styleSettings.lineStyles.curve.width;
+    const color = colorScheme[idx % colorScheme.length];
+    
+    const konvaLine = new this.renderEnv.konva.Line({
+      points: flatPoints,
+      stroke: color,
+      strokeWidth: curveWidth,
+      lineCap: 'round',
+      lineJoin: 'round',
+      closed: isClosed
+    });
+    
+    return konvaLine;
+  }
+  
   animate(deltaTime) {
     // Apply background color from parameter
     this.renderEnv.stage.container().style.backgroundColor = this.getParameter('backgroundColor');
     
-    // Update curve style settings
-    this.state.settings.tension = this.getParameter('tension');
-    this.state.settings.showGridLines = this.getParameter('showGridLines');
-    this.state.settings.showMirrors = this.getParameter('showMirrors');
-    
     // Handle animation if active
     if (this.isAnimating && this.animationCurve) {
-      const now = performance.now();
-      const elapsedTime = now - this.animationLastUpdate;
-      this.animationLastUpdate = now;
+      // Increment animation frame
+      this.animationFrame++;
       
-      // Calculate animation duration based on speed parameter
-      const speed = this.getParameter('animationSpeed');
-      const duration = this.animationDuration / speed;
+      // Create animation path with current progress
+      const frameCount = 30; // Animation frames per segment
+      const currentSegment = Math.floor(this.animationFrame / frameCount);
       
-      // Update animation progress
-      this.animationFrame += elapsedTime;
-      const progress = Math.min(this.animationFrame / duration, 1);
-      
-      // Generate animation path
-      const { cellSize } = this.state.gridLayout;
-      const useCurvedStyle = this.getParameter('curveStyle') === 'curved';
-      const tension = this.getParameter('tension');
-      
-      this.state.animationPath = getAnimationPath(
-        this.animationCurve,
-        cellSize,
-        progress,
-        {
-          useCurvedStyle,
-          tension
-        }
-      );
-      
-      // Update visualization
-      this.updateCurveVisualization();
-      
-      // Check if animation is complete
-      if (progress >= 1) {
-        // Add the completed curve
+      // Stop animation if we've reached the end of the curve
+      if (currentSegment >= this.animationCurve.gridLines.length) {
+        // Add the completed curve to the list
         this.animationCurve.isCompleted = true;
-        this.state.curves.push(this.animationCurve);
+        this.curves.push(this.animationCurve);
         
         // Reset animation state
-        this.state.animationPath = null;
+        this.animationPath = null;
         this.isAnimating = false;
         this.animationCurve = null;
         
+        // Calculate helper points for new curve
+        this.calculateHelperPoints();
+        
         // Update visualization
         this.updateCurveVisualization();
+        return true;
       }
+      
+      // Create partial animation path
+      const progress = (this.animationFrame % frameCount) / frameCount;
+      const segmentCount = Math.min(currentSegment + 1, this.animationCurve.gridLines.length);
+      
+      // Create animation path with current segments
+      const points = [];
+      for (let i = 0; i < segmentCount; i++) {
+        const line = this.animationCurve.gridLines[i];
+        let x, y;
+        
+        if (line.type === 'horizontal') {
+          x = (line.col + 0.5) * this.gridLayout.cellSize;
+          y = line.row * this.gridLayout.cellSize;
+        } else { // vertical
+          x = line.col * this.gridLayout.cellSize;
+          y = (line.row + 0.5) * this.gridLayout.cellSize;
+        }
+        
+        points.push({ x, y });
+      }
+      
+      // For the last segment, interpolate based on progress
+      if (segmentCount < this.animationCurve.gridLines.length) {
+        const nextLine = this.animationCurve.gridLines[segmentCount];
+        let nextX, nextY;
+        
+        if (nextLine.type === 'horizontal') {
+          nextX = (nextLine.col + 0.5) * this.gridLayout.cellSize;
+          nextY = nextLine.row * this.gridLayout.cellSize;
+        } else { // vertical
+          nextX = nextLine.col * this.gridLayout.cellSize;
+          nextY = (nextLine.row + 0.5) * this.gridLayout.cellSize;
+        }
+        
+        const lastPoint = points[points.length - 1];
+        const interpX = lastPoint.x + (nextX - lastPoint.x) * progress;
+        const interpY = lastPoint.y + (nextY - lastPoint.y) * progress;
+        
+        points.push({ x: interpX, y: interpY });
+      }
+      
+      // Set animation path
+      this.animationPath = {
+        type: 'animationPath',
+        points: points,
+        isClosed: false
+      };
+      
+      // Update visualization
+      this.updateCurveVisualization();
     }
     
-    return true; // Continue animation
+    return true;
   }
   
   onParameterChanged(parameterId, value) {
@@ -498,31 +629,38 @@ export default class MirrorCurvesPlugin extends Plugin {
     // Update visualization if style parameters change
     if (parameterId === 'tension' || 
         parameterId === 'showGridLines' || 
+        parameterId === 'showGridPoints' ||
         parameterId === 'showMirrors' ||
+        parameterId === 'showCenterDots' ||
+        parameterId === 'gridLineColor' ||
+        parameterId === 'mirrorColor' ||
         parameterId === 'curveStyle' ||
-        parameterId === 'curveColor') {
+        parameterId === 'smooth' ||
+        parameterId === 'curveColor' ||
+        parameterId === 'showHelperPoints' ||
+        parameterId === 'helperPointColor') {
       this.updateCurveVisualization();
     }
   }
   
   handleInteraction(type, data) {
     // Handle clicks on grid lines to toggle mirrors
-    if (type === 'click' && this.state.grid) {
+    if (type === 'click' && this.grid) {
       // Convert stage coordinates to grid coordinates
-      const { cellSize, offsetX, offsetY } = this.state.gridLayout;
+      const { cellSize, offsetX, offsetY } = this.gridLayout;
       const gridX = (data.x - offsetX) / cellSize;
       const gridY = (data.y - offsetY) / cellSize;
       
       // Check if click is within grid boundaries
-      if (gridX >= 0 && gridX <= this.state.grid.cols && 
-          gridY >= 0 && gridY <= this.state.grid.rows) {
+      if (gridX >= 0 && gridX <= this.grid.cols && 
+          gridY >= 0 && gridY <= this.grid.rows) {
         
         // Find the closest grid line
         let closestLine = null;
         let minDistance = Infinity;
         
-        for (const line of this.state.grid.gridLines.values()) {
-          if (this.state.grid.isBoundaryGridLine(line)) {
+        for (const line of this.grid.gridLines.values()) {
+          if (this.grid.isBoundaryGridLine(line)) {
             // Skip boundary lines
             continue;
           }
@@ -564,7 +702,7 @@ export default class MirrorCurvesPlugin extends Plugin {
         // Toggle mirror if a line was found and is close enough
         if (closestLine && minDistance < 0.2) {
           // Toggle mirror status
-          this.state.grid.setMirror(closestLine.id, !closestLine.isMirror);
+          this.grid.setMirror(closestLine.id, !closestLine.isMirror);
           
           // Clear curves when mirrors change
           this.clearCurves();
@@ -597,28 +735,13 @@ export default class MirrorCurvesPlugin extends Plugin {
     }
     
     // Reset state
-    this.state = {
-      grid: null,
-      curves: [],
-      animationPath: null,
-      gridLayout: {},
-      settings: {
-        showGridLines: true,
-        showGridPoints: true,
-        showMirrors: true,
-        showCenterDots: false,
-        smooth: true,
-        tension: 0.5,
-        backgroundColor: 'transparent',
-        animationStyle: 'curved',
-        lineStyles: {
-          grid: { color: '#cccccc', width: 1 },
-          gridPoint: { color: '#999999', radius: 2 },
-          mirror: { color: '#333333', width: 2 },
-          centerDot: { color: '#555555', radius: 3 },
-          curve: { width: 3 }
-        }
-      }
-    };
+    this.grid = null;
+    this.curves = [];
+    this.animationPath = null;
+    this.gridLayout = {};
+    this.helperPoints = [];
+    this.isAnimating = false;
+    this.animationFrame = 0;
+    this.animationCurve = null;
   }
 }
