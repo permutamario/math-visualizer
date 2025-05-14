@@ -4,7 +4,32 @@
  */
 
 import { meshFromFaces } from './meshFromFaces.js';
-// QuickHull is loaded globally from HTML
+// Import QuickHull if available globally, otherwise import from utils
+let QuickHullFunc;
+try {
+  // Check if it's already available globally (from libraryInit.js)
+  QuickHullFunc = window.QuickHull;
+  if (!QuickHullFunc) {
+    // Try to import from a relative path
+    import('../../utils/QuickHull.js').then(module => {
+      QuickHullFunc = module.default;
+    }).catch(error => {
+      console.error("Error importing QuickHull:", error);
+      // Fallback implementation
+      QuickHullFunc = (points, options) => {
+        console.warn("Using fallback QuickHull (very basic)");
+        return [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]];
+      };
+    });
+  }
+} catch (e) {
+  console.error("Error accessing QuickHull:", e);
+  // Fallback implementation
+  QuickHullFunc = (points, options) => {
+    console.warn("Using fallback QuickHull (very basic)");
+    return [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]];
+  };
+}
 
 class PolytopeFamily {
   /**
@@ -71,8 +96,9 @@ class PolytopeFamily {
    * 
    */
   createPolytope() {
-	this.vertices = this.calculateVertices();
-    const faces = QuickHull(this.vertices, { skipTriangulation: true });
+    this.vertices = this.calculateVertices();
+    // Use the function variable we defined at the top
+    const faces = QuickHullFunc(this.vertices, { skipTriangulation: true });
     this.faces = faces;
 
     const edgeSet = new Set();

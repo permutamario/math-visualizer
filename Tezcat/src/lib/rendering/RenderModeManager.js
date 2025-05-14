@@ -1,4 +1,21 @@
-// src/rendering/RenderModeManager.js
+// src/lib/rendering/RenderModeManager.js
+// Import THREE from three.js library or from window if it's globally available
+let THREE;
+try {
+  // Try direct import first
+  if (window.THREE) {
+    THREE = window.THREE;
+  } else {
+    // Fallback to dynamic import
+    import('three').then(threeModule => {
+      THREE = threeModule;
+    }).catch(error => {
+      console.error("Error importing THREE:", error);
+    });
+  }
+} catch (e) {
+  console.error("Error setting up THREE:", e);
+}
 
 /**
  * Manages rendering modes that combine material and lighting settings
@@ -161,135 +178,165 @@ export class RenderModeManager {
       }
     };
     
-    // Material factory functions
-    this.materialFactories = {
-      // Standard balanced PBR material
-      standard: (color, opacity, properties = {}) => {
-        return new THREE.MeshStandardMaterial({
-          color,
-          roughness: properties.roughness !== undefined ? properties.roughness : 0.5,
-          metalness: properties.metalness !== undefined ? properties.metalness : 0.2,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
+    // Material factory functions that require THREE
+    this.materialFactories = {};
+    
+    // Initialize material factories once THREE is available
+    this._initializeMaterialFactories();
+  }
+  
+  /**
+   * Initialize material factory functions that use THREE
+   * @private
+   */
+  _initializeMaterialFactories() {
+    if (!THREE) {
+      // Set up a watcher to try again when THREE becomes available
+      const checkInterval = setInterval(() => {
+        if (THREE) {
+          this._setupMaterialFactories();
+          clearInterval(checkInterval);
+        }
+      }, 500);
       
-      // Basic non-PBR material for performance
-      basic: (color, opacity) => {
-        return new THREE.MeshBasicMaterial({
-          color,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
+      // Timeout after 10 seconds to avoid leaks
+      setTimeout(() => clearInterval(checkInterval), 10000);
+    } else {
+      this._setupMaterialFactories();
+    }
+  }
+  
+  /**
+   * Set up material factories with THREE
+   * @private
+   */
+  _setupMaterialFactories() {
+    // Standard balanced PBR material
+    this.materialFactories.standard = (color, opacity, properties = {}) => {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: properties.roughness !== undefined ? properties.roughness : 0.5,
+        metalness: properties.metalness !== undefined ? properties.metalness : 0.2,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Basic non-PBR material for performance
+    this.materialFactories.basic = (color, opacity) => {
+      return new THREE.MeshBasicMaterial({
+        color,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Wireframe material
+    this.materialFactories.wireframe = (color, opacity) => {
+      return new THREE.MeshBasicMaterial({
+        color,
+        wireframe: true,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Glossy PBR material
+    this.materialFactories.glossy = (color, opacity, properties = {}) => {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: properties.roughness !== undefined ? properties.roughness : 0.1,
+        metalness: properties.metalness !== undefined ? properties.metalness : 0.3,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Metallic PBR material
+    this.materialFactories.metallic = (color, opacity, properties = {}) => {
+      const material = new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: properties.roughness !== undefined ? properties.roughness : 0.1,
+        metalness: properties.metalness !== undefined ? properties.metalness : 1.0,
+        reflectivity: properties.reflectivity !== undefined ? properties.reflectivity : 1.0,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
       
-      // Wireframe material
-      wireframe: (color, opacity) => {
-        return new THREE.MeshBasicMaterial({
-          color,
-          wireframe: true,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
+      // Add emissive properties for better visualization
+      material.emissive = color.clone().multiplyScalar(0.2);
+      material.emissiveIntensity = 0.3;
       
-      // Glossy PBR material
-      glossy: (color, opacity, properties = {}) => {
-        return new THREE.MeshStandardMaterial({
-          color,
-          roughness: properties.roughness !== undefined ? properties.roughness : 0.1,
-          metalness: properties.metalness !== undefined ? properties.metalness : 0.3,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
+      return material;
+    };
+    
+    // Matte non-reflective material
+    this.materialFactories.matte = (color, opacity, properties = {}) => {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: properties.roughness !== undefined ? properties.roughness : 1.0,
+        metalness: properties.metalness !== undefined ? properties.metalness : 0.0,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Glass-like transparent material
+    this.materialFactories.glass = (color, opacity, properties = {}) => {
+      return new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: properties.roughness !== undefined ? properties.roughness : 0.0,
+        metalness: properties.metalness !== undefined ? properties.metalness : 0.0,
+        transmission: properties.transmission !== undefined ? properties.transmission : 0.9,
+        transparent: true,
+        opacity,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Toon/cel-shaded material
+    this.materialFactories.toon = (color, opacity) => {
+      return new THREE.MeshToonMaterial({
+        color,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
+    };
+    
+    // Self-illuminated neon material
+    this.materialFactories.neon = (color, opacity, properties = {}) => {
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
       
-      // Metallic PBR material
-      metallic: (color, opacity, properties = {}) => {
-        const material = new THREE.MeshPhysicalMaterial({
-          color,
-          roughness: properties.roughness !== undefined ? properties.roughness : 0.1,
-          metalness: properties.metalness !== undefined ? properties.metalness : 1.0,
-          reflectivity: properties.reflectivity !== undefined ? properties.reflectivity : 1.0,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
+      material.emissive = color.clone();
+      material.emissiveIntensity = properties.emissiveIntensity !== undefined ? 
+        properties.emissiveIntensity : 1.5;
         
-        // Add emissive properties for better visualization
-        material.emissive = color.clone().multiplyScalar(0.2);
-        material.emissiveIntensity = 0.3;
-        
-        return material;
-      },
-      
-      // Matte non-reflective material
-      matte: (color, opacity, properties = {}) => {
-        return new THREE.MeshStandardMaterial({
-          color,
-          roughness: properties.roughness !== undefined ? properties.roughness : 1.0,
-          metalness: properties.metalness !== undefined ? properties.metalness : 0.0,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
-      
-      // Glass-like transparent material
-      glass: (color, opacity, properties = {}) => {
-        return new THREE.MeshPhysicalMaterial({
-          color,
-          roughness: properties.roughness !== undefined ? properties.roughness : 0.0,
-          metalness: properties.metalness !== undefined ? properties.metalness : 0.0,
-          transmission: properties.transmission !== undefined ? properties.transmission : 0.9,
-          transparent: true,
-          opacity,
-          side: THREE.DoubleSide
-        });
-      },
-      
-      // Toon/cel-shaded material
-      toon: (color, opacity) => {
-        return new THREE.MeshToonMaterial({
-          color,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      },
-      
-      // Self-illuminated neon material
-      neon: (color, opacity, properties = {}) => {
-        const material = new THREE.MeshBasicMaterial({
-          color,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-        
-        material.emissive = color.clone();
-        material.emissiveIntensity = properties.emissiveIntensity !== undefined ? 
-          properties.emissiveIntensity : 1.5;
-          
-        return material;
-      },
-      
-      // Normal-mapped flat-shaded PBR
-      flatShaded: (color, opacity) => {
-        return new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.5,
-          metalness: 0.0,
-          flatShading: true,
-          opacity,
-          transparent: opacity < 1.0,
-          side: THREE.DoubleSide
-        });
-      }
+      return material;
+    };
+    
+    // Normal-mapped flat-shaded PBR
+    this.materialFactories.flatShaded = (color, opacity) => {
+      return new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.5,
+        metalness: 0.0,
+        flatShading: true,
+        opacity,
+        transparent: opacity < 1.0,
+        side: THREE.DoubleSide
+      });
     };
   }
   
@@ -325,6 +372,12 @@ export class RenderModeManager {
    * @returns {boolean} Whether the mode was applied successfully
    */
   applyRenderMode(scene, meshGroup, modeName, options = {}) {
+    // Ensure THREE is available
+    if (!THREE) {
+      console.error("THREE is not available, cannot apply render mode");
+      return false;
+    }
+    
     // Clean up previous mode elements
     this._cleanupPreviousMode(scene);
     
@@ -490,6 +543,12 @@ export class RenderModeManager {
    * @private
    */
   _applyEffects(scene, effects) {
+    // Ensure THREE is available
+    if (!THREE) {
+      console.error("THREE is not available, cannot apply effects");
+      return;
+    }
+    
     // Apply shadows if requested
     if (effects.shadows) {
       this.currentLights.forEach(light => {
@@ -552,6 +611,11 @@ export class RenderModeManager {
    * @private
    */
   _createBalancedLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
     dir.position.set(5, 10, 7.5);
@@ -564,6 +628,11 @@ export class RenderModeManager {
    * @private
    */
   _createStudioLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
     key.position.set(10, 10, 10);
     
@@ -582,6 +651,11 @@ export class RenderModeManager {
    * @private
    */
   _createContrastLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const key = new THREE.DirectionalLight(0xffffff, 1.5);
     key.position.set(5, 15, 5);
     
@@ -596,6 +670,11 @@ export class RenderModeManager {
    * @private
    */
   _createSoftLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const ambient = new THREE.AmbientLight(0xffffff, 0.8);
     const hemi = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.6);
     
@@ -608,6 +687,11 @@ export class RenderModeManager {
    * @private
    */
   _createAmbientLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const ambient = new THREE.AmbientLight(0xffffff, 1.0);
     return [ambient];
   }
@@ -618,6 +702,11 @@ export class RenderModeManager {
    * @private
    */
   _createDirectionalLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const dir = new THREE.DirectionalLight(0xffffff, 1.0);
     dir.position.set(1, 1, 1);
     
@@ -630,6 +719,11 @@ export class RenderModeManager {
    * @private
    */
   _createMultiPointLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const ambient = new THREE.AmbientLight(0xffffff, 0.3);
     
     const positions = [
@@ -654,6 +748,11 @@ export class RenderModeManager {
    * @private
    */
   _createDarkLighting() {
+    if (!THREE) {
+      console.error("THREE is not available, cannot create lighting");
+      return [];
+    }
+    
     const ambient = new THREE.AmbientLight(0x000000, 0.1);
     return [ambient];
   }
