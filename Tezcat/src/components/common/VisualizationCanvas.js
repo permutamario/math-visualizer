@@ -1,74 +1,30 @@
-import React, { useEffect, useRef } from 'react';
-import visualizationBridge from '../utils/visualization-bridge';
-import VisualizationCanvas from './common/VisualizationCanvas';
+import React, { useRef, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
-const VisualizationContainer = ({ 
-  pluginId, 
-  onPluginLoaded,
-  onParameterChange,
-  className = '' 
-}) => {
-  const containerRef = useRef(null);
-  
-  // Initialize the visualization engine
+/**
+ * Canvas component for rendering visualizations
+ * This component serves as the main rendering surface for both 2D and 3D visualizations
+ */
+const VisualizationCanvas = () => {
+  const canvasRef = useRef(null);
+  const { darkMode } = useTheme();
+
+  // Apply styles to the canvas when the theme changes
   useEffect(() => {
-    if (!containerRef.current) return;
-    
-    visualizationBridge.initialize(containerRef.current)
-      .then(() => {
-        console.log('Visualization engine initialized');
-        
-        // Set up parameter change listener
-        if (visualizationBridge.core && onParameterChange) {
-          visualizationBridge.core.events.on('parameterChange', onParameterChange);
-        }
-        
-        // Load initial plugin if provided
-        if (pluginId) {
-          return visualizationBridge.loadPlugin(pluginId);
-        }
-      })
-      .then(() => {
-        if (onPluginLoaded) {
-          onPluginLoaded(visualizationBridge.core);
-        }
-      })
-      .catch(error => {
-        console.error('Failed to initialize visualization:', error);
-      });
-      
-    // Cleanup
-    return () => {
-      if (visualizationBridge.core && onParameterChange) {
-        visualizationBridge.core.events.off('parameterChange', onParameterChange);
-      }
-    };
-  }, []);
-  
-  // Load a new plugin when pluginId changes
-  useEffect(() => {
-    if (pluginId && visualizationBridge.initialized) {
-      visualizationBridge.loadPlugin(pluginId)
-        .then(() => {
-          if (onPluginLoaded) {
-            onPluginLoaded(visualizationBridge.core);
-          }
-        })
-        .catch(error => {
-          console.error(`Failed to load plugin ${pluginId}:`, error);
-        });
+    if (canvasRef.current) {
+      // The actual canvas styling is mainly handled by the visualization framework
+      // This is just to ensure the canvas is visible and properly sized
+      canvasRef.current.style.backgroundColor = darkMode ? '#1a1a1a' : '#f5f5f5';
     }
-  }, [pluginId]);
-  
+  }, [darkMode]);
+
   return (
-    <div 
-      ref={containerRef} 
-      className={`visualization-container ${className}`}
-      style={{ width: '100%', height: '100%', position: 'relative' }}
-    >
-      <VisualizationCanvas />
-    </div>
+    <canvas
+      id="visualization-canvas"
+      ref={canvasRef}
+      className="w-full h-full block"
+    />
   );
 };
 
-export default VisualizationContainer;
+export default VisualizationCanvas;
