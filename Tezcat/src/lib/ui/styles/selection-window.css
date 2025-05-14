@@ -1,0 +1,180 @@
+/* Selection Window Styles */
+
+/* Overlay background */
+.selection-window-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: all; /* Ensure it can receive click events */
+}
+
+.selection-window-overlay.visible {
+  opacity: 1;
+}
+
+.selection-window-overlay.hidden {
+  display: none;
+  pointer-events: none;
+}
+
+/* Window content */
+.selection-window-content {
+  background-color: var(--background-secondary, #ffffff);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  width: 90%;
+  max-width: 900px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+.selection-window-overlay.visible .selection-window-content {
+  transform: translateY(0);
+}
+
+/* Window header */
+.selection-window-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selection-window-title {
+  margin: 0;
+  color: var(--text-color, #333333);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.selection-window-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-secondary, #666666);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.selection-window-close:hover {
+  background-color: var(--control-active, #e8f0fe);
+  color: var(--text-color, #333333);
+}
+
+/* Plugin grid */
+.selection-window-grid {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 24px;
+  overflow-y: auto;
+  max-height: calc(80vh - 70px);
+}
+
+/* Plugin cards */
+.selection-window-card {
+  background-color: var(--background-color, #f5f5f5);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid transparent;
+}
+
+.selection-window-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.selection-window-card.active {
+  border-color: var(--accent-color, #1a73e8);
+}
+
+/* Plugin card image */
+.selection-window-card-image {
+  height: 140px;
+  background-color: var(--control-active, #e8f0fe);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color, #1a73e8);
+}
+
+/* Plugin card icon */
+.selection-window-card-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.8;
+}
+
+/* Plugin card content */
+.selection-window-card-content {
+  padding: 16px;
+}
+
+.selection-window-card-title {
+  margin: 0 0 8px 0;
+  color: var(--text-color, #333333);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.selection-window-card-description {
+  margin: 0;
+  color: var(--text-secondary, #666666);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .selection-window-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .selection-window-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+    max-height: calc(90vh - 70px);
+  }
+  
+  .selection-window-card-image {
+    height: 120px;
+  }
+}
+
+/* High contrast and forced-colors mode support */
+@media (forced-colors: active) {
+  .selection-window-card.active {
+    border-color: CanvasText;
+  }
+  
+  .selection-window-close {
+    border: 1px solid CanvasText;
+  }
+}

@@ -1,0 +1,461 @@
+/* Components and controls CSS */
+
+/* Value display for sliders */
+.value-display {
+  min-width: 30px;
+  text-align: right;
+  padding-left: 10px;
+  color: var(--text-secondary);
+}
+
+/* Input container for slider layout */
+.input-container {
+  display: flex;
+  align-items: center;
+}
+
+/* Enhanced Dropdown Styling */
+select {
+  color: var(--text-color);
+  background-color: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  padding: 8px;
+  padding-right: 30px;
+  font-size: 14px;
+  cursor: pointer;
+  
+  /* Custom dropdown arrow */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* Style the arrow for different themes */
+body[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cccccc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* Fix for dropdown options */
+select option {
+  color: var(--text-color);
+  background-color: var(--control-bg);
+  padding: 8px;
+}
+
+/* Firefox specific fixes */
+@-moz-document url-prefix() {
+  select {
+    color: var(--text-color);
+    background-color: var(--control-bg);
+    text-indent: 0.01px;
+    text-overflow: '';
+  }
+  
+  body[data-theme="dark"] select option {
+    background-color: #333333;
+    color: #f0f0f0;
+  }
+}
+
+/* Chrome/Safari specific fixes */
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  body[data-theme="dark"] select option {
+    background-color: #333333;
+    color: #f0f0f0;
+  }
+}
+
+/* Force dark theme colors with direct values as fallback */
+body[data-theme="dark"] select,
+body[data-theme="dark"] select option {
+  color: #f0f0f0 !important;
+}
+
+body[data-theme="dark"] .control-panel select option,
+body[data-theme="dark"] .mobile-header select option,
+body[data-theme="dark"] .mobile-options-menu select option {
+  background-color: #333333 !important;
+  color: #f0f0f0 !important;
+}
+
+/* Specific styling for different UI areas */
+.control-panel select,
+.mobile-header select,
+.mobile-options-menu select {
+  color: var(--text-color);
+  background-color: var(--control-bg);
+}
+
+.control-panel select option,
+.mobile-header select option,
+.mobile-options-menu select option {
+  color: var(--text-color);
+  background-color: var(--control-bg);
+}
+
+/* Modern browsers select specific styling */
+select:focus {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 1px;
+}
+
+/* Hover effect */
+select:hover {
+  border-color: var(--accent-color);
+}
+
+/* Plugin selector button styles */
+.plugin-selector-button {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  background-color: var(--background-secondary);
+  border-radius: 50%;
+  box-shadow: 0 2px 10px var(--overlay-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1001;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.plugin-selector-button:hover {
+  transform: scale(1.05);
+  background-color: var(--control-active);
+}
+
+.plugin-selector-button:active {
+  transform: scale(0.95);
+}
+
+.plugin-selector-button-icon {
+  width: 30px;
+  height: 30px;
+  background-color: var(--accent-color);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+  mask-size: cover;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3C/svg%3E");
+  -webkit-mask-size: cover;
+}
+
+/* Plugin list container */
+.plugin-list {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  min-width: 250px;
+  max-width: 350px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px var(--overlay-light);
+  overflow: hidden;
+  z-index: 1002;
+  transform-origin: top left;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  color: var(--text-color);
+}
+
+.plugin-list.hidden {
+  transform: translateY(-10px) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Plugin list header */
+.plugin-list-header {
+  padding: 15px 20px;
+  background-color: var(--control-bg);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.plugin-list-title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Plugin list items container */
+.plugin-list-items {
+  max-height: 60vh;
+  overflow-y: auto;
+  background-color: var(--background-secondary);
+}
+
+/* Individual plugin list item */
+.plugin-list-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease;
+  color: var(--text-color);
+  background-color: var(--background-secondary);
+}
+
+.plugin-list-item:last-child {
+  border-bottom: none;
+}
+
+.plugin-list-item:hover {
+  background-color: var(--control-active);
+}
+
+.plugin-list-item.active {
+  background-color: var(--control-active);
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+/* Plugin list item title */
+.plugin-list-item-title {
+  font-size: 14px;
+  margin: 0 0 4px 0;
+  color: var(--text-color);
+}
+
+/* Plugin list item description */
+.plugin-list-item-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Theme toggle buttons */
+.theme-toggle {
+  position: fixed;
+  top: 20px;
+  right: 70px;
+  width: 40px;
+  height: 40px;
+  background-color: var(--overlay-light);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.theme-toggle:hover {
+  background-color: var(--overlay-bg);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.mobile-theme-toggle {
+  position: fixed;
+  top: 0px;
+  right: 40px;
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+}
+
+/* Control styles */
+.control {
+  margin-bottom: 15px;
+}
+
+.control label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+input[type="text"],
+input[type="color"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background-color: var(--control-bg);
+  color: var(--text-color);
+}
+
+input[type="range"] {
+  width: 100%;
+  margin-top: 8px;
+}
+
+input[type="color"] {
+  height: 40px;
+  padding: 2px;
+}
+
+/* Checkbox control */
+.checkbox-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.checkbox-container label {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.checkbox-container input {
+  flex: 0 0 auto;
+  transform: scale(1.2);
+  margin-left: 10px;
+}
+
+/* Buttons */
+button {
+  padding: 10px;
+  margin-top: 10px;
+  background-color: var(--accent-color);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+button:hover {
+  background-color: var(--control-focus);
+}
+
+button:active {
+  background-color: var(--control-focus);
+  transform: translateY(1px);
+}
+
+/* Vector input styling */
+.control div {
+  display: flex;
+  gap: 8px;
+}
+
+.control div input {
+  flex: 1;
+}
+
+.control div button {
+  flex: 0 0 auto;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+/* Fullscreen button */
+.fullscreen-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  background-color: var(--overlay-light);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.fullscreen-button:hover {
+  background-color: var(--overlay-bg);
+}
+
+.fullscreen-button:active {
+  transform: scale(0.95);
+}
+
+.fullscreen-icon {
+  font-size: 20px;
+}
+
+.mobile-fullscreen-button {
+  position: fixed;
+  top: 0px;
+  right: 0px;
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  transition: all 0.3s ease;
+}
+
+.mobile-fullscreen-button.fullscreen-active {
+  top: 0px;
+  right: 0px;
+  background-color: var(--overlay-light);
+}
+
+.mobile-fullscreen-button:active {
+  transform: scale(0.95);
+}
+
+/* Dark theme specific fixes with fallbacks */
+body[data-theme="dark"] .plugin-list {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-header {
+  background-color: #333333;
+  border-color: #444444;
+}
+
+body[data-theme="dark"] .plugin-list-items {
+  background-color: #2a2a2a;
+}
+
+body[data-theme="dark"] .plugin-list-item {
+  border-color: #444444;
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-item:hover {
+  background-color: #3c4043;
+}
+
+body[data-theme="dark"] .plugin-list-item.active {
+  background-color: #3c4043;
+}
+
+body[data-theme="dark"] .plugin-list-item-title {
+  color: #f0f0f0;
+}
+
+body[data-theme="dark"] .plugin-list-item-description {
+  color: #b0b0b0;
+}
