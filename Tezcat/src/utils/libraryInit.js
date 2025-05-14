@@ -5,12 +5,20 @@ import * as THREE from 'three';
 import CameraControls from 'camera-controls';
 import * as d3 from 'd3';
 import * as math from 'mathjs';
-import qh from 'quickhull3d';
+// Replace quickhull3d with a custom implementation or alternative
+// import qh from 'quickhull3d';
 import Konva from 'konva';
+
+// Simple quickhull stub to prevent errors
+const quickhullStub = {
+  compute: (points) => {
+    console.warn("QuickHull implementation is a stub. Please install proper library.");
+    return { vertices: points };
+  }
+};
 
 /**
  * Initialize all visualization libraries and make them globally available
- * This helps maintain compatibility between React components and the core visualization engine
  */
 const setupLibraries = () => {
   console.log("Setting up visualization libraries...");
@@ -24,8 +32,8 @@ const setupLibraries = () => {
     CameraControls.install({ THREE });
     window.CameraControls = CameraControls;
     
-    // Initialize QuickHull
-    window.QuickHull = qh;
+    // Initialize QuickHull stub
+    window.QuickHull = quickhullStub;
     
     // Initialize Konva
     window.Konva = Konva;
@@ -44,7 +52,7 @@ const setupLibraries = () => {
   return {
     THREE,
     CameraControls,
-    QuickHull: qh,
+    QuickHull: quickhullStub,
     Konva,
     mathjs: math,
     d3
@@ -54,15 +62,13 @@ const setupLibraries = () => {
 // Initialize libraries
 const libraries = setupLibraries();
 
-// Export both the initialization function and library references
+// Export the libraries
 export default libraries;
 
-// Also export individual libraries for clean imports
-export const {
-  THREE,
-  CameraControls,
-  QuickHull,
-  Konva,
-  mathjs,
-  d3
-} = libraries;
+// Export original imports directly
+export { THREE };
+export { CameraControls };
+export { quickhullStub as QuickHull };
+export { Konva };
+export { math as mathjs };
+export { d3 };
