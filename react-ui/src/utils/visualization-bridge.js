@@ -1,8 +1,10 @@
-// This file creates a bridge between React and your visualization engine
+// react-ui/src/utils/visualization-bridge.js
 
-// Import your AppCore class from the parent directory
-// Note: You might need to adjust the path depending on your project structure
-import { AppCore } from '../../src/core/AppCore.js';
+// Change from:
+// import { AppCore } from '../../src/core/AppCore.js';
+
+// To:
+import { AppCore } from '@core/AppCore.js';
 
 class VisualizationBridge {
   constructor() {
@@ -28,30 +30,39 @@ class VisualizationBridge {
 
   getPlugins() {
     if (!this.core) return [];
-    return this.core.getAvailablePlugins();
+    return this.core.availablePlugins || [];
   }
 
   getParameters(group) {
     if (!this.core) return { schema: [], values: {} };
-    return this.core.getParameterGroup(group);
+    
+    // Return the requested parameter group
+    switch(group) {
+      case 'visual':
+        return this.core.visualParameters || { schema: [], values: {} };
+      case 'structural':
+        return this.core.structuralParameters || { schema: [], values: {} };
+      case 'advanced':
+        return this.core.advancedParameters || { schema: [], values: {} };
+      default:
+        return { schema: [], values: {} };
+    }
   }
 
   setParameter(id, value, group) {
-    if (!this.core) return;
-    this.core.setParameter(id, value, group);
+    if (!this.core) return false;
+    return this.core.changeParameter(id, value, group);
   }
 
   executeAction(actionId) {
-    if (!this.core) return;
-    this.core.executeAction(actionId);
+    if (!this.core) return false;
+    return this.core.executeAction(actionId);
   }
 
   getActions() {
     if (!this.core) return [];
     return this.core.getActions();
   }
-
-  // Add more methods as needed to interact with your engine
 }
 
 // Export a singleton instance
