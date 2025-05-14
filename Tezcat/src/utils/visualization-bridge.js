@@ -1,10 +1,8 @@
 // react-ui/src/utils/visualization-bridge.js
 
-// Change from:
-import { AppCore } from '../../src/core/AppCore.js';
 
 // To:
-//import { AppCore } from '../lib/core/AppCore';
+import { AppCore } from '../lib/core/AppCore.js';
 
 class VisualizationBridge {
   constructor() {
