@@ -1,7 +1,4 @@
-// react-ui/src/utils/visualization-bridge.js
-
-
-// To:
+// src/utils/visualization-bridge.js
 import { AppCore } from '../lib/core/AppCore.js';
 
 class VisualizationBridge {
@@ -10,31 +7,81 @@ class VisualizationBridge {
     this.initialized = false;
   }
 
-  initialize(containerElement) {
+  async initialize(containerElement) {
     if (this.initialized) return Promise.resolve(this.core);
-
-    this.core = new AppCore();
-    return this.core.initialize(containerElement)
-      .then(() => {
-        this.initialized = true;
-        return this.core;
-      });
+    
+    try {
+      console.log("Initializing visualization bridge...");
+      
+      // Create and initialize the core
+      this.core = new AppCore();
+      await this.core.initialize();
+      
+      // Add event listeners for container if needed
+      if (containerElement) {
+        // Any container-specific setup (not needed for now)
+      }
+      
+      console.log("Visualization bridge initialized successfully");
+      this.initialized = true;
+      
+      // Return the core for direct access
+      return this.core;
+    } catch (error) {
+      console.error("Failed to initialize visualization bridge:", error);
+      throw error;
+    }
   }
 
-  loadPlugin(pluginId) {
-    if (!this.core) return Promise.reject(new Error('Core not initialized'));
-    return this.core.loadPlugin(pluginId);
+  // Load a plugin by ID
+  async loadPlugin(pluginId) {
+    if (!this.core) {
+      throw new Error("Core not initialized");
+    }
+    
+    try {
+      console.log(`Loading plugin: ${pluginId}`);
+      const success = await this.core.loadPlugin(pluginId);
+      
+      if (!success) {
+        throw new Error(`Failed to load plugin: ${pluginId}`);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`Error loading plugin ${pluginId}:`, error);
+      throw error;
+    }
   }
 
+  // Get available plugins from the core
   getPlugins() {
     if (!this.core) return [];
     return this.core.availablePlugins || [];
   }
 
+  // Get active plugin
+  getActivePlugin() {
+    if (!this.core) return null;
+    return this.core.getActivePlugin();
+  }
+
+  // Set parameter value
+  setParameter(id, value, group) {
+    if (!this.core) return false;
+    return this.core.changeParameter(id, value, group);
+  }
+
+  // Execute an action
+  executeAction(actionId, ...args) {
+    if (!this.core) return false;
+    return this.core.executeAction(actionId, ...args);
+  }
+
+  // Get parameters for a specific group
   getParameters(group) {
     if (!this.core) return { schema: [], values: {} };
     
-    // Return the requested parameter group
     switch(group) {
       case 'visual':
         return this.core.visualParameters || { schema: [], values: {} };
@@ -43,23 +90,32 @@ class VisualizationBridge {
       case 'advanced':
         return this.core.advancedParameters || { schema: [], values: {} };
       default:
-        return { schema: [], values: {} };
+        // Return all parameters merged
+        return this.core.getAllParameters ? 
+          { values: this.core.getAllParameters() } : 
+          { schema: [], values: {} };
     }
   }
 
-  setParameter(id, value, group) {
-    if (!this.core) return false;
-    return this.core.changeParameter(id, value, group);
-  }
-
-  executeAction(actionId) {
-    if (!this.core) return false;
-    return this.core.executeAction(actionId);
-  }
-
+  // Get actions from the core
   getActions() {
     if (!this.core) return [];
     return this.core.getActions();
+  }
+
+  // Unload the current plugin
+  async unloadPlugin() {
+    if (!this.core || !this.core.pluginLoader) return false;
+    return await this.core.pluginLoader.unloadCurrentPlugin();
+  }
+
+  // Cleanup the bridge
+  cleanup() {
+    if (this.core) {
+      this.core.cleanup();
+      this.core = null;
+    }
+    this.initialized = false;
   }
 }
 
