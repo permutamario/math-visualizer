@@ -2,7 +2,7 @@
 
 // Import your AppCore class from the parent directory
 // Note: You might need to adjust the path depending on your project structure
-import { AppCore } from '../../src/core/AppCore';
+import { AppCore } from '../../src/core/AppCore.js';
 
 class VisualizationBridge {
   constructor() {
