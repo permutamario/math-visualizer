@@ -1,5 +1,5 @@
 // plugins/mirror-curve/index.js
-import { Plugin2D } from '../../src/core/Plugin2D.js';
+import { Plugin2D } from '../../core/Plugin2D.js';
 import { Grid } from './grid.js';
 import { findNextCurve, findAllCurves } from './curveStartFinder.js';
 import { GridRenderer } from './gridRenderer.js';

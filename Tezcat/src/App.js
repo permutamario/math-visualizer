@@ -1,129 +1,145 @@
+// src/App.js
 import React, { useState, useEffect } from 'react';
+import './utils/libraryInit';  // Import library initialization early
+import LoadingScreen from './components/common/LoadingScreen';
 import { DesktopLayout, MobileLayout } from './components/layouts';
 import { useDeviceDetection } from './hooks/useDeviceDetection';
-import { ThemeProvider } from './contexts/ThemeContext';
-import VisualizationContainer from './components/VisualizationContainer';
 import visualizationBridge from './utils/visualization-bridge';
-import './App.css';
+import VisualizationCanvas from './components/common/VisualizationCanvas';
 
 function App() {
-  const { isMobile } = useDeviceDetection();
-  const [plugins, setPlugins] = useState([]);
-  const [activePluginId, setActivePluginId] = useState('wave-plugin'); // Default plugin
+  // Application state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [initialized, setInitialized] = useState(false);
   const [activePlugin, setActivePlugin] = useState(null);
+  const [plugins, setPlugins] = useState([]);
   const [showPluginSelector, setShowPluginSelector] = useState(false);
-  const [visualParams, setVisualParams] = useState({});
-  const [structuralParams, setStructuralParams] = useState({});
-  const [actions, setActions] = useState([]);
+  
+  // Parameters state
+  const [visualParams, setVisualParams] = useState({
+    amplitude: 50,
+    frequency: 20,
+    showPoints: true,
+    color: '#4285f4'
+  });
+  
+  const [structuralParams, setStructuralParams] = useState({
+    resolution: 100,
+    layers: 3,
+    renderQuality: 'medium'
+  });
+  
+  // Actions array for buttons
+  const [actions, setActions] = useState([
+    { id: 'reset', label: 'Reset View' },
+    { id: 'export', label: 'Export Image' },
+    { id: 'animate', label: 'Toggle Animation' }
+  ]);
+  
+  // Detect mobile devices for responsive layout
+  const { isMobile } = useDeviceDetection();
+  
+  // Fullscreen state
   const [fullscreen, setFullscreen] = useState(false);
+  const toggleFullscreen = () => setFullscreen(!fullscreen);
 
-  // Handle parameter changes from the visualization engine
-  const handleParameterChange = (parameterId, value, group) => {
-    if (group === 'visual') {
-      setVisualParams(prev => ({ ...prev, [parameterId]: value }));
-    } else if (group === 'structural') {
-      setStructuralParams(prev => ({ ...prev, [parameterId]: value }));
-    }
-  };
-
-  // Handle plugin loading
-  const handlePluginLoaded = (core) => {
-    // Get available plugins
-    const availablePlugins = visualizationBridge.getPlugins();
-    setPlugins(availablePlugins);
+  // Initialize the visualization engine
+  useEffect(() => {
+    const appContainer = document.getElementById('root');
     
-    // Find active plugin
-    const currentPlugin = availablePlugins.find(p => p.id === activePluginId) || availablePlugins[0];
-    setActivePlugin(currentPlugin);
-    
-    // Get parameters
-    const visualParamGroup = visualizationBridge.getParameters('visual');
-    const structuralParamGroup = visualizationBridge.getParameters('structural');
-    
-    setVisualParams(visualParamGroup.values || {});
-    setStructuralParams(structuralParamGroup.values || {});
-    
-    // Get actions
-    setActions(visualizationBridge.getActions());
-  };
-
+    visualizationBridge.initialize(appContainer)
+      .then(() => {
+        // Get available plugins
+        const availablePlugins = visualizationBridge.getPlugins();
+        setPlugins(availablePlugins);
+        
+        // Load first plugin if available
+        if (availablePlugins.length > 0) {
+          setActivePlugin(availablePlugins[0]);
+          return visualizationBridge.loadPlugin(availablePlugins[0].id);
+        }
+      })
+      .then(() => {
+        setLoading(false);
+        setInitialized(true);
+      })
+      .catch(err => {
+        console.error('Failed to initialize:', err);
+        setLoading(false);
+        setError(err.message);
+      });
+      
+    // Cleanup on unmount
+    return () => {
+      // Cleanup visualization bridge if needed
+    };
+  }, []);
+  
   // Handle plugin selection
   const handlePluginSelect = (pluginId) => {
-    setActivePluginId(pluginId);
-    setShowPluginSelector(false);
+    setLoading(true);
+    
+    visualizationBridge.loadPlugin(pluginId)
+      .then(() => {
+        const selectedPlugin = plugins.find(p => p.id === pluginId);
+        setActivePlugin(selectedPlugin);
+        setLoading(false);
+        setShowPluginSelector(false);
+      })
+      .catch(err => {
+        console.error(`Failed to load plugin ${pluginId}:`, err);
+        setError(`Failed to load plugin: ${err.message}`);
+        setLoading(false);
+      });
   };
-
-  // Handle visual parameter changes
-  const handleVisualParamChange = (id, value) => {
-    visualizationBridge.setParameter(id, value, 'visual');
-    setVisualParams(prev => ({ ...prev, [id]: value }));
+  
+  // Handle parameter changes
+  const handleVisualParamChange = (paramId, value) => {
+    setVisualParams(prev => ({ ...prev, [paramId]: value }));
+    visualizationBridge.setParameter(paramId, value, 'visual');
   };
-
-  // Handle structural parameter changes
-  const handleStructuralParamChange = (id, value) => {
-    visualizationBridge.setParameter(id, value, 'structural');
-    setStructuralParams(prev => ({ ...prev, [id]: value }));
+  
+  const handleStructuralParamChange = (paramId, value) => {
+    setStructuralParams(prev => ({ ...prev, [paramId]: value }));
+    visualizationBridge.setParameter(paramId, value, 'structural');
   };
-
-  // Handle action click
+  
+  // Handle action button clicks
   const handleActionClick = (actionId) => {
     visualizationBridge.executeAction(actionId);
   };
-
-  // Toggle fullscreen mode
-  const toggleFullscreen = () => {
-    setFullscreen(!fullscreen);
-  };
-
+  
+  // Choose layout based on device
+  const Layout = isMobile ? MobileLayout : DesktopLayout;
+  
   return (
-    <ThemeProvider>
-      <div className="h-screen w-screen overflow-hidden">
-        <div className="relative h-full bg-gray-100 dark:bg-gray-800 transition-colors duration-300">
-          {/* Visualization Container */}
-          <VisualizationContainer 
-            pluginId={activePluginId}
-            onPluginLoaded={handlePluginLoaded}
-            onParameterChange={handleParameterChange}
-            className="absolute inset-0"
-          />
-          
-          {/* UI Layout */}
-          {isMobile ? (
-            <MobileLayout
-              activePlugin={activePlugin || { name: 'Loading...' }}
-              showPluginSelector={showPluginSelector}
-              setShowPluginSelector={setShowPluginSelector}
-              plugins={plugins}
-              handlePluginSelect={handlePluginSelect}
-              visualParams={visualParams}
-              handleVisualParamChange={handleVisualParamChange}
-              structuralParams={structuralParams}
-              handleStructuralParamChange={handleStructuralParamChange}
-              actions={actions}
-              handleActionClick={handleActionClick}
-              fullscreen={fullscreen}
-              toggleFullscreen={toggleFullscreen}
-            />
-          ) : (
-            <DesktopLayout
-              activePlugin={activePlugin || { name: 'Loading...' }}
-              showPluginSelector={showPluginSelector}
-              setShowPluginSelector={setShowPluginSelector}
-              plugins={plugins}
-              handlePluginSelect={handlePluginSelect}
-              visualParams={visualParams}
-              handleVisualParamChange={handleVisualParamChange}
-              structuralParams={structuralParams}
-              handleStructuralParamChange={handleStructuralParamChange}
-              actions={actions}
-              handleActionClick={handleActionClick}
-              fullscreen={fullscreen}
-              toggleFullscreen={toggleFullscreen}
-            />
-          )}
-        </div>
-      </div>
-    </ThemeProvider>
+    <div className="w-full h-full bg-white dark:bg-gray-900">
+      {/* Loading screen overlay */}
+      <LoadingScreen isLoading={loading} error={error} />
+      
+      {/* Visualization Canvas */}
+      <VisualizationCanvas />
+      
+      {/* Main UI */}
+      {initialized && !error && activePlugin && (
+        <Layout 
+          activePlugin={activePlugin}
+          plugins={plugins}
+          showPluginSelector={showPluginSelector}
+          setShowPluginSelector={setShowPluginSelector}
+          handlePluginSelect={handlePluginSelect}
+          visualParams={visualParams}
+          handleVisualParamChange={handleVisualParamChange}
+          structuralParams={structuralParams}
+          handleStructuralParamChange={handleStructuralParamChange}
+          actions={actions}
+          handleActionClick={handleActionClick}
+          fullscreen={fullscreen}
+          toggleFullscreen={toggleFullscreen}
+        />
+      )}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import visualizationBridge from '../utils/visualization-bridge';
+import VisualizationCanvas from './common/VisualizationCanvas';
 
 const VisualizationContainer = ({ 
   pluginId, 
@@ -63,8 +64,10 @@ const VisualizationContainer = ({
     <div 
       ref={containerRef} 
       className={`visualization-container ${className}`}
-      style={{ width: '100%', height: '100%' }}
-    />
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+    >
+      <VisualizationCanvas />
+    </div>
   );
 };
 

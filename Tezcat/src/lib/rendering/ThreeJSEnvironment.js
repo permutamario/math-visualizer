@@ -1,6 +1,6 @@
 // src/rendering/ThreeJSEnvironment.js
 
-import CameraControls from '../../../public/vendors/camera-controls.module.js';
+import CameraControls from 'camera-controls';
 
 /**
  * 3D rendering environment using THREE.js

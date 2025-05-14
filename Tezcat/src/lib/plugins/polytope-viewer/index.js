@@ -1,5 +1,5 @@
 // plugins/polytope-viewer/index.js
-import { Plugin3D } from '../../src/core/Plugin3D.js';
+import { Plugin3D } from '../../core/Plugin3D.js';
 import PolytopeFamily from './PolytopeFamily.js';
 
 export default class PolytopeVisualization extends Plugin3D {
