@@ -1,4 +1,5 @@
 [
     "polytope-viewer",
-    "mirror-curve"
+    "mirror-curve",
+	"root-lattice"
 ]
