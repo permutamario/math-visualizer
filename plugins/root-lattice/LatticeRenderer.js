@@ -316,4 +316,133 @@ export class LatticeRenderer {
             });
         }
     }
+// New methods to add to LatticeRenderer.js (within the LatticeRenderer class)
+// Add these methods to the existing LatticeRenderer class
+
+/**
+ * Render the orbit of a selected point
+ * @param {Array<Array<number>>} orbit - Array of orbit points
+ * @param {Object} group - Konva group to add the orbit to
+ * @param {Object} options - Rendering options
+ * @returns {Object} The orbit group
+ */
+renderOrbit(orbit, group, options) {
+    const {
+        orbitPointColor = '#9c27b0', // Default purple color
+        orbitPointSize = 8,
+        orbitPointBorderColor = 'white',
+        orbitPointBorderWidth = 2,
+        zoomLevel = 1
+    } = options;
+    
+    // Calculate zoom-adjusted sizes
+    const zoomAdjustment = Math.max(0.5, Math.min(1.5, 1/Math.sqrt(zoomLevel)));
+    const adjustedPointSize = orbitPointSize * zoomAdjustment;
+    const adjustedBorderWidth = orbitPointBorderWidth * zoomAdjustment;
+    
+    // Create a group for orbit points
+    const orbitGroup = new this.konva.Group({
+        id: 'orbit_group'
+    });
+    
+    // Create points for each orbit element
+    orbit.forEach((point, index) => {
+        const circle = new this.konva.Circle({
+            x: point[0],
+            y: point[1],
+            radius: adjustedPointSize,
+            fill: orbitPointColor,
+            stroke: orbitPointBorderColor,
+            strokeWidth: adjustedBorderWidth,
+            id: `orbit_point_${index}`
+        });
+        
+        // Add a pulsing animation to make orbit points stand out
+        const pulseAnimation = new this.konva.Animation((frame) => {
+            if (!frame) return;
+            // Pulse with a 1-second period
+            const scale = 1 + 0.1 * Math.sin(frame.time * 0.002);
+            circle.radius(adjustedPointSize * scale);
+        }, orbitGroup);
+        
+        // Start the animation
+        pulseAnimation.start();
+        
+        orbitGroup.add(circle);
+    });
+    
+    group.add(orbitGroup);
+    return orbitGroup;
+}
+
+/**
+ * Highlight the selected point
+ * @param {Array<number>} point - The selected point coordinates
+ * @param {Object} group - Konva group to add the highlight to
+ * @param {Object} options - Rendering options
+ * @returns {Object} The highlight object
+ */
+highlightSelectedPoint(point, group, options) {
+    const {
+        selectedPointColor = '#ffeb3b', // Default yellow color
+        selectedPointSize = 10,
+        selectedPointBorderColor = 'black',
+        selectedPointBorderWidth = 2,
+        zoomLevel = 1
+    } = options;
+    
+    // Calculate zoom-adjusted sizes
+    const zoomAdjustment = Math.max(0.5, Math.min(1.5, 1/Math.sqrt(zoomLevel)));
+    const adjustedPointSize = selectedPointSize * zoomAdjustment;
+    const adjustedBorderWidth = selectedPointBorderWidth * zoomAdjustment;
+    
+    // Remove any existing selection
+    const existingSelection = group.findOne('#selected_point');
+    if (existingSelection) {
+        existingSelection.destroy();
+    }
+    
+    // Create the highlighted point with a double circle effect
+    const outerCircle = new this.konva.Circle({
+        x: point[0],
+        y: point[1],
+        radius: adjustedPointSize + 2 * adjustedBorderWidth,
+        fill: selectedPointBorderColor,
+        id: 'selected_point_outer'
+    });
+    
+    const innerCircle = new this.konva.Circle({
+        x: point[0],
+        y: point[1],
+        radius: adjustedPointSize,
+        fill: selectedPointColor,
+        id: 'selected_point'
+    });
+    
+    // Create a selection group
+    const selectionGroup = new this.konva.Group({
+        id: 'selection_group'
+    });
+    
+    // Add pulsing effect to selection
+    const pulseAnimation = new this.konva.Animation((frame) => {
+        if (!frame) return;
+        // Pulse with a 1-second period, slightly faster than orbit points
+        const scale = 1 + 0.15 * Math.sin(frame.time * 0.003);
+        outerCircle.radius((adjustedPointSize + 2 * adjustedBorderWidth) * scale);
+        innerCircle.radius(adjustedPointSize * scale);
+    }, selectionGroup);
+    
+    // Add circles to group
+    selectionGroup.add(outerCircle);
+    selectionGroup.add(innerCircle);
+    
+    // Add to main group
+    group.add(selectionGroup);
+    
+    // Start animation
+    pulseAnimation.start();
+    
+    return selectionGroup;
+}
 }

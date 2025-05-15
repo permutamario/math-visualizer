@@ -3,6 +3,7 @@
 import { Plugin2D } from '../../src/core/Plugin2D.js';
 import { LatticeGenerator } from './LatticeGenerator.js';
 import { LatticeRenderer } from './LatticeRenderer.js';
+import { WeylGroup } from './WeylGroup.js';
 
 export default class RootLatticePlugin extends Plugin2D {
     // Required static properties
@@ -17,6 +18,7 @@ export default class RootLatticePlugin extends Plugin2D {
         // Initialize required components
         this.latticeGenerator = null;
         this.latticeRenderer = null;
+        this.weylGroup = null; // New for Weyl group operations
         
         // Internal state
         this.latticeData = {
@@ -24,6 +26,10 @@ export default class RootLatticePlugin extends Plugin2D {
             roots: [],
             hyperplanes: []
         };
+        
+        // Point selection and orbit tracking
+        this.selectedPoint = null;
+        this.orbitPoints = [];
         
         // Rendering groups
         this.mainGroup = null;
@@ -35,12 +41,14 @@ export default class RootLatticePlugin extends Plugin2D {
         // Dirty flags
         this.isDirtyLattice = true;
         this.isDirtyView = true;
+        this.isDirtyOrbit = false; // New flag for orbit updates
     }
     
     async start() {
-        // Initialize the lattice generator and renderer
+        // Initialize the lattice generator, renderer and Weyl group
         this.latticeGenerator = new LatticeGenerator();
         this.latticeRenderer = new LatticeRenderer(this.renderEnv.konva);
+        this.weylGroup = new WeylGroup();
         
         // Add visual parameters
         this.addDropdown('latticeType', 'Lattice Type', 'A2', [
@@ -52,6 +60,12 @@ export default class RootLatticePlugin extends Plugin2D {
         this.addSlider('latticeDensity', 'Lattice Density', 10, { min: 1, max: 50, step: 1 });
         this.addCheckbox('showRoots', 'Show Root Vectors', true);
         this.addCheckbox('showHyperplanes', 'Show Hyperplanes', true);
+        
+        // Add Weyl orbit feature parameters
+        this.addCheckbox('showOrbit', 'Show Weyl Group Orbit', true);
+        this.addColor('orbitColor', 'Orbit Point Color', '#9c27b0');
+        this.addSlider('orbitPointSize', 'Orbit Point Size', 8, { min: 2, max: 15, step: 0.5 });
+        
         this.addColorPalette();
         
         // Add advanced parameters
@@ -60,6 +74,10 @@ export default class RootLatticePlugin extends Plugin2D {
         this.addSlider('rootLength', 'Root Length', 50, { min: 10, max: 100, step: 5 }, 'advanced');
         this.addCheckbox('showPointInfo', 'Show Point Info on Hover', false, 'advanced');
         this.addSlider('zoomSensitivity', 'Zoom Sensitivity', 0.1, { min: 0.05, max: 0.3, step: 0.05 }, 'advanced');
+        
+        // Add orbit-related advanced parameters
+        this.addColor('selectedPointColor', 'Selected Point Color', '#ffeb3b', 'advanced');
+        this.addSlider('selectedPointSize', 'Selected Point Size', 10, { min: 5, max: 20, step: 1 }, 'advanced');
         
         // Create main group and add to layer
         this.mainGroup = this.createGroup('main');
@@ -172,9 +190,10 @@ export default class RootLatticePlugin extends Plugin2D {
         }
         
         // Update lattice if needed
-        if (this.isDirtyLattice) {
+        if (this.isDirtyLattice || this.isDirtyOrbit) {
             this.updateLattice();
             this.isDirtyLattice = false;
+            this.isDirtyOrbit = false;
         }
         
         return true; // Continue animation
@@ -222,6 +241,11 @@ export default class RootLatticePlugin extends Plugin2D {
         
         // Mark as dirty to trigger redraw
         this.isDirtyLattice = true;
+        
+        // Recompute orbit if we have a selected point
+        if (this.selectedPoint && this.getParameter('showOrbit')) {
+            this.computeOrbit();
+        }
     }
     
     updateHyperplanes() {
@@ -273,6 +297,27 @@ export default class RootLatticePlugin extends Plugin2D {
             latticeType: this.getParameter('latticeType')
         });
         
+        // Add orbit visualization if there's a selected point
+        if (this.selectedPoint && this.getParameter('showOrbit') && this.orbitPoints.length > 0) {
+            // Render the orbit
+            this.latticeRenderer.renderOrbit(this.orbitPoints, this.mainGroup, {
+                orbitPointColor: this.getParameter('orbitColor'),
+                orbitPointSize: this.getParameter('orbitPointSize') * scaleAdjustment,
+                orbitPointBorderColor: 'white',
+                orbitPointBorderWidth: 1,
+                zoomLevel: currentScale
+            });
+            
+            // Highlight the selected point
+            this.latticeRenderer.highlightSelectedPoint(this.selectedPoint, this.mainGroup, {
+                selectedPointColor: this.getParameter('selectedPointColor'),
+                selectedPointSize: this.getParameter('selectedPointSize') * scaleAdjustment,
+                selectedPointBorderColor: 'black',
+                selectedPointBorderWidth: 2,
+                zoomLevel: currentScale
+            });
+        }
+        
         // Add explanatory text about the current root system
         this.addExplanatoryText();
         
@@ -301,6 +346,28 @@ export default class RootLatticePlugin extends Plugin2D {
                 break;
         }
         
+        // Add orbit info if a point is selected
+        if (this.selectedPoint && this.getParameter('showOrbit')) {
+            const orbitSize = this.orbitPoints.length;
+            description += `\n\nSelected point: (${this.selectedPoint[0].toFixed(2)}, ${this.selectedPoint[1].toFixed(2)})`;
+            description += `\nOrbit size: ${orbitSize} points`;
+            
+            // Add information about the Weyl group order for each type
+            switch(latticeType) {
+                case 'A2':
+                    description += `\nWeyl group: S₃ (dihedral group of order 6)`;
+                    break;
+                case 'B2':
+                    description += `\nWeyl group: D₄ (dihedral group of order 8)`;
+                    break;
+                case 'G2':
+                    description += `\nWeyl group: D₆ (dihedral group of order 12)`;
+                    break;
+            }
+        } else if (!this.selectedPoint) {
+            description += "\n\nClick on any lattice point to see its orbit under the Weyl group.";
+        }
+        
         // Create text box with the background and padding
         const textBox = new this.renderEnv.konva.Text({
             x: 10,
@@ -323,24 +390,62 @@ export default class RootLatticePlugin extends Plugin2D {
         this.redrawLayer('overlay');
     }
     
-    // Also remove our wheel handling in handleInteraction since we're handling it directly
+    // Handle user interactions including point selection
     handleInteraction(type, data) {
-        // We're now handling wheel events directly at the DOM level
-        // so we don't need to process them here
-        
-        // For debugging purposes only
-        if (type === 'click' && data.evt && data.evt.ctrlKey) {
-            // Log coordinates when control+click (for debugging)
-            const stage = this.renderEnv.stage;
-            const scale = stage.scale().x;
-            const stagePos = stage.position();
+        // Handle click events for point selection
+        if (type === 'click') {
+            // Check if we clicked on a lattice point
+            const target = data.target;
+            if (target && target.id().startsWith('point_')) {
+                // Get the clicked point from our cache
+                const pointInfo = this.latticeRenderer.pointsCache.get(target._id);
+                if (pointInfo) {
+                    this.selectPoint([pointInfo.x, pointInfo.y]);
+                }
+            }
             
-            // Convert screen coordinates to world coordinates
-            const worldX = (data.x - stagePos.x) / scale;
-            const worldY = (data.y - stagePos.y) / scale;
-            
-            console.log(`Clicked at world coordinates: (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
+            // For debugging purposes (keep this part from the original code)
+            if (data.evt && data.evt.ctrlKey) {
+                // Log coordinates when control+click (for debugging)
+                const stage = this.renderEnv.stage;
+                const scale = stage.scale().x;
+                const stagePos = stage.position();
+                
+                // Convert screen coordinates to world coordinates
+                const worldX = (data.x - stagePos.x) / scale;
+                const worldY = (data.y - stagePos.y) / scale;
+                
+                console.log(`Clicked at world coordinates: (${worldX.toFixed(2)}, ${worldY.toFixed(2)})`);
+            }
         }
+    }
+    
+    // Select a point and compute its orbit
+    selectPoint(point) {
+        // Set the selected point
+        this.selectedPoint = point;
+        
+        // Compute the orbit if visualization is enabled
+        if (this.getParameter('showOrbit')) {
+            this.computeOrbit();
+        }
+        
+        // Mark as dirty to trigger redraw
+        this.isDirtyLattice = true;
+    }
+    
+    // Compute the orbit of the selected point
+    computeOrbit() {
+        if (!this.selectedPoint) return;
+        
+        const latticeType = this.getParameter('latticeType');
+        const roots = this.latticeGenerator.getRoots(latticeType);
+        
+        // Compute the orbit
+        this.orbitPoints = this.weylGroup.generateOrbit(this.selectedPoint, roots);
+        
+        // Mark orbit as dirty
+        this.isDirtyOrbit = true;
     }
     
     onParameterChanged(parameterId, value) {
@@ -348,10 +453,26 @@ export default class RootLatticePlugin extends Plugin2D {
         if (parameterId === 'latticeType' || parameterId === 'latticeDensity') {
             // Regenerate entire lattice data
             this.generateLatticeData();
+            
+            // Recompute orbit for new root system
+            if (this.selectedPoint && this.getParameter('showOrbit')) {
+                this.computeOrbit();
+            }
         } else if (parameterId === 'showRoots' || parameterId === 'showHyperplanes') {
             // Update visibility flags
             this.latticeData.showRoots = this.getParameter('showRoots');
             this.latticeData.showHyperplanes = this.getParameter('showHyperplanes');
+            this.isDirtyLattice = true;
+        } else if (parameterId === 'showOrbit') {
+            // Toggle orbit visualization
+            if (value && this.selectedPoint) {
+                // Compute orbit if it was turned on
+                this.computeOrbit();
+            }
+            this.isDirtyLattice = true;
+        } else if (parameterId === 'orbitColor' || parameterId === 'orbitPointSize' || 
+                   parameterId === 'selectedPointColor' || parameterId === 'selectedPointSize') {
+            // Update orbit visuals
             this.isDirtyLattice = true;
         } else {
             // Other visual parameters changed
@@ -378,9 +499,14 @@ export default class RootLatticePlugin extends Plugin2D {
             this.mainGroup = null;
         }
         
+        // Clean up orbit data
+        this.selectedPoint = null;
+        this.orbitPoints = [];
+        
         this.latticeData = null;
         this.latticeGenerator = null;
         this.latticeRenderer = null;
+        this.weylGroup = null;
         
         // Let the base class handle animation and event cleanup
         await super.unload();
